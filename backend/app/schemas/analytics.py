@@ -77,7 +77,10 @@ class AnalyticsOverviewResponse(ApiModel):
     claims_missing_critical_fields: int = Field(
         ...,
         ge=0,
-        description="Dated in-range claims missing merchant, expense_date, amount or currency.",
+        description=(
+            "Dated in-range claims missing merchant, amount or currency. Undated claims are "
+            "reported separately in claims_with_unknown_transaction_date."
+        ),
     )
     claims_with_uncertain_critical_fields: int = Field(
         ...,

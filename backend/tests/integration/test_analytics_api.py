@@ -89,7 +89,7 @@ def analytics_dataset(db: Session, seeded: dict[str, object]) -> dict[str, uuid.
             channel="web",
             status=status.value,
             version=1,
-            merchant=f"Synthetic {key}",
+            merchant=None if key == "unknown-date" else f"Synthetic {key}",
             expense_date=expense_date,
             amount=Decimal(amount) if amount is not None else None,
             currency=currency,

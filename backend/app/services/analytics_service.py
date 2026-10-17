@@ -295,7 +295,6 @@ def overview(
 
     missing_critical = or_(
         Expense.merchant.is_(None),
-        Expense.expense_date.is_(None),
         Expense.amount.is_(None),
         Expense.currency.is_(None),
     )
