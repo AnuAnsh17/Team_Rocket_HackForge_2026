@@ -16,23 +16,46 @@ policy is *resolved* per claim, from the employee's authoritative current profil
 
 The schema supports these scope dimensions on `policy_assignments`:
 
-| Dimension (`PolicyAssignmentScopeType`) | Resolved from |
-|---|---|
-| `organization` | the claim's organization |
-| `legal_entity` | modelled; not resolvable until the organization records it |
-| `jurisdiction` | `organizations.jurisdiction_code` |
+| Dimension (`PolicyAssignmentScopeType`) | Resolved from | Selector |
+|---|---|---|
+| `organization` | the claim's organization | UUID |
+| `legal_entity` | `organizations.legal_entity_name` | text key |
+| `jurisdiction` | `organizations.jurisdiction_code` | text key |
 | `office_location` | `organization_memberships.office_location_id` |
 | `department` | `organization_memberships.department_id` |
 | `cost_center` | `organization_memberships.cost_center_id` |
 | `job_grade` | `organization_memberships.job_grade_id` |
 | `trip` | `expenses.trip_id` |
-| `expense_category` | `expenses.category` |
-| `employee` | the claim's membership |
-| explicit exception | `policy_exceptions`, time-bounded and authorised |
+| `expense_category` | `expenses.category` | text key |
+| `employee` | the claim's membership | UUID |
+| explicit exception | `policy_exceptions`, time-bounded and authorised | - |
 
 These are **supported** dimensions, not a claim that every organization uses this
 hierarchy. An organization with no grades simply leaves `job_grade_id` null and that
 dimension never matches.
+
+### Two kinds of selector, and why the distinction is explicit
+
+A dimension is matched by **one** of two selectors (columns on `policy_assignments`):
+
+- **UUID-valued** (`scope_id`): the dimension addresses a row in this database -
+  organization, office location, department, cost centre, job grade, trip, employee.
+- **Text-valued** (`scope_key`): the dimension is an attribute recorded as a code or a
+  name, and has no table of its own, so there is no id to point at - legal entity,
+  jurisdiction, expense category.
+
+Which is which is defined **once**, in
+`app/core/enums.py::UUID_VALUED_SCOPE_TYPES` / `TEXT_VALUED_SCOPE_TYPES`, and everything
+else derives from that pair: the database CHECK constraint that refuses a mismatched
+selector, the resolver's dispatch, and the tests. A dimension added to the enum without
+being classified raises instead of silently never matching.
+
+Text keys are compared after trimming surrounding whitespace and folding case, so
+`"IN-MH"` and `" in-mh "` denote the same jurisdiction. That is a matching convenience,
+not a policy rule: it does not declare two *different* keys to be the same, and it does
+not introduce precedence. The unique index on
+`lower(coalesce(scope_key, ''))` applies the same normalisation, so the database cannot
+hold two assignments the resolver would consider identical.
 
 ## Precedence is configuration, not specificity
 

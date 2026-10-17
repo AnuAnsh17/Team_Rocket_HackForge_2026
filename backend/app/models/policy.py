@@ -29,6 +29,8 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.enums import (
+    TEXT_VALUED_SCOPE_TYPES,
+    UUID_VALUED_SCOPE_TYPES,
     ApprovalState,
     PolicyAssignmentScopeType,
     PolicyExceptionType,
@@ -41,6 +43,7 @@ from app.db.base import (
     UUIDPrimaryKeyMixin,
     enum_column,
     in_enum,
+    in_list,
     in_values,
 )
 
@@ -173,8 +176,25 @@ class PolicyAssignment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
     )
     scope_type: Mapped[str] = enum_column(PolicyAssignmentScopeType)
-    # Always populated; equals organization_id when scope_type is 'organization'.
-    scope_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    # Exactly one of scope_id / scope_key is populated, decided by the dimension.
+    # ``scope_id`` addresses a UUID-valued dimension (organization, office location,
+    # department, cost center, job grade, trip, employee) and equals organization_id
+    # for organization scope. ``scope_key`` carries a text-valued dimension
+    # (legal entity, jurisdiction, expense category), which has no table of its own
+    # and therefore no id to point at.
+    #
+    # The split is not cosmetic. Before it, expense_category was treated as
+    # UUID-valued, so the resolver compared str(scope_id) against a category such as
+    # "meal" and could never match; legal entity and jurisdiction were never matched
+    # at all. Which dimensions are which is defined once, in
+    # app/core/enums.py::UUID_VALUED_SCOPE_TYPES / TEXT_VALUED_SCOPE_TYPES.
+    #
+    # Uniqueness is NOT declared here as a UniqueConstraint. PostgreSQL treats NULLs
+    # as distinct in a unique index, and one of these two columns is always NULL, so
+    # a plain unique constraint would silently allow duplicate assignments. The
+    # unique index over their coalesced text is created in the migration.
+    scope_id: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
+    scope_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     approval_state: Mapped[str] = enum_column(ApprovalState)
     effective_from: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -186,7 +206,20 @@ class PolicyAssignment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("organization_id", "policy_version_id", "scope_type", "scope_id"),
+        # A scope assignment must carry exactly the selector its dimension needs, and
+        # no other. This is what stops a category assignment being stored with a UUID
+        # that can never match a category, which is the defect this constraint exists
+        # to make unstorable rather than merely unlikely.
+        CheckConstraint(
+            "("
+            "  scope_type IN " + in_list(sorted(t.value for t in UUID_VALUED_SCOPE_TYPES)) + ""
+            "  AND scope_id IS NOT NULL AND scope_key IS NULL"
+            ") OR ("
+            "  scope_type IN " + in_list(sorted(t.value for t in TEXT_VALUED_SCOPE_TYPES)) + ""
+            "  AND scope_key IS NOT NULL AND scope_id IS NULL"
+            ")",
+            name="scope_selector_consistent",
+        ),
         in_enum("scope_type", PolicyAssignmentScopeType),
         in_enum("approval_state", ApprovalState),
         CheckConstraint(

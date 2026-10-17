@@ -274,6 +274,57 @@ being written down, rather than copying current release numbers.
   at `/var/lib/postgresql`; the older `/var/lib/postgresql/data` mount point is refused
   by the entrypoint.
 
+## 21. A policy scope carries one of two selectors, decided by the dimension
+
+**Decided** during the scope-resolution follow-up, after a defect made the reason
+concrete.
+
+**What was wrong.** `policy_assignments.scope_id` is a UUID, and every scope dimension
+used it. Three of the ten dimensions are not UUID-valued: `jurisdiction` and
+`legal_entity` are text values recorded on the organization, and `expense_category` is
+free text on the claim. The resolver compared `str(scope_id)` against those values, so an
+expense-category assignment **could never match**, and legal entity and jurisdiction
+returned `False` unconditionally. An assignment that can never apply is worse than a
+missing one, because it looks configured.
+
+**What is decided.** A scope carries exactly one selector. `scope_id` (UUID) addresses a
+dimension that points at a row in this database; `scope_key` (text) carries a dimension
+recorded as a code or name with no table of its own. Which dimensions are which lives in
+one place, `app/core/enums.py::UUID_VALUED_SCOPE_TYPES` /
+`TEXT_VALUED_SCOPE_TYPES`, and the database CHECK constraint, the resolver's dispatch and
+the tests all derive from it.
+
+**Why centralise it.** The original defect was not a typo; it was a dimension being
+handled in three separate places (model, resolver, documentation) that disagreed. Making
+the classification a single pair of sets means a new dimension cannot be half-supported,
+and `scope_selector_kind` raises rather than returning "never matches" for an
+unclassified one.
+
+**Enforcement.** `ck_policy_assignments_scope_selector_consistent` refuses a mismatched
+selector at the database level, so the defective shape cannot be stored even by a future
+code path that forgets the rule. Uniqueness is a functional index over the coalesced,
+lower-cased selectors, because a plain unique constraint cannot cover a table where one
+of the two columns is always NULL.
+
+**Text matching is normalised, narrowly.** Case is folded and whitespace trimmed, so
+`"IN-MH"` and `"in-mh"` are the same jurisdiction. This is a matching convenience and is
+documented as such: it does not declare two different keys equal, and it is not a
+precedence rule. Integration tests assert that `"IN"`, `"MH"`, `"IN MH"` and `"IN-MH-01"`
+all fail to match `IN-MH`.
+
+**What this deliberately does not do.** No precedence, no tie-breaking, no thresholds, no
+reimbursement rule. Where two approved versions compete, resolution still reports a
+conflict as *unresolved* rather than choosing, and integration tests assert that even a
+higher-priority assignment does not silently win across versions.
+
+**Cost.** One nullable column, one CHECK constraint, one functional index, and a
+migration whose downgrade refuses (with a stated reason) rather than deleting rows it
+cannot represent in the old shape.
+
+**Reversible?** Yes - `alembic downgrade -1` restores the previous constraint and drops
+`scope_key`, refusing only if text-dimension rows exist, since the old schema has nowhere
+to put them.
+
 ## Open decisions
 
 Recorded so they are not settled by accident. Full detail in

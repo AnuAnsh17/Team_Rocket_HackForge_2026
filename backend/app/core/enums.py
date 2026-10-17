@@ -20,6 +20,8 @@ from enum import StrEnum
 __all__ = [
     "ALLOWANCE_PERIOD_TYPES",
     "APPROVAL_TASK_STATUSES",
+    "TEXT_VALUED_SCOPE_TYPES",
+    "UUID_VALUED_SCOPE_TYPES",
     "ApprovalState",
     "ApprovalTaskStatus",
     "AuditActorType",
@@ -44,6 +46,7 @@ __all__ = [
     "RoleCode",
     "StorageBackend",
     "TripStatus",
+    "scope_selector_kind",
 ]
 
 
@@ -289,6 +292,65 @@ class PolicyAssignmentScopeType(StrEnum):
     TRIP = "trip"
     EXPENSE_CATEGORY = "expense_category"
     EMPLOYEE = "employee"
+
+
+# ---------------------------------------------------------------------------
+# Which policy-assignment scope dimensions are identified by a UUID, and which by
+# a text key.
+#
+# THIS IS THE SINGLE SOURCE OF TRUTH for that distinction. The database CHECK
+# constraint, the resolver and the tests all derive from these two sets, so a
+# dimension cannot end up half-supported -- which is exactly what happened before:
+# ``expense_category`` was declared a UUID-valued dimension because ``scope_id`` is
+# a UUID, so its comparison coerced a UUID to text and could never match a category
+# such as "meal". ``jurisdiction`` and ``legal_entity`` were never matched at all.
+#
+# A UUID-valued dimension points at a row in this database (a department, a trip).
+# A text-valued dimension is an attribute recorded as a code or name -- a
+# jurisdiction code, an expense category, a legal entity's recorded name -- and has
+# no table of its own, so there is no id to point at. See docs/database-design.md.
+# ---------------------------------------------------------------------------
+
+UUID_VALUED_SCOPE_TYPES: frozenset[PolicyAssignmentScopeType] = frozenset(
+    {
+        PolicyAssignmentScopeType.ORGANIZATION,
+        PolicyAssignmentScopeType.OFFICE_LOCATION,
+        PolicyAssignmentScopeType.DEPARTMENT,
+        PolicyAssignmentScopeType.COST_CENTER,
+        PolicyAssignmentScopeType.JOB_GRADE,
+        PolicyAssignmentScopeType.TRIP,
+        PolicyAssignmentScopeType.EMPLOYEE,
+    }
+)
+
+TEXT_VALUED_SCOPE_TYPES: frozenset[PolicyAssignmentScopeType] = frozenset(
+    {
+        PolicyAssignmentScopeType.LEGAL_ENTITY,
+        PolicyAssignmentScopeType.JURISDICTION,
+        PolicyAssignmentScopeType.EXPENSE_CATEGORY,
+    }
+)
+
+
+def scope_selector_kind(scope_type: PolicyAssignmentScopeType | str) -> str:
+    """Return ``"uuid"`` or ``"text"`` for a scope dimension.
+
+    Raises ``ValueError`` for an unknown dimension rather than guessing: a new
+    dimension added to the enum without being classified must fail loudly instead
+    of silently resolving to "never matches".
+    """
+    try:
+        member = PolicyAssignmentScopeType(scope_type)
+    except ValueError as exc:
+        raise ValueError(f"unknown policy assignment scope type: {scope_type!r}") from exc
+    if member in UUID_VALUED_SCOPE_TYPES:
+        return "uuid"
+    if member in TEXT_VALUED_SCOPE_TYPES:
+        return "text"
+    raise ValueError(  # pragma: no cover - guards a future enum addition
+        f"scope type {member.value!r} is classified neither UUID-valued nor text-valued; "
+        "add it to UUID_VALUED_SCOPE_TYPES or TEXT_VALUED_SCOPE_TYPES in app/core/enums.py"
+    )
 
 
 class PolicyExceptionType(StrEnum):

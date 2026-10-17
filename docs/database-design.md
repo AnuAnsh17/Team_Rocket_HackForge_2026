@@ -60,7 +60,7 @@ idempotency_keys    (FK to users)
 | `policy_documents` | The source document and its `source_file_sha256`, which answers "which exact file governed this rule". The file itself is not stored here. |
 | `policy_versions` | `review_state`, effective period, approver, source hash. Only `approved` versions govern. |
 | `policy_rules` | One deterministic rule. `parameters` JSONB holds validated values only. `is_active` is constrained (see below). |
-| `policy_assignments` | Assigns a version to a scope with an explicit `priority` and `approval_state`. Unique `(organization_id, policy_version_id, scope_type, scope_id)`. |
+| `policy_assignments` | Assigns a version to a scope with an explicit `priority` and `approval_state`. A scope carries exactly one selector: `scope_id` (UUID) for a dimension that addresses a row in this database, or `scope_key` (text) for a dimension recorded as a code or name and having no table of its own. Which is which is defined once in `app/core/enums.py`; see `docs/role-policy-hierarchy.md`. Uniqueness is over the *effective* selector via the index below, not a plain unique constraint. |
 | `policy_exceptions` | An explicit, authorized, time-bounded deviation. Requires a reason, an effective start, an approver when approved, and a currency when it carries an amount. |
 | `allowance_profiles` / `allowance_profile_items` | A named set of allowances and its individual lines. Items carry the sourcing constraint below. |
 
@@ -115,6 +115,7 @@ created colliding unique index names and failed the migration.
 | `ck_policy_versions_approval_requires_approver` | `policy_versions` | `approved` requires an approver and timestamp. |
 | `ck_users_external_identity_consistent` | `users` | Provider and subject are both set or both null. |
 | `ck_expenses_amount_requires_currency` | `expenses` | An amount never exists without its currency. |
+| `ck_policy_assignments_scope_selector_consistent` | `policy_assignments` | A scope carries exactly the selector its dimension needs and no other: a UUID-valued dimension requires `scope_id` and forbids `scope_key`; a text-valued dimension requires `scope_key` and forbids `scope_id`. This is what makes a category assignment stored against a UUID unstorable, rather than merely unlikely. |
 
 ### Hand-written indexes (Alembic cannot generate these)
 
@@ -123,6 +124,7 @@ created colliding unique index names and failed the migration.
 | `uq_expense_field_evidence_current` (partial, `WHERE is_current`) | At most one current provenance row per (claim, field), so the denormalised columns and the evidence rows cannot drift. |
 | `uq_duplicate_candidates_pair` | Unique on `(least(a,b), greatest(a,b), algorithm_version)`, so (A,B) and (B,A) cannot both exist and a reviewer is never shown one pair twice. |
 | `uq_findings_identity` | Unique on `(expense_id, rule_id, expense_version, scope_fingerprint, COALESCE(policy_version_id, <zero-uuid>))`. Makes duplicate findings on a retry impossible rather than unlikely. The `COALESCE` is required because a structural finding legitimately has no policy version and PostgreSQL treats NULLs as distinct. |
+| `uq_policy_assignments_scope_selector` | Unique on `(organization_id, policy_version_id, scope_type, COALESCE(scope_id::text, ''), lower(COALESCE(scope_key, '')))`. Replaces the plain unique constraint that covered this table before text-valued dimensions existed. A plain constraint cannot express it: exactly one selector column is always NULL and PostgreSQL treats NULLs as distinct, so the same assignment could have been inserted twice. The `lower()` matches the case folding the resolver applies. |
 | `ix_audit_events_entity`, `ix_audit_events_organization_created`, `ix_audit_events_actor_created`, `ix_audit_events_correlation` (partial) | The audit screens' query paths. |
 | `ix_expenses_organization_status`, `ix_expenses_membership_expense_date`, `ix_expenses_trip` (partial) | Claim list, per-employee history and aggregate scope gathering. |
 | `ix_receipts_organization_sha256` | The exact-duplicate signal lookup. Deliberately **not** unique. |

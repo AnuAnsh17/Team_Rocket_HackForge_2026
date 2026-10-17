@@ -267,6 +267,15 @@ def resolve_scope(
             "established for period-based rules"
         )
     jurisdiction = organization.jurisdiction_code if organization else None
+    legal_entity = organization.legal_entity_name if organization else None
+    if organization is not None and not jurisdiction:
+        # Recorded as an unresolved reason rather than defaulted: a claim whose
+        # jurisdiction is unknown cannot be matched against a jurisdiction-scoped
+        # assignment, and guessing one would silently change which policy applies.
+        unresolved.append(
+            "the organization's jurisdiction is not recorded, so jurisdiction-scoped policy "
+            "assignments cannot be evaluated"
+        )
 
     office_location_id: uuid.UUID | None = None
     if membership is not None:
@@ -291,6 +300,7 @@ def resolve_scope(
         if membership and membership.job_grade_id
         else None,
         "jurisdiction": jurisdiction,
+        "legal_entity": legal_entity,
         "category": expense.category,
         "trip": str(expense.trip_id) if expense.trip_id else None,
         "expense_date": _date_str(expense.expense_date),
@@ -325,6 +335,7 @@ def resolve_scope(
         cost_center_id=membership.cost_center_id if membership else None,
         job_grade_id=membership.job_grade_id if membership else None,
         jurisdiction_code=jurisdiction,
+        legal_entity_name=legal_entity,
         timezone=timezone,
         trip_id=expense.trip_id,
         trip_destination_city=trip.destination_city if trip else None,

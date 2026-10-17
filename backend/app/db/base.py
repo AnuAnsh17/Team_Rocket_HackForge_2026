@@ -121,14 +121,23 @@ def in_enum(name: str, enum_cls: type[PyEnum]) -> CheckConstraint:
     return in_values(name, enum_values(enum_cls))
 
 
+def in_list(values: Sequence[str]) -> str:
+    """Render a SQL ``IN`` list for embedding inside a larger expression.
+
+    Needed where a constraint is more than a single ``IN`` test -- for example the
+    policy-assignment scope selector, which combines one ``IN`` test with a
+    nullability rule.
+    """
+    return "(" + ", ".join(f"'{value}'" for value in values) + ")"
+
+
 def in_values(name: str, values: Sequence[str]) -> CheckConstraint:
     """Build a CHECK constraint asserting a column is one of a fixed set.
 
     Used for enum-backed columns and for small open sets that are not modelled
     as enums (for example allowance period types).
     """
-    rendered = ", ".join(f"'{value}'" for value in values)
-    return CheckConstraint(f"{name} IN ({rendered})", name=name)
+    return CheckConstraint(f"{name} IN {in_list(values)}", name=name)
 
 
 def non_negative(name: str) -> CheckConstraint:

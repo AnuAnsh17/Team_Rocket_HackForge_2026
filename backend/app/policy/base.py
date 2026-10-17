@@ -97,6 +97,11 @@ class EvaluationScope:
     cost_center_id: uuid.UUID | None = None
     job_grade_id: uuid.UUID | None = None
     jurisdiction_code: str | None = None
+    # The legal entity the organization records, as a text value. There is no
+    # legal_entities table, so this dimension has no id to match on; the policy
+    # assignment carries it in `scope_key`. See app/core/enums.py for why the
+    # UUID-valued and text-valued dimensions are distinguished.
+    legal_entity_name: str | None = None
     timezone: str | None = None
     trip_id: uuid.UUID | None = None
     trip_destination_city: str | None = None

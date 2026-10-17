@@ -22,7 +22,7 @@ from app.schemas.meta import ApiMetaResponse, EnumCatalogueResponse
 # Version label of the reviewed human-readable contract this build targets. Must match
 # the "Contract version" line at the top of docs/api-contract.md; a contract test
 # compares the two.
-CONTRACT_VERSION = "1.1-scaffold"
+CONTRACT_VERSION = "1.1.1-scaffold"
 
 # Capabilities the contract describes that this build does NOT implement. Reported
 # explicitly so a caller can tell a scaffold from a finished product without

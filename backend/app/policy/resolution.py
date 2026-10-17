@@ -29,7 +29,12 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.enums import ApprovalState, PolicyAssignmentScopeType, PolicyReviewState
+from app.core.enums import (
+    ApprovalState,
+    PolicyAssignmentScopeType,
+    PolicyReviewState,
+    scope_selector_kind,
+)
 from app.core.logging import get_logger
 from app.models.policy import PolicyAssignment, PolicyVersion
 from app.policy.base import EvaluationScope
@@ -39,10 +44,25 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class AppliedAssignment:
+    """An assignment the resolver determined actually applies to this claim.
+
+    Exactly one of ``scope_id`` / ``scope_key`` is populated, matching the
+    dimension's selector kind. Both are carried so a reviewer-facing explanation can
+    state what matched, rather than showing an id for a dimension that has none.
+    """
+
     assignment_id: uuid.UUID
     scope_type: str
-    scope_id: uuid.UUID
     priority: int
+    scope_id: uuid.UUID | None = None
+    scope_key: str | None = None
+
+    @property
+    def selector(self) -> str:
+        """A printable form of whichever selector this dimension uses."""
+        if self.scope_id is not None:
+            return str(self.scope_id)
+        return self.scope_key or ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,36 +78,76 @@ class ResolvedPolicy:
     dimensions_consulted: dict[str, str | None] = field(default_factory=dict)
 
 
+def _text_key(value: str | None) -> str | None:
+    """Normalise a text scope key for comparison.
+
+    Surrounding whitespace is stripped and case is folded, because a jurisdiction
+    code written "in-mh" and "IN-MH" denote the same jurisdiction, and a category
+    written "Meal" and "meal" denote the same category. This is a matching
+    convenience, not a policy rule: it does NOT decide that two *different* keys are
+    the same, and it does not introduce precedence. The unique index on
+    ``lower(coalesce(scope_key, ''))`` in the migration applies the same
+    normalisation, so the database cannot hold two assignments the resolver would
+    consider identical.
+    """
+    if value is None:
+        return None
+    normalised = value.strip().casefold()
+    return normalised or None
+
+
+def _presented_selector(scope: EvaluationScope, scope_type: str) -> uuid.UUID | str | None:
+    """What this claim presents for one scope dimension, or None when unknown.
+
+    ``None`` means the claim genuinely has no value for that dimension -- no trip, no
+    category, an organization with no recorded jurisdiction. A dimension with no
+    value cannot match any assignment, and the resolver reports the resulting
+    absence of an applicable policy rather than assuming the dimension is satisfied.
+    """
+    member = PolicyAssignmentScopeType(scope_type)
+    if member is PolicyAssignmentScopeType.ORGANIZATION:
+        # Always known: a claim cannot exist outside an organization.
+        return scope.organization_id
+    if member is PolicyAssignmentScopeType.OFFICE_LOCATION:
+        return scope.office_location_id
+    if member is PolicyAssignmentScopeType.DEPARTMENT:
+        return scope.department_id
+    if member is PolicyAssignmentScopeType.COST_CENTER:
+        return scope.cost_center_id
+    if member is PolicyAssignmentScopeType.JOB_GRADE:
+        return scope.job_grade_id
+    if member is PolicyAssignmentScopeType.TRIP:
+        return scope.trip_id
+    if member is PolicyAssignmentScopeType.EMPLOYEE:
+        return scope.membership_id
+    if member is PolicyAssignmentScopeType.LEGAL_ENTITY:
+        # The organization's recorded legal entity. A text dimension: there is no
+        # legal_entities table, so there is no id to compare against.
+        return _text_key(scope.legal_entity_name)
+    if member is PolicyAssignmentScopeType.JURISDICTION:
+        return _text_key(scope.jurisdiction_code)
+    if member is PolicyAssignmentScopeType.EXPENSE_CATEGORY:
+        return _text_key(scope.category)
+    raise ValueError(  # pragma: no cover - unreachable while the enum is exhaustive
+        f"no selector is defined for scope type {member.value!r}"
+    )
+
+
 def _matches(assignment: PolicyAssignment, scope: EvaluationScope) -> bool:
-    """Whether an assignment's scope actually applies to this claim."""
-    scope_type = assignment.scope_type
-    if scope_type == PolicyAssignmentScopeType.ORGANIZATION.value:
-        return assignment.scope_id == scope.organization_id
-    if scope_type == PolicyAssignmentScopeType.OFFICE_LOCATION.value:
-        return (
-            scope.office_location_id is not None and assignment.scope_id == scope.office_location_id
-        )
-    if scope_type == PolicyAssignmentScopeType.DEPARTMENT.value:
-        return scope.department_id is not None and assignment.scope_id == scope.department_id
-    if scope_type == PolicyAssignmentScopeType.COST_CENTER.value:
-        return scope.cost_center_id is not None and assignment.scope_id == scope.cost_center_id
-    if scope_type == PolicyAssignmentScopeType.JOB_GRADE.value:
-        return scope.job_grade_id is not None and assignment.scope_id == scope.job_grade_id
-    if scope_type == PolicyAssignmentScopeType.TRIP.value:
-        return scope.trip_id is not None and assignment.scope_id == scope.trip_id
-    if scope_type == PolicyAssignmentScopeType.EMPLOYEE.value:
-        return assignment.scope_id == scope.membership_id
-    if scope_type == PolicyAssignmentScopeType.EXPENSE_CATEGORY.value:
-        return scope.category is not None and str(assignment.scope_id) == scope.category
-    # Legal entity and jurisdiction dimensions are modelled but cannot be matched
-    # until the organization records them; treating an unmatched assignment as
-    # applicable would be a guess.
-    if scope_type in (
-        PolicyAssignmentScopeType.LEGAL_ENTITY.value,
-        PolicyAssignmentScopeType.JURISDICTION.value,
-    ):
+    """Whether an assignment's scope actually applies to this claim.
+
+    Dispatch is driven by ``scope_selector_kind``, which is the single source of
+    truth for whether a dimension is identified by a UUID or by a text key. Every
+    supported dimension is therefore handled by construction, and adding one to the
+    enum without classifying it raises instead of silently never matching.
+    """
+    kind = scope_selector_kind(assignment.scope_type)
+    presented = _presented_selector(scope, assignment.scope_type)
+    if presented is None:
         return False
-    return False
+    if kind == "uuid":
+        return assignment.scope_id is not None and assignment.scope_id == presented
+    return assignment.scope_key is not None and _text_key(assignment.scope_key) == presented
 
 
 def resolve_effective_policy(
@@ -176,7 +236,11 @@ def resolve_effective_policy(
     top_priority = max(a.priority for a in relevant)
     applied = tuple(
         AppliedAssignment(
-            assignment_id=a.id, scope_type=a.scope_type, scope_id=a.scope_id, priority=a.priority
+            assignment_id=a.id,
+            scope_type=a.scope_type,
+            priority=a.priority,
+            scope_id=a.scope_id,
+            scope_key=a.scope_key,
         )
         for a in sorted(relevant, key=lambda a: (-a.priority, a.scope_type))
         if a.priority == top_priority

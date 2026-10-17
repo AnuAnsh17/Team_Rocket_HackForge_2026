@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.1-scaffold
+**Contract version:** 1.1.1-scaffold
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -24,6 +24,7 @@ unimplemented route works.
 | 1.0-draft -> 1.1 | Pagination is `limit` + opaque `next_cursor` + `total` | The old prose allowed "limit, cursor or offset". One shape is required for a shared client. |
 | 1.0-draft -> 1.1 | Demo routes answer 404 when demo mode is off | The old text allowed 404 or 403. 404 does not disclose that a disabled demo surface exists. |
 | 1.0-draft -> 1.1 | `Idempotency-Key` required on create/submit/decision mutations | The old text required it for create/submit and merely encouraged it elsewhere, which is not a testable rule. |
+| 1.1 -> 1.1.1 | A policy-assignment scope carries exactly one of `scope_id` (UUID) or `scope_key` (text), decided by the dimension | Three of the ten dimensions are not UUID-valued (legal entity, jurisdiction, expense category), and a single UUID column could not express them, so assignments scoped to those dimensions never matched. Uniqueness is now over the effective selector. No route is affected today: the policy routes are declared unimplemented. |
 
 ---
 

@@ -83,7 +83,21 @@ class PolicyAssignmentSummary(ApiModel):
     policy_version_id: uuid.UUID
     version_label: str
     scope_type: str
-    scope_id: uuid.UUID
+    scope_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Selector for a UUID-valued dimension (organization, office location, department, "
+            "cost center, job grade, trip, employee). Exactly one of scope_id and scope_key is "
+            "populated, according to the dimension."
+        ),
+    )
+    scope_key: str | None = Field(
+        default=None,
+        description=(
+            "Selector for a text-valued dimension (legal entity, jurisdiction, expense "
+            "category), which has no table and therefore no id to point at."
+        ),
+    )
     priority: int
     approval_state: ApprovalState
     effective_from: date | None = None

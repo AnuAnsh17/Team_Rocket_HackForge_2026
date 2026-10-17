@@ -1,30 +1,40 @@
 # Problem Statement Coverage
 
-**Assessment date:** 2026-10-17
+**Assessment date:** 2026-10-17 (updated after the scope-resolution follow-up)
 **Branch assessed:** `chore/proofline-project-scaffold`
 **Baseline commit:** `be26b35` (the docs-only repository as cloned)
+**Requirement source:** [`docs/problem-statement.md`](./problem-statement.md)
 **Assessor's role:** this is a self-assessment of the design and the scaffold by the
 engineer who built it, not an independent evaluation.
 
-## 0. On the original problem statement
+## 0. Requirement sources, and what is still missing
 
-**The verbatim problem statement was not available to me.** It is not in this
-repository, and it is not publicly retrievable - three searches for the "Receipt
-Graveyard" statement and for the hackathon's problem set returned nothing.
+Every requirement below is traced to a quoted source. The wording lives in
+[`docs/problem-statement.md`](./problem-statement.md), which exists so that this matrix
+references a document in the repository rather than a file outside it.
 
-That matters, because this document is supposed to preserve its wording. I will not
-invent it. What follows is derived from the description in
-`PROOFLINE_BUILD_PLAN.md` (section 0), which restates the problem as:
+| Source | What it is | Status |
+|---|---|---|
+| **A** | The original "Receipt Graveyard" hackathon problem statement | **NOT SUPPLIED.** `docs/problem-statement.md` section 2 is a deliberately empty slot. |
+| **B** | This project's own problem statement, from `PROOFLINE_BUILD_PLAN.md` section 0 | Available. **Derived wording**, not the original. |
+| **C** | The approved scoping decision listing the required coverage areas | Available, reproduced verbatim in `docs/problem-statement.md` section 3. |
 
-> "The Receipt Graveyard - turn messy receipts and a layered expense policy into
-> accurate, explainable, reviewable reimbursement decisions, including duplicates and
-> month-wide patterns."
+**The traceability mapping.** Requirements **R1 to R16** in section 2 are the sixteen
+required coverage areas of **source C**, section 3.5, in that document's own order, one
+requirement for one bullet. The labels are therefore verbatim-derived from an approved
+source, not invented here.
 
-That restatement is the best available proxy, and it is a *derived* summary rather than
-the source. **Action required:** supply the original problem statement text, and the
-requirement list below will be reconciled against it. Any requirement the real statement
-contains that is missing here is a gap in this analysis, not evidence that it does not
-exist.
+**What that does and does not prove.** It proves this matrix covers everything this
+project was asked to build. It does **not** prove the request list is complete, because
+source C is a derived requirements document. If the original statement contains a
+requirement source C omits, this report would not notice its absence. That is precisely
+the failure mode the empty slot in `docs/problem-statement.md` exists to prevent, and it
+is why source A is still listed as an open action in section 7.
+
+**Nothing here has been reconstructed.** No plausible-sounding version of source A has
+been written, because a reconstruction would silently redefine what the project is judged
+against and every coverage claim built on it would then be measured against the wrong
+target.
 
 ## 1. Status vocabulary
 
@@ -118,6 +128,16 @@ annotation exists.
 - **Status:** `SCAFFOLDED`. Entities, constraints and the resolver exist. **No grade
   levels, no allowances and no approval rules exist**, because they are organizational
   and policy data. Precedence is deliberately not assumed.
+- **Scope-resolution sub-status (follow-up commit):** the half of this requirement that
+  is *matching a claim to the assignments that apply to it* is now **implemented and
+  tested for all ten supported dimensions** - `organization`, `office_location`,
+  `department`, `cost_center`, `job_grade`, `trip`, `employee`, `legal_entity`,
+  `jurisdiction` and `expense_category` - with a regression test per dimension and a test
+  that fails if a dimension is ever added without being classified. Three of those
+  dimensions (legal entity, jurisdiction, expense category) previously could never match
+  at all, so an assignment scoped to them looked configured and did nothing.
+  This does **not** raise R4's status: matching is not applying. With no allowance
+  profile and no rule, nothing is still computed, and no limit reaches an employee.
 - **Evidence needed:** the organization's grade structure and allowance policy, plus
   approval-stage rules.
 - **Risk:** medium-high. The model supports the shape; the content is missing, and the
@@ -389,6 +409,11 @@ figure that describes what the software can do today.
 - **Numerator:** areas where working code is reachable through a real path and covered by
   tests that would fail if the behaviour broke. That is R12, and only its authorization
   half; production authentication refuses every request rather than working.
+- **Unchanged by the scope-resolution follow-up, deliberately.** That fix made the
+  policy-assignment matcher correct and tested for all ten dimensions, which is real work
+  and 77 new tests - but it does not let a single claim reach a reimbursement decision, so
+  it does not move this numerator. Recording it as an increase would be exactly the
+  inflation section 3's status definition forbids.
 - **What it is not:** it is not an accuracy figure, not a benchmark, and not a comparison
   against any other implementation.
 
@@ -442,6 +467,7 @@ taken on trust.
 | `chore(dashboard): scaffold internal finance and admin console` | 11 routes, navigation, tokens, 9 tests |
 | `chore(employee-portal): scaffold employee expense experience` | 7 routes, wording rules, 7 tests |
 | `chore(mobile): scaffold Expo employee application` | 5 screens, theme vocabulary, 7 tests |
+| `fix(policy): reconcile scope selectors with the documented dimensions` | Scope selector split, migration `0002_scope_selector`, 77 new tests, `docs/problem-statement.md` |
 
 Two notes on what these commits do **not** mean:
 
