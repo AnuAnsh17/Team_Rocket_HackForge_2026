@@ -59,6 +59,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an employee-owned draft expense
+         * @description Creates a draft for the caller's active membership so a receipt can be attached. This workflow slice does not support creating claims for another employee.
+         */
+        post: operations["create_draft_expense_api_v1_expenses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/expenses/{expense_id}/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload and OCR a private receipt
+         * @description Uploads one original receipt to a caller-owned draft, validates its content and runs the configured OCR provider synchronously. Exact duplicate files remain separate receipts and are linked only by their SHA-256 signal.
+         */
+        post: operations["upload_receipt_api_v1_expenses__expense_id__receipts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -179,6 +219,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipts/{receipt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read authorized receipt metadata and OCR status */
+        get: operations["read_receipt_api_v1_receipts__receipt_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/receipts/{receipt_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream authorized private receipt content
+         * @description The endpoint rechecks receipt and expense authorization on every request.
+         */
+        get: operations["read_receipt_content_api_v1_receipts__receipt_id__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -270,6 +347,48 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** Body_upload_receipt_api_v1_expenses__expense_id__receipts_post */
+        Body_upload_receipt_api_v1_expenses__expense_id__receipts_post: {
+            /** File */
+            file: string;
+        };
+        /**
+         * CreateExpenseRequest
+         * @description Create a draft claim from JSON metadata.
+         *
+         *     Receipt images are uploaded separately through
+         *     ``POST /api/v1/expenses/{expense_id}/receipts`` - the single canonical upload
+         *     route. This request deliberately carries no ``source`` or ``reviewed``
+         *     fields: provenance is assigned by the server from the caller's role, so a
+         *     client cannot claim reviewer provenance.
+         */
+        CreateExpenseRequest: {
+            /** Amount */
+            amount?: string | null;
+            /** Attendee Count */
+            attendee_count?: number | null;
+            /** Business Purpose */
+            business_purpose?: string | null;
+            /** Category */
+            category?: string | null;
+            /** @default web */
+            channel: components["schemas"]["ExpenseChannel"];
+            /** Client Name */
+            client_name?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Employee Membership Id
+             * @description Only accepted from a caller authorized to create on behalf of another employee. An employee's own claims are always created against their own membership.
+             */
+            employee_membership_id?: string | null;
+            /** Expense Date */
+            expense_date?: string | null;
+            /** Merchant */
+            merchant?: string | null;
+            /** Trip Id */
+            trip_id?: string | null;
+        };
         /** DemoResetResponse */
         DemoResetResponse: {
             /** Dataset */
@@ -310,6 +429,37 @@ export interface components {
             users: number;
         };
         /**
+         * DerivationType
+         * @description How a derived receipt object relates to its parent.
+         * @enum {string}
+         */
+        DerivationType: "original" | "crop" | "rotation" | "recompression" | "thumbnail";
+        /**
+         * DraftExpenseResponse
+         * @description Minimal response needed to attach a receipt to an employee-owned draft.
+         */
+        DraftExpenseResponse: {
+            channel: components["schemas"]["ExpenseChannel"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            status: components["schemas"]["ExpenseStatus"];
+            /** Version */
+            version: number;
+        };
+        /**
          * EnumCatalogueResponse
          * @description Every canonical enum, keyed by the name used in docs/api-contract.md.
          */
@@ -321,6 +471,69 @@ export interface components {
             enums: {
                 [key: string]: string[];
             };
+        };
+        /**
+         * ExpenseChannel
+         * @description How a claim entered the system.
+         *
+         *     ``EMAIL_SIMULATED`` is demo-only and must never be presented as a real
+         *     email integration.
+         * @enum {string}
+         */
+        ExpenseChannel: "android" | "web" | "bulk" | "email_simulated";
+        /**
+         * ExpenseStatus
+         * @description Workflow status of an expense claim.
+         *
+         *     Deliberately NOT used to represent individual findings: a claim can carry
+         *     many findings while holding exactly one workflow status.
+         *
+         *     ``WITHDRAWN`` is reserved. No endpoint currently produces it; see
+         *     docs/api-contract.md section 5 for the explanation.
+         * @enum {string}
+         */
+        ExpenseStatus: "draft" | "submitted" | "needs_info" | "in_review" | "approved" | "rejected" | "withdrawn";
+        /**
+         * ExtractionRunSummary
+         * @description One historical extraction attempt. Past runs are never rewritten.
+         */
+        ExtractionRunSummary: {
+            /** Error Code */
+            error_code?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Is Cached Result
+             * @description True when the result came from a verified cache rather than live inference. A cached result is never presented as live extraction.
+             * @default false
+             */
+            is_cached_result: boolean;
+            /** Latency Ms */
+            latency_ms?: number | null;
+            /** Model */
+            model?: string | null;
+            /** Prompt Version */
+            prompt_version?: string | null;
+            /** Provider */
+            provider: string;
+            /** Started At */
+            started_at?: string | null;
+            status: components["schemas"]["ExtractionStatus"];
+        };
+        /**
+         * ExtractionStatus
+         * @enum {string}
+         */
+        ExtractionStatus: "pending" | "running" | "success" | "partial" | "failed" | "unavailable";
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /**
          * HealthComponent
@@ -437,6 +650,67 @@ export interface components {
             total?: number | null;
         };
         /**
+         * ReceiptResponse
+         * @description Receipt metadata and extraction history.
+         */
+        ReceiptResponse: {
+            /** Byte Size */
+            byte_size: number;
+            /** Content Url */
+            content_url: string;
+            derivation_type: components["schemas"]["DerivationType"];
+            /** Detected Mime Type */
+            detected_mime_type: string;
+            /**
+             * Expense Id
+             * Format: uuid
+             */
+            expense_id: string;
+            /** Extraction Runs */
+            extraction_runs?: components["schemas"]["ExtractionRunSummary"][];
+            extraction_status: components["schemas"]["ExtractionStatus"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Height */
+            image_height?: number | null;
+            /** Image Width */
+            image_width?: number | null;
+            /** Original Filename */
+            original_filename?: string | null;
+            /** Page Count */
+            page_count?: number | null;
+            /** Parent Receipt Id */
+            parent_receipt_id?: string | null;
+            /**
+             * Perceptual Hash
+             * @description Image similarity signal, valid only after orientation normalisation. Present only when a perceptual hash was actually computed.
+             */
+            perceptual_hash?: string | null;
+            /**
+             * Sha256
+             * @description Byte hash. Used as an exact-duplicate signal.
+             */
+            sha256: string;
+            storage_backend: components["schemas"]["StorageBackend"];
+            /** Uploaded At */
+            uploaded_at?: string | null;
+        };
+        /**
+         * ReceiptUploadResponse
+         * @description Result of a multipart upload and its synchronous OCR attempt.
+         */
+        ReceiptUploadResponse: {
+            /**
+             * Extraction Scheduled
+             * @description Always false for this synchronous upload flow; inspect receipt status.
+             */
+            extraction_scheduled: boolean;
+            receipt: components["schemas"]["ReceiptResponse"];
+        };
+        /**
          * RoleAssignmentSummary
          * @description A granted role, with the scope it applies to.
          */
@@ -473,6 +747,11 @@ export interface components {
          */
         RoleCode: "employee" | "manager" | "hr_reviewer" | "finance_reviewer" | "finance_admin" | "org_admin" | "policy_admin" | "auditor" | "service";
         /**
+         * StorageBackend
+         * @enum {string}
+         */
+        StorageBackend: "local" | "supabase" | "s3";
+        /**
          * UserSummary
          * @description Minimal, safe representation of a person.
          */
@@ -489,6 +768,19 @@ export interface components {
              * @default true
              */
             is_active: boolean;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
         };
     };
     responses: never;
@@ -557,6 +849,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoSeedResponse"];
+                };
+            };
+        };
+    };
+    create_draft_expense_api_v1_expenses_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateExpenseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftExpenseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_receipt_api_v1_expenses__expense_id__receipts_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_receipt_api_v1_expenses__expense_id__receipts_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptUploadResponse"];
+                };
+            };
+            /** @description The upload exceeds RECEIPT_MAX_UPLOAD_BYTES. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The file content is not an accepted receipt format. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -677,6 +1055,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EnumCatalogueResponse"];
+                };
+            };
+        };
+    };
+    read_receipt_api_v1_receipts__receipt_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_receipt_content_api_v1_receipts__receipt_id__content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -290,7 +290,7 @@ class TestUnimplementedCapabilityHonesty:
     ) -> None:
         """Anything the contract lists but this build lacks must be declared."""
         declared = " ".join(client.get("/api/v1/meta").json()["unimplemented_capabilities"])
-        assert "receipt upload" in declared
+        assert "receipt upload" not in declared
         assert "production authentication" in declared
 
     def test_the_extraction_factory_refuses_an_unimplemented_provider(self) -> None:

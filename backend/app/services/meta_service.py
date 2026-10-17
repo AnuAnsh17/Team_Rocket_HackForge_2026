@@ -22,23 +22,21 @@ from app.schemas.meta import ApiMetaResponse, EnumCatalogueResponse
 # Version label of the reviewed human-readable contract this build targets. Must match
 # the "Contract version" line at the top of docs/api-contract.md; a contract test
 # compares the two.
-CONTRACT_VERSION = "1.1.1-scaffold"
+CONTRACT_VERSION = "1.2.0-receipt-ocr"
 
 # Capabilities the contract describes that this build does NOT implement. Reported
 # explicitly so a caller can tell a scaffold from a finished product without
 # guessing, and so nothing silently pretends to work.
 UNIMPLEMENTED_CAPABILITIES: tuple[str, ...] = (
-    "receipt upload and multipart handling",
-    "receipt extraction (no provider selected or verified)",
-    "receipt content streaming and signed URLs",
-    "expense create/update/submit workflow",
+    "expense update/submit workflow",
+    "structured receipt extraction",
     "reviewer decisions and approval tasks",
     "finding and duplicate candidate persistence and resolution",
     "policy rule execution (the registry holds zero rules)",
     "policy pre-flight check",
     "analytics and audit export",
     "production authentication (Supabase JWT validation)",
-    "Supabase/S3 receipt storage adapters",
+    "production receipt storage adapters (Supabase/S3)",
     "currency conversion",
 )
 

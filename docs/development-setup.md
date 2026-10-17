@@ -89,6 +89,27 @@ from application settings so there is one source of database configuration.
 - Health: <http://localhost:8000/api/v1/health>
 - What is *not* implemented: <http://localhost:8000/api/v1/meta>
 
+### Local IndicOCR runtime
+
+IndicOCR runs in a dedicated Python environment separate from the backend venv.
+The backend starts one warm subprocess per API worker. Set `EXTRACTION_PROVIDER=local_ocr`,
+`EXTRACTION_MODEL` to the existing local model snapshot directory, and
+`EXTRACTION_PYTHON_EXECUTABLE` to that isolated environment's Python executable in the
+ignored local `.env`. The committed `.env.example` contains placeholders only. Use the
+model's own installation instructions for the OCR environment; do not install its
+Torch stack into `backend/.venv`.
+
+The runtime verified for this milestone used Python 3.12.10, Torch 2.14.1+cu130,
+torchvision 0.29.1+cu130, Transformers 5.20.1, Accelerate 1.15.0, Pillow 12.3.0,
+NumPy 2.5.2, and huggingface_hub 2.2.0. This environment ran inference on an NVIDIA
+RTX 3050 Laptop GPU. Without CUDA, the worker selects CPU; CPU performance has not
+been benchmarked. See `docs/architecture-decisions.md` for the runtime boundary and
+limitations.
+
+The model README documents printed recognition for English and 22 Indian languages,
+and handwriting recognition for English and 12 Indian languages. This is model
+documentation, not a Proofline receipt-accuracy benchmark.
+
 ### Seed demo data
 
 Demo mode must be enabled (`DEMO_MODE=true`, non-production). Then either:
@@ -233,6 +254,8 @@ scripts/        root-level workspace helpers
 ## 7. Nothing here is production-ready
 
 Development setup runs against a local database, a private filesystem receipt adapter,
-a demo identity provider and no extraction provider. `GET /api/v1/meta` lists every
-unimplemented capability in machine-readable form, and `docs/authentication-security.md`
-lists what must be implemented before any real deployment.
+and a demo identity provider. IndicOCR runs only when its isolated interpreter and
+cached model paths are configured; otherwise the API records an honest unavailable OCR
+status. `GET /api/v1/meta` lists every unimplemented capability in machine-readable
+form, and `docs/authentication-security.md` lists what must be implemented before any
+real deployment.

@@ -64,9 +64,10 @@ annotation exists.
 - **Components:** `app/extraction/base.py`, `app/extraction/unavailable.py`,
   `expense_field_evidence.uncertainty_reason`, the usability rule
   `FieldSnapshot.usable`.
-- **Status at end of scaffolding:** `SCAFFOLDED`. The adapter protocol, the unreadable
-  representation and the "do not fabricate" rule exist and are unit-tested. **No
-  extraction is implemented** and no receipt has been processed.
+- **Status after the receipt OCR slice:** `TESTED` for runtime invocation and pipeline
+  status handling on a synthetic image; no field extraction is implemented. The
+  adapter protocol, unreadable representation and "do not fabricate" rule remain in
+  place. A synthetic receipt is not evidence of real receipt accuracy.
 - **Evidence needed to mark implemented:** a chosen provider, a labelled degraded-image
   set, per-field accuracy including the missing-field detection rate.
 - **Risk:** high. This is the core capability and it does not exist. Accuracy on faded
@@ -84,8 +85,8 @@ annotation exists.
   symbol-free number; line items captured separately.
 - **Components:** `EXTRACTABLE_FIELDS`, `ExtractedLineItem`, `line_items`,
   field-evidence tables.
-- **Status:** `SCAFFOLDED`. The field contract and storage exist; no field has ever been
-  extracted.
+- **Status:** `SCAFFOLDED`. IndicOCR returns raw page Markdown/blocks, while no
+  structured field has been extracted or persisted.
 - **Evidence needed:** per-critical-field exact/normalised accuracy on the real set,
   with sample size.
 - **Risk:** high. Also note the build plan's warning: previous IndicOCR/PaddleOCR-VL

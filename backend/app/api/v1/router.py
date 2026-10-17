@@ -9,7 +9,7 @@ router inside ``create_app`` keeps that decision where it belongs.
 
 from fastapi import APIRouter
 
-from app.api.v1.routes import health, identity, meta
+from app.api.v1.routes import expenses, health, identity, meta, receipts
 from app.core.config import settings
 
 
@@ -31,6 +31,8 @@ def build_api_router(*, demo_mode: bool | None = None) -> APIRouter:
     router.include_router(health.router)
     router.include_router(meta.router)
     router.include_router(identity.router)
+    router.include_router(expenses.router)
+    router.include_router(receipts.router)
 
     if enabled:
         from app.api.v1.routes import demo

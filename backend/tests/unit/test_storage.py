@@ -99,6 +99,28 @@ class TestLocalPrivateStorage:
         assert storage.read(stored.object_key) == PNG_BYTES
         assert stored.object_key.startswith(f"{organization_id}/{expense_id}/")
 
+    def test_partial_write_is_removed_when_filesystem_write_fails(
+        self, storage, monkeypatch
+    ) -> None:
+        from pathlib import Path
+
+        original_write_bytes = Path.write_bytes
+
+        def partial_write_then_fail(path: Path, data: bytes) -> int:
+            original_write_bytes(path, data[:4])
+            raise OSError("simulated disk failure")
+
+        monkeypatch.setattr(Path, "write_bytes", partial_write_then_fail)
+        with pytest.raises(StorageError):
+            storage.save(
+                organization_id=uuid.uuid4(),
+                expense_id=uuid.uuid4(),
+                data=PNG_BYTES,
+                content_type="image/png",
+            )
+
+        assert not list(storage.root.rglob("*.png"))
+
     def test_object_key_refuses_path_traversal(self, storage) -> None:
         for hostile in ("../../etc/passwd", "/etc/passwd", "a/../../b"):
             with pytest.raises(StorageError):

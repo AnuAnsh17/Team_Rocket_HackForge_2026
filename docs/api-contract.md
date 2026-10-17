@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.1.1-scaffold
+**Contract version:** 1.2.0-receipt-ocr
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -25,6 +25,7 @@ unimplemented route works.
 | 1.0-draft -> 1.1 | Demo routes answer 404 when demo mode is off | The old text allowed 404 or 403. 404 does not disclose that a disabled demo surface exists. |
 | 1.0-draft -> 1.1 | `Idempotency-Key` required on create/submit/decision mutations | The old text required it for create/submit and merely encouraged it elsewhere, which is not a testable rule. |
 | 1.1 -> 1.1.1 | A policy-assignment scope carries exactly one of `scope_id` (UUID) or `scope_key` (text), decided by the dimension | Three of the ten dimensions are not UUID-valued (legal entity, jurisdiction, expense category), and a single UUID column could not express them, so assignments scoped to those dimensions never matched. Uniqueness is now over the effective selector. No route is affected today: the policy routes are declared unimplemented. |
+| 1.1.1 -> 1.2.0 | Minimal employee-owned draft creation, private receipt upload/content retrieval and synchronous IndicOCR status tracking | Reuses the existing auth, storage, receipt and extraction-run schema. OCR text is not persisted pending a retention decision; OCR output does not populate structured expense fields. |
 
 ---
 
@@ -268,6 +269,21 @@ exists so a cached demo response is never presented as live inference. Runs are
 append-only: re-extraction adds a run and never overwrites the previous one or a
 reviewer-corrected value.
 
+The first OCR slice persists the source receipt and one extraction run. The upload
+uses multipart field `file`. IndicOCR's
+raw Markdown and page/block payload are held in memory only long enough to compute
+SHA-256 hashes; raw OCR text and payload are not stored or returned until a retention
+decision is documented. OCR success means the engine returned a valid page; it does
+not mean structured merchant/date/amount fields were extracted. Those fields remain
+unset. PDF uploads are stored but report OCR failure because the verified IndicOCR
+interface accepts JPEG, PNG and WEBP image pages only. The upload validator also
+accepts PDF, HEIC and HEIF; those source files are stored, while the current adapter
+records `OCR_UNSUPPORTED_MEDIA_TYPE` for them.
+Processing failure codes include `OCR_RUNTIME_NOT_CONFIGURED`,
+`OCR_RUNTIME_UNAVAILABLE`, `OCR_TIMEOUT`, `OCR_INVALID_OUTPUT`,
+`OCR_PROCESSING_FAILED` and `OCR_UNSUPPORTED_MEDIA_TYPE`; these appear on the
+extraction run while the uploaded receipt itself remains available for review.
+
 A duplicate candidate carries `id`, `status`, both expense ids,
 `algorithm_version`, a list of independent `signals`, `ranking_score`,
 `cross_channel`, reviewer resolution and timestamps. `ranking_score` orders a review
@@ -358,6 +374,10 @@ Status values:
 | `GET /api/v1/openapi.json` | Generated OpenAPI document. |
 | `GET /api/v1/meta` | Contract version, implemented endpoint count, declared unimplemented capabilities. |
 | `GET /api/v1/meta/enums` | Canonical enum catalogue; the machine-readable form of section 2. |
+| `POST /api/v1/expenses` | Create a caller-owned draft to receive receipts. Requires `EXPENSE_CREATE_OWN` and `Idempotency-Key`; only caller membership is accepted. |
+| `POST /api/v1/expenses/{expense_id}/receipts` | Authorized multipart upload to an own draft. Requires `RECEIPT_UPLOAD_OWN` and `Idempotency-Key`; validates size and file signature; runs configured OCR synchronously. Returns receipt metadata and honest extraction status. |
+| `GET /api/v1/receipts/{receipt_id}` | Read authorized receipt metadata and extraction-run history. |
+| `GET /api/v1/receipts/{receipt_id}/content` | Stream private receipt bytes after rechecking expense scope; response is `private, no-store` and never a public storage URL. |
 | `GET /api/v1/me` | The caller's own organization membership. |
 | `GET /api/v1/me/roles` | The caller's own non-revoked role grants with their scope. |
 | `GET /api/v1/me/audit` | Audit events attributed to the caller. |
@@ -377,16 +397,12 @@ slice, not abandoned work.
 
 | Route | Blocked on |
 |---|---|
-| `POST /api/v1/expenses` | Workflow implementation. `CreateExpenseRequest` is defined. |
 | `GET /api/v1/expenses` | Workflow, plus review-queue scoping. |
 | `GET /api/v1/expenses/{expense_id}` | Workflow. |
 | `PATCH /api/v1/expenses/{expense_id}` | Workflow and field-provenance writes. |
 | `POST /api/v1/expenses/{expense_id}/submit` | Workflow and idempotency wiring. |
 | `POST /api/v1/expenses/{expense_id}/decisions` | Approval workflow, which depends on the real policy. |
 | `GET /api/v1/expenses/{expense_id}/audit` | Workflow. |
-| `POST /api/v1/expenses/{expense_id}/receipts` | The upload route, plus a configured storage backend. |
-| `GET /api/v1/receipts/{receipt_id}` | Upload route. |
-| `GET /api/v1/receipts/{receipt_id}/content` | Upload route. |
 | `POST /api/v1/receipts/{receipt_id}/reextract` | An extraction provider. |
 | `GET /api/v1/policy/versions/current` | An approved policy document. |
 | `GET /api/v1/policy/rules` | An approved policy document. |

@@ -1,9 +1,11 @@
 # Testing Strategy
 
-**Current result:** `159 passed` on the backend suite
-(`cd backend && ./.venv/Scripts/python.exe -m pytest -q`), and 23 frontend tests
-(`npm run test`: 9 console, 7 portal, 7 mobile). CI runs all of it, plus the contract-drift
-check, on every branch push - see `.github/workflows/ci.yml`.
+**Current result:** `249 passed, 1 skipped` on the backend suite
+(`cd backend && ./.venv/Scripts/python.exe -m pytest -q`). The skipped test is the
+opt-in real IndicOCR runtime integration; it passed when run with the local model and
+isolated Python paths configured. Frontend test totals are maintained by their own
+workspace test commands. CI runs the repository checks on every branch push - see
+`.github/workflows/ci.yml`.
 
 ## Principles
 
@@ -28,6 +30,7 @@ check, on every branch push - see `.github/workflows/ci.yml`.
 | `test_storage.py` | MIME sniffing from magic bytes, declared-type-is-not-trusted, oversize and empty rejection, filename sanitisation, path-traversal refusal on read, scoped deletion. |
 | `test_config.py` | Fail-closed configuration: demo mode refused in production and staging, local storage refused in production, demo auth refused in production, missing Supabase config refused, valid production config accepted. |
 | `test_permissions.py` | The authorization matrix, mostly its negative space: no role holds every permission, an auditor holds no mutation, `org_admin` cannot decide expenses, `hr_reviewer` cannot resolve finance findings. |
+| `test_indicocr_adapter.py` | Documented page validation, Unicode-safe worker protocol, timeout/unavailable/invalid-output/unsupported-media/failure statuses, and no structured fields. |
 
 ### Integration tests - `tests/integration/` - real PostgreSQL
 
@@ -37,6 +40,8 @@ check, on every branch push - see `.github/workflows/ci.yml`.
 | `test_schema_integrity.py` | The 28 expected tables, the hand-written indexes, the trigger, `numeric` (not `float`) money columns, `UPDATE`/`DELETE` refused on `audit_events`, deletion of a referenced organization leaving audit rows intact, an unsourced allowance limit refused, an active rule without a validator refused. |
 | `test_demo.py` | Seed counts, no rule activated, no grade or allowance created, no claim created, draft policy version, idempotent re-seed, fictional names only, no email addresses, reset scope, audit events surviving a reset, and route-level authorization. |
 | `test_identity_api.py` | `/me`, `/me/roles`, `/me/audit` - authentication required, own-membership-only, unknown and malformed actor ids refused, no internal authorization data leaked. |
+| `test_receipt_upload_api.py` | Draft creation, validated and size-limited multipart upload, duplicate bytes, OCR success/failure persistence, private authorized content retrieval and authorization boundaries. |
+| `test_indicocr_runtime.py` | Opt-in real-model upload-to-OCR persistence test; set `RUN_INDICOCR_INTEGRATION=1`, `EXTRACTION_MODEL` and `EXTRACTION_PYTHON_EXECUTABLE` to run it. |
 
 ### Contract tests - `tests/contract/`
 
@@ -51,8 +56,8 @@ The contract tests are the drift detector between code and
   number is refused;
 - `RecommendedAction` is documented as its own enum and differs from `ReviewAction`;
 - every contract route is either implemented or declared unimplemented;
-- the scaffold declares itself incomplete (`implemented_endpoint_count < 20`), so the
-  document cannot quietly start claiming a finished product.
+- the implemented endpoint count stays below 20; this small slice cannot be mistaken
+  for a finished workflow or a complete auditor.
 
 ### Security tests - `tests/security/`
 

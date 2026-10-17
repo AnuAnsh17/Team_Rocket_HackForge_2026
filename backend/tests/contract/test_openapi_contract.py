@@ -263,8 +263,6 @@ class TestDocumentedRoutesAreAccountedFor:
         # Map a contract route to a capability keyword that must be declared when the
         # route is not implemented in this build.
         expectations = {
-            "/api/v1/expenses": "workflow",
-            "/api/v1/receipts": "upload",
             "/api/v1/policy/check": "pre-flight",
             "/api/v1/analytics/overview": "analytics",
             "/api/v1/audit/export": "audit export",
@@ -277,9 +275,9 @@ class TestDocumentedRoutesAreAccountedFor:
                 f"capability containing {keyword!r}"
             )
 
-    def test_the_scaffold_declares_itself_incomplete(self, client: TestClient) -> None:
+    def test_the_backend_declares_unimplemented_workflows(self, client: TestClient) -> None:
         body = client.get(f"{API_PREFIX}/meta").json()
         assert body["implemented_endpoint_count"] < 20, (
-            "This build is a scaffold; if that changes, update this expectation and the "
-            "coverage report together."
+            "This endpoint set is intentionally limited; update this expectation and the "
+            "coverage report together if it changes."
         )

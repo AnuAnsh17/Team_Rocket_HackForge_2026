@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     ] = "unavailable"
     extraction_model: str | None = None
     extraction_timeout_seconds: int = 60
+    extraction_python_executable: str | None = None
 
     # --- Derived ---------------------------------------------------------
     @property

@@ -213,6 +213,155 @@
         "title": "AuditEventResponse",
         "type": "object"
       },
+      "Body_upload_receipt_api_v1_expenses__expense_id__receipts_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_receipt_api_v1_expenses__expense_id__receipts_post",
+        "type": "object"
+      },
+      "CreateExpenseRequest": {
+        "additionalProperties": false,
+        "description": "Create a draft claim from JSON metadata.\n\nReceipt images are uploaded separately through\n``POST /api/v1/expenses/{expense_id}/receipts`` - the single canonical upload\nroute. This request deliberately carries no ``source`` or ``reviewed``\nfields: provenance is assigned by the server from the caller's role, so a\nclient cannot claim reviewer provenance.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "attendee_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attendee Count"
+          },
+          "business_purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Purpose"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/ExpenseChannel",
+            "default": "web"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "employee_membership_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only accepted from a caller authorized to create on behalf of another employee. An employee's own claims are always created against their own membership.",
+            "title": "Employee Membership Id"
+          },
+          "expense_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Date"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          }
+        },
+        "title": "CreateExpenseRequest",
+        "type": "object"
+      },
       "DemoResetResponse": {
         "additionalProperties": false,
         "properties": {
@@ -299,6 +448,59 @@
         "title": "DemoSeedResponse",
         "type": "object"
       },
+      "DerivationType": {
+        "description": "How a derived receipt object relates to its parent.",
+        "enum": [
+          "original",
+          "crop",
+          "rotation",
+          "recompression",
+          "thumbnail"
+        ],
+        "title": "DerivationType",
+        "type": "string"
+      },
+      "DraftExpenseResponse": {
+        "additionalProperties": false,
+        "description": "Minimal response needed to attach a receipt to an employee-owned draft.",
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/ExpenseChannel"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExpenseStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "channel",
+          "status",
+          "version",
+          "created_at"
+        ],
+        "title": "DraftExpenseResponse",
+        "type": "object"
+      },
       "EnumCatalogueResponse": {
         "additionalProperties": false,
         "description": "Every canonical enum, keyed by the name used in docs/api-contract.md.",
@@ -319,6 +521,155 @@
           "enums"
         ],
         "title": "EnumCatalogueResponse",
+        "type": "object"
+      },
+      "ExpenseChannel": {
+        "description": "How a claim entered the system.\n\n``EMAIL_SIMULATED`` is demo-only and must never be presented as a real\nemail integration.",
+        "enum": [
+          "android",
+          "web",
+          "bulk",
+          "email_simulated"
+        ],
+        "title": "ExpenseChannel",
+        "type": "string"
+      },
+      "ExpenseStatus": {
+        "description": "Workflow status of an expense claim.\n\nDeliberately NOT used to represent individual findings: a claim can carry\nmany findings while holding exactly one workflow status.\n\n``WITHDRAWN`` is reserved. No endpoint currently produces it; see\ndocs/api-contract.md section 5 for the explanation.",
+        "enum": [
+          "draft",
+          "submitted",
+          "needs_info",
+          "in_review",
+          "approved",
+          "rejected",
+          "withdrawn"
+        ],
+        "title": "ExpenseStatus",
+        "type": "string"
+      },
+      "ExtractionRunSummary": {
+        "additionalProperties": false,
+        "description": "One historical extraction attempt. Past runs are never rewritten.",
+        "properties": {
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_cached_result": {
+            "default": false,
+            "description": "True when the result came from a verified cache rather than live inference. A cached result is never presented as live extraction.",
+            "title": "Is Cached Result",
+            "type": "boolean"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExtractionStatus"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "status"
+        ],
+        "title": "ExtractionRunSummary",
+        "type": "object"
+      },
+      "ExtractionStatus": {
+        "enum": [
+          "pending",
+          "running",
+          "success",
+          "partial",
+          "failed",
+          "unavailable"
+        ],
+        "title": "ExtractionStatus",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
         "type": "object"
       },
       "HealthComponent": {
@@ -586,6 +937,169 @@
         "title": "PageInfo",
         "type": "object"
       },
+      "ReceiptResponse": {
+        "additionalProperties": false,
+        "description": "Receipt metadata and extraction history.",
+        "properties": {
+          "byte_size": {
+            "minimum": 0.0,
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "content_url": {
+            "title": "Content Url",
+            "type": "string"
+          },
+          "derivation_type": {
+            "$ref": "#/components/schemas/DerivationType"
+          },
+          "detected_mime_type": {
+            "title": "Detected Mime Type",
+            "type": "string"
+          },
+          "expense_id": {
+            "format": "uuid",
+            "title": "Expense Id",
+            "type": "string"
+          },
+          "extraction_runs": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractionRunSummary"
+            },
+            "title": "Extraction Runs",
+            "type": "array"
+          },
+          "extraction_status": {
+            "$ref": "#/components/schemas/ExtractionStatus"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Height"
+          },
+          "image_width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Width"
+          },
+          "original_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Filename"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "parent_receipt_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Receipt Id"
+          },
+          "perceptual_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Image similarity signal, valid only after orientation normalisation. Present only when a perceptual hash was actually computed.",
+            "title": "Perceptual Hash"
+          },
+          "sha256": {
+            "description": "Byte hash. Used as an exact-duplicate signal.",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "storage_backend": {
+            "$ref": "#/components/schemas/StorageBackend"
+          },
+          "uploaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded At"
+          }
+        },
+        "required": [
+          "id",
+          "expense_id",
+          "storage_backend",
+          "content_url",
+          "detected_mime_type",
+          "byte_size",
+          "sha256",
+          "derivation_type",
+          "extraction_status"
+        ],
+        "title": "ReceiptResponse",
+        "type": "object"
+      },
+      "ReceiptUploadResponse": {
+        "additionalProperties": false,
+        "description": "Result of a multipart upload and its synchronous OCR attempt.",
+        "properties": {
+          "extraction_scheduled": {
+            "description": "Always false for this synchronous upload flow; inspect receipt status.",
+            "title": "Extraction Scheduled",
+            "type": "boolean"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/ReceiptResponse"
+          }
+        },
+        "required": [
+          "receipt",
+          "extraction_scheduled"
+        ],
+        "title": "ReceiptUploadResponse",
+        "type": "object"
+      },
       "RoleAssignmentSummary": {
         "additionalProperties": false,
         "description": "A granted role, with the scope it applies to.",
@@ -658,6 +1172,15 @@
         "title": "RoleCode",
         "type": "string"
       },
+      "StorageBackend": {
+        "enum": [
+          "local",
+          "supabase",
+          "s3"
+        ],
+        "title": "StorageBackend",
+        "type": "string"
+      },
       "UserSummary": {
         "additionalProperties": false,
         "description": "Minimal, safe representation of a person.",
@@ -683,11 +1206,51 @@
         ],
         "title": "UserSummary",
         "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
   "info": {
-    "description": "Evidence-first expense auditing API. This build is a **scaffold**: the contract, data model, authorization model and module boundaries are in place, while extraction, policy rules and the claim workflow are not yet implemented. GET /api/v1/meta lists what is missing so nothing silently pretends to work.",
+    "description": "Evidence-first expense auditing API. This build supports authorized draft creation and private receipt upload with OCR status tracking. OCR text is not retained or converted into structured expense fields. Production authentication, policy evaluation and review workflows remain incomplete. GET /api/v1/meta lists the outstanding capabilities.",
     "title": "Proofline API",
     "version": "0.1.0"
   },
@@ -760,6 +1323,128 @@
         "summary": "Load the synthetic demo dataset (demo mode only)",
         "tags": [
           "demo"
+        ]
+      }
+    },
+    "/api/v1/expenses": {
+      "post": {
+        "description": "Creates a draft for the caller's active membership so a receipt can be attached. This workflow slice does not support creating claims for another employee.",
+        "operationId": "create_draft_expense_api_v1_expenses_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExpenseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftExpenseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create an employee-owned draft expense",
+        "tags": [
+          "expenses"
+        ]
+      }
+    },
+    "/api/v1/expenses/{expense_id}/receipts": {
+      "post": {
+        "description": "Uploads one original receipt to a caller-owned draft, validates its content and runs the configured OCR provider synchronously. Exact duplicate files remain separate receipts and are linked only by their SHA-256 signal.",
+        "operationId": "upload_receipt_api_v1_expenses__expense_id__receipts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_receipt_api_v1_expenses__expense_id__receipts_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptUploadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "The upload exceeds RECEIPT_MAX_UPLOAD_BYTES."
+          },
+          "415": {
+            "description": "The file content is not an accepted receipt format."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload and OCR a private receipt",
+        "tags": [
+          "receipts"
         ]
       }
     },
@@ -896,6 +1581,86 @@
         "summary": "Canonical enum catalogue",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/api/v1/receipts/{receipt_id}": {
+      "get": {
+        "operationId": "read_receipt_api_v1_receipts__receipt_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read authorized receipt metadata and OCR status",
+        "tags": [
+          "receipts"
+        ]
+      }
+    },
+    "/api/v1/receipts/{receipt_id}/content": {
+      "get": {
+        "description": "The endpoint rechecks receipt and expense authorization on every request.",
+        "operationId": "read_receipt_content_api_v1_receipts__receipt_id__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream authorized private receipt content",
+        "tags": [
+          "receipts"
         ]
       }
     }

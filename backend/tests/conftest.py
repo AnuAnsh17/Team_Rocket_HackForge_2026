@@ -34,6 +34,7 @@ os.environ.setdefault("RECEIPT_STORAGE_BACKEND", "local")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
 os.environ.setdefault("LOG_JSON", "false")
 
+import app.core.config as app_config
 import pytest
 import sqlalchemy as sa
 from alembic import command
@@ -66,6 +67,10 @@ def _derive_test_database_url() -> str:
 TEST_DATABASE_URL = _derive_test_database_url()
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 get_settings.cache_clear()
+# The module-level settings singleton is created when app.core.config is first
+# imported. Point it at the dedicated test database before Alembic or app modules
+# import that singleton; otherwise tests can target the development database.
+app_config.settings = get_settings()
 
 
 def _ensure_test_database_exists() -> None:
@@ -89,13 +94,20 @@ def _ensure_test_database_exists() -> None:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _prepared_database() -> Iterator[None]:
+def _prepared_database(request: pytest.FixtureRequest) -> Iterator[None]:
     """Build the test schema with Alembic, once per session.
 
     Using the real migration rather than ``metadata.create_all`` means the
     migration itself is exercised by every test run. A migration that cannot be
     applied is a failure the suite reports immediately.
     """
+    needs_database = any(
+        {"client", "db", "engine"}.intersection(item.fixturenames) for item in request.session.items
+    )
+    if not needs_database:
+        yield
+        return
+
     _ensure_test_database_exists()
     config = AlembicConfig(os.path.join(_BACKEND_ROOT, "alembic.ini"))
     config.set_main_option("script_location", os.path.join(_BACKEND_ROOT, "migrations"))

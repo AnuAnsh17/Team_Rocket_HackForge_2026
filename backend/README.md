@@ -4,10 +4,12 @@ FastAPI + Pydantic + SQLAlchemy 2 + Alembic over PostgreSQL 18. This service is 
 **only** authority for policy evaluation, workflow transitions and audit history; every
 client displays what it returns.
 
-> **State:** foundation. Health, metadata and three authenticated identity endpoints
-> work, backed by 159 passing tests. Receipt upload, extraction, claim workflow, rule
-> evaluation and production authentication are **not implemented**. `GET /api/v1/meta`
-> lists every unimplemented capability in machine-readable form.
+> **State:** a focused receipt OCR slice is implemented: an authorized employee can
+> create a draft, upload a private receipt, run configured IndicOCR, and retrieve
+> receipt metadata/content under the same scope checks. OCR text is not retained and
+> no structured expense fields or policy outcomes are inferred. Submission/review,
+> policy evaluation and production authentication remain **unimplemented**. See
+> `GET /api/v1/meta` for the current capability list.
 
 ## Prerequisites
 
@@ -41,6 +43,15 @@ RECEIPT_STORAGE_BACKEND=local
 EXTRACTION_PROVIDER=unavailable
 ```
 
+To use the verified local IndicOCR runtime, configure `EXTRACTION_PROVIDER=local_ocr`,
+`EXTRACTION_MODEL` with the existing cached model directory, and
+`EXTRACTION_PYTHON_EXECUTABLE` with the isolated OCR environment's Python executable.
+Keep those machine-specific paths in the ignored `.env`; see
+[`docs/development-setup.md`](../docs/development-setup.md#local-indicocr-runtime).
+The adapter serializes inference through one persistent OCR subprocess per backend
+process. Run one backend worker while local GPU OCR is enabled; multiple backend
+workers would each load a separate model into GPU memory.
+
 ## Run
 
 ```bash
@@ -55,6 +66,10 @@ EXTRACTION_PROVIDER=unavailable
 | `/api/v1/meta` | Contract version and the honest list of unimplemented capabilities |
 | `/api/v1/meta/enums` | Canonical enum catalogue |
 | `/api/v1/me`, `/api/v1/me/roles`, `/api/v1/me/audit` | The caller's own data (requires an actor) |
+| `POST /api/v1/expenses` | Create an employee-owned draft |
+| `POST /api/v1/expenses/{id}/receipts` | Upload and OCR a receipt synchronously |
+| `GET /api/v1/receipts/{id}` | Read authorized receipt and extraction status |
+| `GET /api/v1/receipts/{id}/content` | Retrieve private content after authorization |
 
 ## Authentication in development
 
@@ -96,7 +111,7 @@ app/models/            SQLAlchemy persistable models
 app/db/                declarative base, naming convention, session factory
 app/services/          transactional boundaries and authorization resolution
 app/policy/            rule protocol, registry, evaluator, resolution  (zero rules)
-app/extraction/        ReceiptExtractor protocol + UnavailableExtractor
+app/extraction/        ReceiptExtractor protocol, unavailable fallback, IndicOCR adapter/worker
 app/storage/           private receipt storage abstraction
 app/context/           evaluation scope, fingerprint, re-evaluation planning
 app/duplicates/        candidate signal generation

@@ -8,6 +8,8 @@ one pagination parser.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from contextlib import suppress
+from threading import Lock
 
 from fastapi import Depends, Query, Request
 from sqlalchemy.orm import Session
@@ -19,9 +21,14 @@ from app.core.pagination import DEFAULT_LIMIT, MAX_LIMIT, Pagination, decode_cur
 from app.core.permissions import Permission
 from app.core.security import Actor, Identity, build_auth_provider
 from app.db.session import get_session_factory
+from app.extraction.base import ReceiptExtractor
+from app.extraction.factory import build_receipt_extractor
 from app.services.actor_service import resolve_actor
+from app.storage.base import ReceiptStorage
+from app.storage.factory import build_receipt_storage
 
 AUTH_PROVIDER_HEADER = "x-demo-organization-id"
+_EXTRACTOR_INIT_LOCK = Lock()
 
 
 def get_settings_dep() -> Settings:
@@ -29,7 +36,28 @@ def get_settings_dep() -> Settings:
     return app_settings
 
 
-def get_session() -> Iterator[Session]:
+def get_receipt_extractor(request: Request) -> ReceiptExtractor:
+    """Build one app-scoped extractor so a local OCR model stays warm per worker."""
+    extractor = getattr(request.app.state, "receipt_extractor", None)
+    if extractor is None:
+        with _EXTRACTOR_INIT_LOCK:
+            extractor = getattr(request.app.state, "receipt_extractor", None)
+            if extractor is None:
+                extractor = build_receipt_extractor(app_settings)
+                request.app.state.receipt_extractor = extractor
+    return extractor
+
+
+def get_receipt_storage(request: Request) -> ReceiptStorage:
+    """Build one app-scoped storage adapter."""
+    storage = getattr(request.app.state, "receipt_storage", None)
+    if storage is None:
+        storage = build_receipt_storage(app_settings)
+        request.app.state.receipt_storage = storage
+    return storage
+
+
+def get_session(request: Request) -> Iterator[Session]:
     """One database session per request, committed on success.
 
     The route does not commit. If the handler returns normally the session is
@@ -44,7 +72,16 @@ def get_session() -> Iterator[Session]:
         session.commit()
     except Exception:
         session.rollback()
+        callbacks = getattr(request.state, "rollback_callbacks", [])
+        request.state.rollback_callbacks = []
+        for callback in callbacks:
+            with suppress(Exception):
+                callback()
         raise
+    else:
+        # A successful commit makes the stored object part of the committed
+        # receipt record; discard rollback-only cleanup callbacks.
+        request.state.rollback_callbacks = []
     finally:
         session.close()
 

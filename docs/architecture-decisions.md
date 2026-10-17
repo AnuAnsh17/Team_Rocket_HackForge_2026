@@ -82,20 +82,30 @@ with a reason instead of picking one.
 semantics. Assuming either would silently change who gets reimbursed. See
 `docs/role-policy-hierarchy.md`.
 
-## 6. Extraction is a replaceable adapter, and is currently unavailable
+## 6. Extraction is a replaceable adapter; IndicOCR provides OCR only
 
-**Decided.** `ReceiptExtractor` protocol with an `UnavailableExtractor` that returns
-`ExtractionStatus.UNAVAILABLE` and **no field values**. `build_receipt_extractor`
-raises for any provider that is configured but not implemented.
+**Decided.** `ReceiptExtractor` is provider-neutral. The local IndicOCR adapter runs
+in a separate configured Python environment, starts lazily, and keeps one model
+loaded in an app-scoped subprocess. It returns provider status and hashes of raw
+Markdown/page data; it does not populate structured expense fields. Unconfigured
+runtime returns `UNAVAILABLE`; timeout, invalid output, and inference failure have
+distinct stable error codes. Raw OCR text is not persisted until its retention
+decision is documented.
 
-**Why.** Fabricated receipt data is the most damaging possible shortcut: it would make
-the extraction evaluation meaningless and mislead a reviewer. Refusing is visible.
+**Why.** The verified IndicOCR interface produces page/block OCR evidence, not typed
+merchant/date/amount fields. Converting OCR prose to canonical financial values is a
+separate step and cannot be represented as verified extraction yet.
 
-**Cost.** No extraction works yet. Selecting a provider requires a benchmark against
-the supplied receipt set (`docs/testing-strategy.md`).
+**Cost.** OCR success proves the engine returned a valid page, not field accuracy or
+expense receipt quality. The OCR runtime is installed separately from the pinned
+backend Python 3.14 environment. The local `parse(image_path)` interface accepts
+image pages; PDF upload is stored but OCR reports failure. Only GPU inference has
+been benchmarked in this environment. Each backend process owns one OCR subprocess;
+until multi-process GPU memory is benchmarked on the 6 GB RTX 3050, run one backend
+worker when local GPU OCR is enabled.
 
-**OPEN.** Which provider, model and privacy terms. Also open: whether the supplied
-receipt data may be sent to a third party at all.
+**OPEN.** Raw-text retention, a labelled receipt benchmark, structured field
+extraction and production hosted storage/authentication remain unresolved.
 
 ## 7. Private object storage with no public URL anywhere in the interface
 

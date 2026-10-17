@@ -5,25 +5,30 @@ does and does not work before standing in front of anyone.
 
 ## 0. Read this first
 
-The current build is a **scaffold**. What genuinely works end to end today:
+The current build is an early implementation, not a complete auditor. What genuinely
+works end to end today:
 
 - The API starts, reports health per dependency, and serves its OpenAPI document.
 - An authenticated actor can read their own membership, role grants and audit trail.
 - The synthetic dataset seeds and resets deterministically, with authorization enforced.
 - The database schema, constraints, indexes and append-only audit trigger are real.
+- An employee can create a draft, upload a receipt privately, and retrieve the receipt
+  only after authorization. With the isolated IndicOCR runtime configured, image OCR
+  runs synchronously and its truthful status is persisted.
 - The authorization model refuses cross-organization, cross-employee and
   unpermissioned access - with tests.
 
 What does **not** work and must not be implied:
 
-- Receipt upload, storage and extraction.
-- Claim creation, submission, correction and reviewer decisions.
+- Structured merchant/date/amount extraction and OCR text retention. The raw result
+  is deliberately not persisted while the retention decision is open.
+- Claim submission, correction and reviewer decisions.
 - Policy evaluation: the registry holds zero rules, so every claim would evaluate to
   `UNKNOWN`.
 - Production authentication.
 
-`GET /api/v1/meta` states this in machine-readable form. Do not present the scaffold as
-a working auditor.
+`GET /api/v1/meta` states this in machine-readable form. Do not present the OCR slice as
+a working auditor or claim receipt-field accuracy from a synthetic inference.
 
 ## 1. Pre-flight
 
@@ -42,7 +47,7 @@ Verify before going further:
 ```bash
 curl -s http://localhost:8000/api/v1/health
 # status is "ok" or "degraded"; components.database.status must be "ok".
-# "degraded" is expected: extraction and policy are declared missing on purpose.
+# "degraded" can be expected when OCR is not configured; policy remains unavailable.
 
 curl -s http://localhost:8000/api/v1/meta
 # Read unimplemented_capabilities out loud before demoing. It is the honest list.
@@ -65,8 +70,9 @@ seed reproduces the same ids and the same state every time.
 
 A short, truthful walkthrough of the foundation:
 
-1. **Health and honesty.** `GET /api/v1/health` shows the database green and extraction
-   and policy explicitly `not_configured`. Say plainly that they are not built.
+1. **Health and honesty.** `GET /api/v1/health` shows database health. Explain that
+   policy evaluation and structured extraction are not built; OCR status depends on
+   whether the local runtime paths are configured.
 2. **Identity resolution.** `GET /api/v1/me` with an employee's actor id returns that
    employee's membership. Swap to the finance admin's id and it returns theirs. Roles
    come from the database, not from the request.
@@ -87,9 +93,9 @@ If the database is unavailable, the honest fallback is to show the documentation
 than a broken terminal: `docs/api-contract.md`, `docs/database-design.md` and the test
 output (`pytest -q` with its pass count).
 
-**There is no cached-extraction fallback yet**, because there is no extraction. When a
-provider is implemented, the fallback must be labelled as a cached/verified result and
-never presented as live inference.
+There is no cached-extraction fallback. IndicOCR currently runs locally and each upload
+records the actual provider status; failed or unavailable inference is never replaced
+with a successful result.
 
 If the demo cannot be shown, say so. A prepared explanation beats a fabricated screen.
 
@@ -113,4 +119,4 @@ For any recorded demo, note:
 
 Update this runbook with: the seed's expected rule results per fixture (once the policy
 is encoded), a verification pass over the integration path, and a genuinely rehearsed
-end-to-end narrative. Until then this document stays honest about a scaffold.
+end-to-end narrative. This OCR slice is not a policy or approval workflow.

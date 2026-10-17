@@ -25,6 +25,12 @@ class UnavailableExtractor:
 
     provider_name = "unavailable"
 
+    def __init__(
+        self, *, reason: str = _REASON, error_code: str = "EXTRACTION_UNAVAILABLE"
+    ) -> None:
+        self._reason = reason
+        self._error_code = error_code
+
     def extract(self, *, receipt_id: uuid.UUID, data: bytes, content_type: str) -> ExtractionResult:
         return ExtractionResult(
             status=ExtractionStatus.UNAVAILABLE,
@@ -32,8 +38,10 @@ class UnavailableExtractor:
             model=None,
             fields={},
             line_items=(),
+            error_code=self._error_code,
+            error_message=self._reason,
             notes=(
-                _REASON,
+                self._reason,
                 "No field values were produced, so no finding can be based on extraction.",
             ),
         )

@@ -13,7 +13,13 @@ from datetime import datetime
 
 from pydantic import Field
 
-from app.core.enums import DerivationType, ExtractionStatus, StorageBackend
+from app.core.enums import (
+    DerivationType,
+    ExpenseChannel,
+    ExpenseStatus,
+    ExtractionStatus,
+    StorageBackend,
+)
 from app.schemas.common import ApiModel
 
 
@@ -85,17 +91,21 @@ class ReceiptResponse(ApiModel):
 
 
 class ReceiptUploadResponse(ApiModel):
-    """Result of a multipart upload.
-
-    Extraction is asynchronous. The receipt is returned immediately with
-    ``extraction_status = pending`` and is polled through ``GET /api/v1/receipts/{id}``.
-    """
+    """Result of a multipart upload and its synchronous OCR attempt."""
 
     receipt: ReceiptResponse
     extraction_scheduled: bool = Field(
         ...,
-        description=(
-            "False in this scaffold: no extraction provider has been selected, so no job is "
-            "started and the receipt stays in the unavailable state."
-        ),
+        description="Always false for this synchronous upload flow; inspect receipt status.",
     )
+
+
+class DraftExpenseResponse(ApiModel):
+    """Minimal response needed to attach a receipt to an employee-owned draft."""
+
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    channel: ExpenseChannel
+    status: ExpenseStatus
+    version: int
+    created_at: datetime

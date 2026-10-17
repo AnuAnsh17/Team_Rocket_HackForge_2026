@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from contextlib import suppress
 from pathlib import Path, PurePosixPath
 
 from app.core.config import Settings
@@ -72,6 +73,10 @@ class LocalPrivateReceiptStorage:
         try:
             path.write_bytes(data)
         except OSError as exc:  # pragma: no cover - filesystem failure
+            # ``write_bytes`` may create or truncate the destination before the
+            # write fails. Do not leave an orphaned partial receipt behind.
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
             raise StorageError("Could not write the receipt object.") from exc
         return StoredObject(
             object_key=object_key,

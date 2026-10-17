@@ -28,7 +28,7 @@ logger = get_logger("proofline.app")
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown.
 
     Startup names the capabilities that are NOT implemented. That is deliberate:
@@ -59,15 +59,17 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         "unimplemented capabilities",
         extra={
             "capabilities": [
-                "receipt upload and extraction",
                 "policy rules (registry holds zero rules)",
-                "expense and decision workflow",
+                "expense submission, review and decision workflow",
                 "production authentication",
             ],
             "detail": "See GET /api/v1/meta for the authoritative list.",
         },
     )
     yield
+    extractor = getattr(app.state, "receipt_extractor", None)
+    if extractor is not None and hasattr(extractor, "close"):
+        extractor.close()
     dispose_engine()
     logger.info("shutdown complete")
 
@@ -80,11 +82,11 @@ def create_app() -> FastAPI:
         title="Proofline API",
         version=settings.app_version,
         description=(
-            "Evidence-first expense auditing API. This build is a **scaffold**: the "
-            "contract, data model, authorization model and module boundaries are in "
-            "place, while extraction, policy rules and the claim workflow are not yet "
-            "implemented. GET /api/v1/meta lists what is missing so nothing silently "
-            "pretends to work."
+            "Evidence-first expense auditing API. This build supports authorized draft "
+            "creation and private receipt upload with OCR status tracking. OCR text is "
+            "not retained or converted into structured expense fields. Production "
+            "authentication, policy evaluation and review workflows remain incomplete. "
+            "GET /api/v1/meta lists the outstanding capabilities."
         ),
         # The contract fixes the OpenAPI location inside the versioned prefix.
         openapi_url=f"{settings.api_v1_prefix}/openapi.json",
@@ -92,6 +94,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
         lifespan=lifespan,
     )
+    app.state.max_receipt_bytes = settings.receipt_max_upload_bytes
 
     # Correlation id and access logging wrap everything else, including errors.
     app.add_middleware(RequestContextMiddleware)
