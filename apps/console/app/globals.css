@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens.
+ *
+ * Declared with Tailwind v4's `@theme` so each one becomes a real utility
+ * (`bg-surface`, `text-text-muted`) rather than an arbitrary value, and so there is one
+ * place to change the palette. src/lib/tokens.ts mirrors these names for TypeScript; a
+ * smoke test asserts the two lists agree.
+ *
+ * A note on the status colours: they map to workflow state, never to a judgement about a
+ * person. There is deliberately no "fraud" or "risk" colour, because the product asserts
+ * neither.
+ */
+@theme {
+  --color-surface: #0b1020;
+  --color-surface-muted: #161c2f;
+  --color-surface-raised: #111726;
+  --color-border: #26304a;
+  --color-border-strong: #38446a;
+  --color-text: #e8ecf8;
+  --color-text-muted: #97a2c0;
+  --color-text-inverse: #0b1020;
+
+  --color-accent: #5b8cff;
+  --color-accent-hover: #7ba3ff;
+
+  --color-status-draft: #6b7691;
+  --color-status-submitted: #4a8fe7;
+  --color-status-needs-info: #e0a33a;
+  --color-status-in-review: #8b7cf0;
+  --color-status-approved: #3fa87a;
+  --color-status-rejected: #d4665f;
+  --color-status-withdrawn: #6b7691;
+
+  --color-severity-info: #4a8fe7;
+  --color-severity-warning: #e0a33a;
+  --color-severity-blocking: #d4665f;
+
+  --color-result-pass: #3fa87a;
+  --color-result-fail: #d4665f;
+  --color-result-unknown: #8b7cf0;
+
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+}
+
+html,
+body {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* The console is a dense data tool; tabular figures make columns comparable. */
+:where(table) {
+  font-variant-numeric: tabular-nums;
+}
