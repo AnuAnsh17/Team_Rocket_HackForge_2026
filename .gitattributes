@@ -1,0 +1,58 @@
+# Normalise line endings for a mixed-OS team.
+#
+# The repository previously had no .gitattributes while contributors run
+# core.autocrlf=true on Windows. That stores LF in the index and CRLF in the
+# working tree, which produces noisy diffs and can break POSIX shell scripts
+# and executable Python entry points on Linux CI.
+#
+# Rule: text files are normalised to LF in the repository on commit.
+* text=auto eol=lf
+
+# --- Explicit text types -------------------------------------------------
+*.py        text eol=lf
+*.pyi       text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.toml      text eol=lf
+*.ini       text eol=lf
+*.cfg       text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.sh        text eol=lf
+*.sql       text eol=lf
+Dockerfile  text eol=lf
+Makefile    text eol=lf
+
+# --- Windows-only scripts keep CRLF -------------------------------------
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# --- Binary (never convert, never diff) ---------------------------------
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.pdf       binary
+*.ico       binary
+*.keystore  binary
+*.jks       binary
+*.ttf       binary
+*.otf       binary
+*.woff      binary
+*.woff2     binary
+*.zip       binary
+
+# --- Keep generated contract artefacts out of "linguist" noise ----------
+packages/api-client/openapi.json     linguist-generated=true
+packages/api-client/src/schema.d.ts  linguist-generated=true
+package-lock.json                    linguist-generated=true
