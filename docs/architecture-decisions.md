@@ -1,0 +1,294 @@
+# Architecture Decisions
+
+Recorded decisions with their reasons and trade-offs. Each entry states what was
+decided, why, what it costs, and whether it is reversible cheaply. Entries marked
+**OPEN** are not decided and are recorded so nobody silently decides them by accident.
+
+## 1. One backend owns policy, workflow and audit
+
+**Decided.** A single FastAPI service is the only authority for policy evaluation,
+workflow transitions and audit history. The Android app, the employee web portal and
+the internal console are clients that display what the backend returns.
+
+**Why.** A reimbursement rule implemented twice will diverge. The divergence would be
+invisible until an employee and a reviewer see different numbers for the same claim,
+which is the worst possible failure for this product.
+
+**Cost.** Every client needs a network round-trip for anything authoritative, and no
+client can work fully offline. Accepted: the alternative is two disagreeing rule
+engines.
+
+**Enforcement.** No threshold, limit, city cap, time window or exchange rate exists
+outside `app/policy`. A unit test scans the policy package for suspicious numeric
+literals and fails if one appears without coming from a validated rule parameter.
+
+## 2. Three clients, one contract
+
+**Decided.** `apps/mobile` (Expo), `apps/portal` (employee web) and `apps/console`
+(internal HR/Finance/Admin) all consume types generated from the backend's OpenAPI
+document via `packages/api-client`. No client defines its own expense model.
+
+**Why.** The brief explicitly forbids independent, conflicting expense models. A
+generated client makes a contract drift a compile error rather than a runtime bug.
+
+**Reversible?** Yes, cheaply - the client is a thin wrapper.
+
+## 3. The employee portal and the internal console are separate applications
+
+**Decided.** Two Next.js applications rather than one with role-gated areas.
+
+**Why.** Employee-facing and internal-review surfaces have different audiences,
+different deploy cadence and different failure modes. Separating them means an
+authorization bug in the internal console cannot expose employee routes, and the
+employee bundle does not ship internal review code. It also makes the deploy boundary
+explicit.
+
+**Cost.** Some shell, layout and design-token code is shared through `packages/`, and
+two builds run in CI. Accepted.
+
+**Note on interpretation.** The brief asks for "one internal console with
+role-specific navigation, pages and actions rather than separate, duplicated
+applications for HR, finance and administrators" - that is satisfied: all internal
+roles live in one console with route groups, not three applications.
+
+## 4. Deterministic policy engine, tri-state, no invented rules
+
+**Decided.** `PASS` / `FAIL` / `UNKNOWN`. `UNKNOWN` is a legitimate answer and is
+never converted to `PASS`. The registry ships **empty** and every claim currently
+evaluates to `UNKNOWN`.
+
+**Why.** No authoritative policy document has been supplied. Any threshold in the code
+would be invented, and an invented rule that approves or rejects real claims is worse
+than no rule at all.
+
+**Enforcement is in the schema, not just in the code.** Two CHECK constraints make an
+invented rule impossible to store:
+
+- `ck_policy_rules_source_requires_validation` - a rule cannot be `is_active` without a
+  source clause, a validator, a validation timestamp and an evaluator type.
+- `ck_allowance_profile_items_limit_requires_source` - an allowance amount cannot be
+  stored without a cited clause and a currency.
+
+**Cost.** The product demonstrates no automated reimbursement decision today. That is
+the honest state, and it is visible in the UI rather than hidden.
+
+## 5. Policy resolution reports unresolved rather than guessing
+
+**Decided.** Precedence is configuration, not specificity. If two approved assignments
+at equal priority point at different policy versions, resolution returns *unresolved*
+with a reason instead of picking one.
+
+**Why.** "Most specific wins" and "higher grade means higher allowance" are policy
+semantics. Assuming either would silently change who gets reimbursed. See
+`docs/role-policy-hierarchy.md`.
+
+## 6. Extraction is a replaceable adapter, and is currently unavailable
+
+**Decided.** `ReceiptExtractor` protocol with an `UnavailableExtractor` that returns
+`ExtractionStatus.UNAVAILABLE` and **no field values**. `build_receipt_extractor`
+raises for any provider that is configured but not implemented.
+
+**Why.** Fabricated receipt data is the most damaging possible shortcut: it would make
+the extraction evaluation meaningless and mislead a reviewer. Refusing is visible.
+
+**Cost.** No extraction works yet. Selecting a provider requires a benchmark against
+the supplied receipt set (`docs/testing-strategy.md`).
+
+**OPEN.** Which provider, model and privacy terms. Also open: whether the supplied
+receipt data may be sent to a third party at all.
+
+## 7. Private object storage with no public URL anywhere in the interface
+
+**Decided.** `ReceiptStorage` exposes only `save`, `read`, `delete`, `exists`. There is
+deliberately no `public_url` or `signed_url` member.
+
+**Why.** A storage abstraction that can mint a public URL eventually will. Content is
+served only through an authorized endpoint that re-checks ownership.
+
+**Cost.** Streaming every receipt through the API is more expensive than a CDN. If
+short-lived signed URLs are added later, they are produced by the route after an
+authorization check, not exposed as a general storage capability.
+
+**Local development** uses a private filesystem adapter. Production requires Supabase
+Storage or S3; `Settings` refuses `RECEIPT_STORAGE_BACKEND=local` outside local
+development.
+
+## 8. Synchronous persistence
+
+**Decided.** SQLAlchemy 2.x ORM over psycopg3, synchronous sessions, with routes
+declared as `def` so FastAPI runs them in its threadpool. Approved by the product owner
+during scaffolding.
+
+**Why.** Alembic is synchronous, `TestClient` and transactional rollback fixtures are
+straightforward, and there is no greenlet or event-loop footgun. For a team of three
+building a demo, test ergonomics beat theoretical throughput.
+
+**Cost.** Under high concurrency, async sessions would use the event loop better.
+**Contained to:** the session factory in `app/db/session.py` and the route function
+signatures, so a later conversion does not reach the services.
+
+## 9. Money as NUMERIC/Decimal, serialised as a decimal string
+
+**Decided.** `NUMERIC(20, 4)` in PostgreSQL; `Decimal` in Python; a JSON **string** on
+the wire. A JSON number is rejected on input.
+
+**Why.** Binary floating point cannot represent most currency amounts exactly. A client
+that sends `0.1` has already lost information.
+
+**Non-obvious detail.** Pydantic emits `{"type": "number"}` alongside `string` in the
+JSON schema for a bare `Decimal`. A generated TypeScript client would then type every
+amount as `number | string | null` and do float arithmetic. `MoneyString` in
+`app/schemas/common.py` pins the schema to `string` and refuses a float at validation
+time. A contract test asserts this, because it is exactly the kind of regression
+nobody notices until amounts are wrong by a paisa.
+
+## 10. Enum columns are `varchar` + CHECK, not native PostgreSQL enums
+
+**Decided.** Adding a value later is an ordinary migration rather than `ALTER TYPE` on
+a live table. **Cost:** no automatic type-level protection against an unlisted value at
+the Python level; the CHECK constraint and the Pydantic enum cover that.
+
+## 11. Claim fields and provenance are stored separately
+
+**Decided.** `expenses` holds the current value of each claim field (denormalised for
+cheap list and detail queries). `expense_field_evidence` holds immutable,
+per-version, per-field provenance. A partial unique index
+(`uq_expense_field_evidence_current`) guarantees at most one *current* row per
+(claim, field), so the two representations cannot drift silently.
+
+**Why.** "Show me why" needs the value, its source, whether a human reviewed it, the
+extraction quality signal and the receipt region - for every field, at the version that
+produced a given decision.
+
+**Guard.** A CHECK constraint refuses `receipt_extraction` provenance without a receipt
+id, so employee-entered text can never be presented as receipt evidence.
+
+## 12. `audit_events` has no foreign keys
+
+**Decided.** The organisation, actor and policy-version columns are plain indexed
+UUIDs, deliberately unconstrained.
+
+**Why, discovered by a failing test.** With `ON DELETE SET NULL`, deleting an
+organization made PostgreSQL issue
+`UPDATE audit_events SET organization_id = NULL`, which the append-only trigger
+refused - so an unrelated operation failed with a confusing error. More importantly, an
+audit record must **outlive** the entity it refers to. A historical event that
+disappears when its subject is deleted is not an audit trail.
+
+**Trade-off.** Referential integrity for these columns is guaranteed at write time by
+`app/audit/writer.py` rather than by the database. Accepted, and documented in the
+model docstring so it cannot be mistaken for an oversight. A regression test asserts
+both that `audit_events` has zero foreign keys and that deleting a referenced
+organization leaves the audit row intact.
+
+## 13. Append-only is application/database-level, not cryptographic
+
+**Decided.** A trigger refuses `UPDATE` and `DELETE` on `audit_events`.
+
+**Explicitly not claimed:** immutability against someone with database superuser
+rights, hash-chaining, or external notarisation. The honest description is
+"append-only enforcement at the database level". Stated here because it is the kind of
+thing that gets over-claimed in a pitch.
+
+## 14. No materialized aggregate table
+
+**Decided.** Aggregates are computed by query over the included claims.
+
+**Why.** The build plan warns that nullable dimensions such as `trip_id` cause
+duplicate aggregate rows. A materialized table would need reconciliation and rebuild
+logic that does not exist yet. A correct query is better than premature aggregate
+complexity.
+
+**Consequence.** The scope fingerprint records an absent dimension as an explicit value
+rather than omitting it, so "no trip" is distinct from "not consulted" and re-runs of
+the same evaluation are provably identical.
+
+## 15. Pagination is `limit` + opaque `next_cursor` + `total`
+
+**Decided** during contract reconciliation, because the previous prose allowed "limit,
+cursor or offset" and one shape is required for a shared client. The cursor is
+HMAC-tagged so a hand-edited cursor cannot silently change which page a reviewer sees,
+and is deliberately opaque so it can become a keyset cursor later without a contract
+change.
+
+## 16. Demo identity identifies a user, never a role
+
+**Decided.** `X-Demo-Actor-Id` carries a user id; roles, permissions and scope are read
+from the database. `X-Demo-Organization-Id` is honoured only for a genuine active
+membership.
+
+**Why.** A demo switcher that accepted a role claim would be a privilege-escalation
+hole wearing a demo badge. Tested in `tests/security/test_authorization.py`.
+
+## 17. Demo seeding activates nothing
+
+**Decided.** The seed creates one fictional organization, fictional people,
+memberships, role grants, reporting edges and one **draft, empty** policy version. It
+creates no job grades, no allowance profiles, no allowance limits, no policy rules and
+no expense claims.
+
+**Why.** Grade levels and allowances are organizational data; a limit without a cited
+clause cannot be stored anyway. Claims are created through the application so field
+provenance is written by the same code path a real claim uses.
+
+**Trade-off.** The demo has fewer moving parts than a scripted showcase would. It is
+also true, which matters more.
+
+## 18. npm workspaces instead of pnpm
+
+**Decided.** pnpm is not installed; npm 11 supports workspaces natively. Adding a
+second package manager would need corepack setup on all three machines for no
+functional gain. Expo 58 and Next 16 both support npm workspaces monorepos.
+
+**Cost.** Slower installs and weaker phantom-dependency detection than pnpm. Switching
+later is mechanical.
+
+## 19. TypeScript pinned to 5.9.3
+
+**Decided.** npm's `latest` is TypeScript 7, the Go-native compiler rewrite.
+`@typescript-eslint` 8.x and `eslint-config-next` 16 do not claim TS 7 support.
+**Cost:** forgoes TS 7's speed. **Reversible:** yes, once the toolchain supports it.
+
+## 20. Tailwind CSS v4, CSS-first configuration
+
+**Decided.** v4 is the current release and pairs cleanly with Next 16. Design tokens are
+declared in CSS rather than in `tailwind.config.js`. **Cost:** v3-era snippets do not
+work verbatim; the token file is the single reference.
+
+## Dependency verification
+
+Pinned versions were verified by resolving the stack on the actual toolchain before
+being written down, rather than copying current release numbers.
+
+- **Python 3.14** - a full `pip install` resolution succeeded with cp314 wheels for
+  every compiled dependency: fastapi 0.143.3, starlette 1.8.0, pydantic 2.14.1,
+  pydantic-core 2.50.1, SQLAlchemy 2.1.5, alembic 1.20.0, psycopg 3.3.6,
+  uvicorn 0.54.0, python-multipart 0.0.32, httpx 0.28.1, pytest 9.1.1,
+  python-json-logger 4.2.0.
+- **Node 26.7.0** - satisfies the published `engines` of next 16.4.2 (`>=20.9.0`),
+  expo 58.0.14 (`^26.0.0`) and react-native 0.88.0 (`>=26.0.0`).
+- **Expo/React Native pins** come from `expo-template-blank-typescript` 58.0.23
+  (expo ~58.0.14 / react 19.3.0 / react-native 0.88.0) rather than an invented
+  combination.
+- **PostgreSQL 18** - `postgres:18-alpine`. Note the 18+ image expects a single mount
+  at `/var/lib/postgresql`; the older `/var/lib/postgresql/data` mount point is refused
+  by the entrypoint.
+
+## Open decisions
+
+Recorded so they are not settled by accident. Full detail in
+`docs/policy-assumptions.md`.
+
+1. **The authoritative policy document.** Where is it, which version, which clauses?
+2. **The receipt dataset** and what use is authorized.
+3. **External AI provider use** and its retention/privacy terms.
+4. **The organization's operating timezone** and day-boundary rule.
+5. **Which claim states count** toward an aggregate cap.
+6. **Cap semantics**: does an exceeded cap make only the excess ineligible, the whole
+   claim, or require review?
+7. **Exchange-rate source and rate date** if conversion is required.
+8. **Which approval stages actually exist**, and at what thresholds.
+9. **Whether a native APK is required**, or a physical-device Expo app suffices.
+10. **Job grades and allowance profiles** - organizational data, not to be invented.
+11. **Production auth implementation and security testing.**
+12. **Audit retention period** and whether the trail must be exported off-site.

@@ -7,8 +7,11 @@ This repository builds **Proofline**, an evidence-first expense auditor. These i
 1. Read PROOFLINE_BUILD_PLAN.md.
 2. Read docs/api-contract.md before implementing frontend/backend integration.
 3. Read docs/policy-assumptions.md before encoding or changing policy rules.
-4. Inspect the current repository and existing implementation before editing.
-5. Identify which modules and public contracts your change may affect.
+4. Read docs/architecture-decisions.md before making a structural decision that has
+   already been made, and docs/authorization-matrix.md before touching access control.
+5. Read docs/problem-statement-coverage.md before claiming that something works.
+6. Inspect the current repository and existing implementation before editing.
+7. Identify which modules and public contracts your change may affect.
 
 ## Source-of-truth rules
 

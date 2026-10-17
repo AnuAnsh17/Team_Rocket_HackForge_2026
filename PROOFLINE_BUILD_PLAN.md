@@ -12,6 +12,7 @@
 - **Policy source:** The actual policy document and supplied receipt dataset are authoritative. Any numeric caps, time windows, approval thresholds, currency conversion rules or eligibility rules in examples below are illustrative only until verified against that source.
 - **Model choice:** Select an available model after testing its API, schema support, latency, price, data terms and current availability. Do not hard-code a stale model name. Keep the extraction provider replaceable.
 - **No unsupported claims:** Do not claim fraud detection, calibrated confidence, production readiness, legal compliance, or accuracy percentages without validation evidence.
+- **Scope was expanded during scaffolding (2026-10-17).** The product is now three client experiences - an employee Android app, an employee web portal and an internal HR/Finance/Admin console - sharing one backend, with a full authentication and authorization model, an employee hierarchy, allowance profiles and scoped policy assignments. Section 17 records these requirements; `docs/architecture-decisions.md` records the decisions taken to satisfy them.
 
 ### Non-negotiable engineering rules
 
@@ -266,7 +267,7 @@ Validate each enum in the backend. Use stable machine-readable codes; provide se
 
 #### Receipts and extraction
 
-- `POST /api/v1/receipts` — secure multipart upload associated with a claim or draft.
+<!-- Upload is expense-scoped; see docs/api-contract.md decision log entry 1. -->
 - `GET /api/v1/receipts/{receipt_id}` — receipt metadata and extraction status, not a public object-store path.
 - `GET /api/v1/receipts/{receipt_id}/content` — authorized streaming or short-lived signed URL.
 - `POST /api/v1/receipts/{receipt_id}/reextract` — authorized re-extraction with a recorded extractor version and no deletion of prior run history.
@@ -313,9 +314,10 @@ The following is an illustrative contract example, not a real policy result. All
   "employee": { "id": "usr_01JEXAMPLE", "display_name": "Demo Employee" },
   "channel": "android",
   "trip_id": null,
-  "merchant": { "value": "Example Cafe", "source": "receipt", "reviewed": false },
-  "expense_date": { "value": "2026-10-14", "source": "receipt", "reviewed": true },
-  "amount": { "value": "1400.00", "currency": "INR", "source": "receipt", "reviewed": true },
+  "merchant": { "value": "Example Cafe", "source": "receipt_extraction", "reviewed": false },
+  "expense_date": { "value": "2026-10-14", "source": "receipt_extraction", "reviewed": true },
+  "amount": { "value": "1400.00", "currency": "INR", "source": "receipt_extraction",
+              "reviewed": true },
   "category": "meal",
   "business_purpose": "Client meeting",
   "client_name": null,
@@ -728,6 +730,111 @@ These questions are deliberately not filled with invented values:
 - Who are the final three owners, and who maintains the API contract?
 
 Until answered, implement only the parts that do not depend on these assumptions and keep uncertain policy-dependent behavior explicit.
+
+---
+
+## 17. Scope expansion and scaffolding decisions (2026-10-17)
+
+The product scope was expanded during the scaffolding phase. These are now **explicit
+product requirements**, not optional direction. Implementation status is tracked in
+`docs/problem-statement-coverage.md`; decisions and trade-offs are in
+`docs/architecture-decisions.md`.
+
+### 17.1 Three client experiences, one backend
+
+| Client | Stack | Purpose |
+|---|---|---|
+| Employee Android app | React Native + Expo + TypeScript | Receipt capture, extraction review, submission, status, corrections |
+| Employee web portal | Next.js + TypeScript + Tailwind | First-class employee experience: upload, correct, personal expense history, personal allowance overview |
+| Internal HR/Finance/Admin console | Next.js + TypeScript + Tailwind | One console with role-specific navigation for HR review, manager approval, finance review, finance administration, organization administration and policy administration |
+
+Rules that follow from this:
+
+- The employee portal and the internal console are separate applications, so an
+  authorization defect in one cannot expose the other and the employee bundle does not
+  ship internal review code.
+- The internal console is **one** application with role-specific routes, not three
+  duplicated applications for HR, finance and administrators.
+- All three consume the same generated API client. No client defines its own expense
+  model.
+- An employee may access only their own claims, receipts, status, allowance profile and
+  history, except for explicitly authorized delegated access. Ownership is enforced by
+  the backend, never by frontend filtering.
+
+### 17.2 Authentication and authorization as core requirements
+
+Not a later cosmetic feature. The architecture must include:
+
+1. Identity verification through validated authentication tokens.
+2. Server-side JWT signature, issuer, audience and expiry validation using the chosen
+   provider's supported mechanism. **Supabase Auth is the initial choice.**
+3. Server-controlled membership and authorization records; a client can never grant
+   itself a role or privilege.
+4. Organization/tenant scoping for every organization-owned record.
+5. Resource-level access checks on expenses, receipts, findings, history, policy,
+   uploads and mutations.
+6. A user cannot reach another employee's data by changing a URL, UUID, parameter or
+   payload.
+7. Employee access limited to their own claims and permitted profile fields.
+8. Managers reach direct reports only through explicitly authorized relationships.
+9. HR and finance access scoped to the claims, fields, departments or queues they are
+   authorized for.
+10. Organization and policy administrators receive only their assigned capabilities.
+11. Sensitive actions audited with actor, target, action, timestamp, reason and
+    request/correlation id.
+12. Role changes, deactivation, token revocation/expiry and membership loss considered
+    in the security design.
+
+A demo identity switcher is permitted **only** in explicitly enabled non-production demo
+mode, must be impossible to use to gain another user's identity or administrative
+permissions in production, and must fail closed when disabled. See
+`docs/authentication-security.md` and `docs/authorization-matrix.md`.
+
+### 17.3 Hierarchy, allowance profiles and policy assignment
+
+Different employees may have different limits, privileges, required approvals and
+allowances. The data model and architecture must support:
+
+- Organizations / legal entities; users and organization memberships.
+- Employee profile and employment status; manager/reporting relationships (historised).
+- Department, cost centre, office/location and destination context.
+- Grade, job level or employee band.
+- Allowance/benefit profiles; policy documents and versions; policy rules.
+- Policy assignments with scope, effective dates and approval state.
+- Explicit, reviewed, time-bounded exceptions/overrides.
+- Approval tasks and decisions.
+- Audit history of policy-assignment changes.
+
+Resolution dimensions: organization/legal-entity baseline; jurisdiction/office/location;
+grade; department/cost centre; trip or expense context; explicit authorized exception.
+
+**Do not assume that a higher job level means a higher allowance, and do not assume that
+the most specific policy always wins.** The approved policy determines the semantics.
+The design must make precedence, effective dates and exceptions explicit and
+deterministic. If applicable rules conflict or required context is absent, resolution
+must report an explicit unresolved/UNKNOWN outcome for review rather than inventing a
+decision. See `docs/role-policy-hierarchy.md`.
+
+### 17.4 Contract corrections agreed during scaffolding
+
+Recorded in full, with reasons, in the decision log at the top of
+`docs/api-contract.md`:
+
+1. `POST /api/v1/expenses/{expense_id}/receipts` is the only receipt-upload route. The
+   bare `POST /api/v1/receipts` is removed.
+2. `RecommendedAction` (`none`, `review`, `request_correction`, `escalate`) is its own
+   enum, distinct from `ReviewAction`.
+3. One canonical money structure carrying `value`, `currency`, `source`, `reviewed`,
+   optional `confidence`, optional `evidence` and `uncertainty_reason`.
+4. Invalid `FieldSource` values in examples corrected to `receipt_extraction`.
+5. Public identifiers are UUIDs.
+6. Pagination is `limit` + opaque `next_cursor` + `total`.
+
+### 17.5 What the scaffolding phase deliberately did not build
+
+No OCR pipeline, no policy rules, no reimbursement thresholds, no claim or decision
+routes, no live authentication. Any such gap must remain explicit in the code, the API
+metadata (`GET /api/v1/meta`) and the coverage report - never implied to work.
 
 ---
 
