@@ -1,0 +1,77 @@
+# Local development dependencies for Proofline.
+#
+# Scope: PostgreSQL only.
+#
+# Deliberately NOT included:
+#   - The FastAPI backend runs on the host so migration/edit/restart cycles
+#     stay fast. `docker compose --profile full up` can build it if a
+#     containerised backend is wanted.
+#   - No MinIO/object-storage container. The default development receipt
+#     storage backend is the private local filesystem adapter, which needs no
+#     extra service. Set RECEIPT_STORAGE_BACKEND=supabase to exercise the
+#     hosted adapter once credentials exist.
+#
+# Requires Docker Desktop to be running. See docs/development-setup.md.
+
+name: proofline
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: proofline-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: proofline
+      POSTGRES_PASSWORD: proofline
+      POSTGRES_DB: proofline
+      # Deterministic collation so text ordering matches across machines.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      # Override with POSTGRES_PORT when something already holds 5432 (for
+      # example a locally installed PostgreSQL service, which is common on
+      # Windows). Set POSTGRES_PORT in .env and use the same port in
+      # DATABASE_URL, for example 55432.
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # postgres:18 images expect a single mount at /var/lib/postgresql; the
+      # older /var/lib/postgresql/data mount point is refused by the 18+ entrypoint
+      # because it breaks pg_upgrade --link.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proofline -d proofline"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    command:
+      - postgres
+      # Required by the audit_events append-only trigger approach and by
+      # case-insensitive lookups if they are ever needed.
+      - -c
+      - log_min_duration_statement=500
+
+  # Same service with a throwaway volume, for CI and integration tests.
+  #   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d
+  postgres-test:
+    profiles: ["test"]
+    image: postgres:18-alpine
+    container_name: proofline-postgres-test
+    environment:
+      POSTGRES_USER: proofline
+      POSTGRES_PASSWORD: proofline
+      POSTGRES_DB: proofline_test
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "${POSTGRES_TEST_PORT:-5433}:5432"
+    tmpfs:
+      # Matches the postgres:18+ data-directory layout used above.
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proofline -d proofline_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:
+    name: proofline-postgres-data
