@@ -1,71 +1,98 @@
-# Proofline Employee Android App (Android Studio + Jetpack Compose)
+# Proofline Employee Android App
 
 Native Android application for Proofline built with Kotlin and Jetpack Compose (Material 3).
 
-## Prerequisites
+> **This app performs no policy calculations. All decisions come from the backend.**
 
-- **JDK 17 requirement:** JDK 17 (or JDK 21) is strictly required to build and run the application. Configure this in Android Studio under **Settings -> Build, Execution, Deployment -> Build Tools -> Gradle -> Gradle JDK**.
-- **Android Studio Ladybug (2024.2.1+)** or newer.
-- **Android SDK:** `compileSdk 35`, `minSdk 26`, `targetSdk 35`.
+---
+
+## Verified Toolchain Setup
+
+The app build and test suite have been verified end-to-end on Linux with the following toolchain:
+
+- **JDK 17 Path:** `/home/soni/.jdks/jdk-17` (Eclipse Adoptium OpenJDK 17.0.20.1+1)
+- **Android SDK Path:** `/home/soni/Android/Sdk`
+  - Platform: `android-35`
+  - Build-Tools: `35.0.0`
+- **Gradle Wrapper:** Gradle `8.11.1` (`apps/android/gradle/wrapper/gradle-wrapper.jar` and `gradle-wrapper.properties`)
+
+### Environment Variables
+Export the toolchain paths before building:
+```bash
+export JAVA_HOME=/home/soni/.jdks/jdk-17
+export PATH=$JAVA_HOME/bin:$PATH
+export ANDROID_HOME=$HOME/Android/Sdk
+export PATH=$ANDROID_HOME/platform-tools:$PATH
+```
+
+---
 
 ## Backend Connection & Demo Identity
 
-- **Backend Base URL:** Defaulted to `http://10.0.2.2:8000/api/v1` in `BuildConfig` for the standard Android Emulator accessing the host dev machine. For physical devices on the same Wi-Fi network, set `NetworkConfig.baseUrl` in `ProoflineApplication.kt` to your LAN IP (e.g. `http://192.168.1.50:8000/api/v1`).
-- **Demo Identity (`X-Demo-Actor-Id`):** The app communicates with demo actor ID `00000000-0000-0000-0000-000000000001`. A persistent Demo Mode Banner is displayed on all screens showing this simulated identity.
+- **Backend Base URL Configuration:** `http://10.0.2.2:8000/api/v1` (configured for Android emulator connecting to host backend)
+- **Demo Actor ID:** Passed in `X-Demo-Actor-Id` header with value `00000000-0000-0000-0000-000000000001`
+- **Persistent Demo Mode Banner:** Renders at root level above `NavHost` across all screens when demo mode is active.
 
-## Authoritative Policy Rule
+---
 
-> **Important:** This app performs no policy calculations. All decisions come from the backend. The pre-flight policy guidance is advisory only and aggregate limits, cross-claim context, or finance reviewers make final reimbursement determinations.
+## Verified Build & Test Commands
 
-## How to Build & Run
+Run the following commands from `apps/android/`:
 
-### 1. From Command Line:
+### 1. Compile Debug APK (Verified)
 ```bash
 cd apps/android
 ./gradlew :app:assembleDebug
-./gradlew :app:testDebugUnitTest
+```
+Output: `BUILD SUCCESSFUL`
+
+### 2. Run Unit Tests (Verified)
+```bash
+./gradlew :app:testDebugUnitTest --info
+```
+Output: `BUILD SUCCESSFUL` (7 tests passed: `ModelSerializationTest` 4/4, `WordingComplianceTest` 3/3)
+
+### 3. Install & Launch on Emulator or Device
+```bash
 ./gradlew :app:installDebug
 ```
-Then launch "Proofline" from your emulator's application launcher.
+Then open **"Proofline"** from the Android application launcher.
 
-### 2. From Android Studio:
-1. Open Android Studio, select **File -> Open** and select `apps/android`.
-2. Allow Gradle sync to complete with JDK 17.
-3. Select your emulator or connected device and click **Run 'app'**.
+---
 
-## Project Architecture
+## Project Structure
 
 ```
 apps/android/
-├── build.gradle.kts                      # Root Gradle configuration
-├── settings.gradle.kts                   # Project settings
-├── local.properties                      # Local SDK path
+├── build.gradle.kts                      # Root Gradle build configuration
+├── settings.gradle.kts                   # Project settings & plugin repositories
+├── local.properties                      # sdk.dir=/home/soni/Android/Sdk (git-ignored)
 ├── gradle/
-│   ├── libs.versions.toml                # Gradle Version Catalog
+│   ├── libs.versions.toml                # Dependency version catalog
 │   └── wrapper/
-│       ├── gradle-wrapper.jar            # Gradle Wrapper JAR
-│       └── gradle-wrapper.properties     # Gradle 8.11.1
+│       ├── gradle-wrapper.jar            # Gradle 8.11.1 wrapper JAR
+│       └── gradle-wrapper.properties     # Wrapper properties
 └── app/
-    ├── build.gradle.kts                  # App module dependencies & SDK pins
+    ├── build.gradle.kts                  # App module dependencies & SDK pins (compileSdk 35)
     └── src/
         ├── main/
         │   ├── AndroidManifest.xml
         │   └── java/org/proofline/android/
-        │       ├── ProoflineApplication.kt
-        │       ├── MainActivity.kt
+        │       ├── ProoflineApplication.kt # Application container & ProoflineApiClient singleton
+        │       ├── MainActivity.kt         # Edge-to-edge Compose root with persistent DemoModeBanner
         │       ├── core/
-        │       │   ├── model/            # Canonical Enums & DTOs (lean Money, SourceReference)
-        │       │   ├── network/          # ProoflineApiClient, Idempotency-Key, ErrorEnvelope
-        │       │   └── designsystem/     # Theme tokens, Colors, Typography, ProoflineScaffold, StatusPill
+        │       │   ├── model/              # Canonical Enums & DTOs (lean Money, SourceReference)
+        │       │   ├── network/            # ProoflineApiClient, Idempotency-Key handling, error decoding
+        │       │   └── designsystem/       # Material 3 tokens, Theme, ProoflineScaffold, StatusPill
         │       ├── features/
-        │       │   ├── home/             # Screen 1: Dashboard, monthly totals, recent claims, scan CTA
-        │       │   ├── claims/           # ClaimsListScreen & ClaimsListViewModel (Pull-to-refresh & status tabs)
-        │       │   ├── capture/          # Screen 2: Receipt photo picker, file validation, upload
-        │       │   ├── review/           # Screen 3: Extracted fields review, uncertainty reasons, edit
-        │       │   ├── preflight/        # Screen 4: Advisory policy guidance, rule findings breakdown
-        │       │   ├── submit/           # Screen 5: SubmitScreen & SubmitViewModel (Idempotency key retained)
-        │       │   ├── status/           # Screen 6: Claim status timeline ("Not reimbursed", "We could not confirm")
-        │       │   └── correction/       # Screen 7: CorrectionScreen & CorrectionViewModel (PATCH with expected_version)
-        │       └── navigation/           # Compose Navigation Graph
-        └── test/                         # Unit tests (Serialization, Wording Compliance)
+        │       │   ├── home/               # Screen 1: Dashboard, totals, recent claims, scan CTA
+        │       │   ├── claims/             # ClaimsListScreen: Grouped claims list with pull-to-refresh
+        │       │   ├── capture/            # Screen 2: Receipt photo capture & upload
+        │       │   ├── review/             # Screen 3: Extracted fields review & editing
+        │       │   ├── preflight/          # Screen 4: Advisory policy guidance
+        │       │   ├── submit/             # Screen 5: SubmitScreen with retained Idempotency-Key
+        │       │   ├── status/             # Screen 6: Claim status timeline & details
+        │       │   └── correction/         # Screen 7: CorrectionScreen (PATCH with expected_version)
+        │       └── navigation/             # ProoflineNavGraph with routes
+        └── test/                           # Unit tests (Serialization, Wording Compliance)
 ```
