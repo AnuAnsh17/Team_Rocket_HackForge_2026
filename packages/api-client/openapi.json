@@ -1,0 +1,903 @@
+{
+  "components": {
+    "schemas": {
+      "ApiMetaResponse": {
+        "additionalProperties": false,
+        "description": "Service and contract identity.",
+        "properties": {
+          "api_version": {
+            "title": "Api Version",
+            "type": "string"
+          },
+          "app_version": {
+            "title": "App Version",
+            "type": "string"
+          },
+          "contract_version": {
+            "description": "Version label of docs/api-contract.md this build implements.",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "demo_mode": {
+            "title": "Demo Mode",
+            "type": "boolean"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "implemented_endpoint_count": {
+            "description": "Number of routes this build actually serves. Exposed so a caller can tell a scaffold apart from a complete implementation without guessing.",
+            "minimum": 0.0,
+            "title": "Implemented Endpoint Count",
+            "type": "integer"
+          },
+          "unimplemented_capabilities": {
+            "description": "Capabilities the contract describes but this build does not implement. Reported explicitly so nothing silently pretends to work.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unimplemented Capabilities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "app_version",
+          "api_version",
+          "environment",
+          "demo_mode",
+          "contract_version",
+          "implemented_endpoint_count"
+        ],
+        "title": "ApiMetaResponse",
+        "type": "object"
+      },
+      "AuditActorType": {
+        "enum": [
+          "user",
+          "system",
+          "service",
+          "demo"
+        ],
+        "title": "AuditActorType",
+        "type": "string"
+      },
+      "AuditEventListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEventResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "title": "AuditEventListResponse",
+        "type": "object"
+      },
+      "AuditEventResponse": {
+        "additionalProperties": false,
+        "description": "One append-only audit event.\n\n``before``/``after`` are safe diffs: they contain the fields that changed and\nnever raw receipt content, OCR text or credentials.",
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Label"
+          },
+          "actor_type": {
+            "$ref": "#/components/schemas/AuditActorType"
+          },
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ties this event to the request that caused it and to the server log line.",
+            "title": "Correlation Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "entity_type": {
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "policy_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "actor_type",
+          "action",
+          "entity_type"
+        ],
+        "title": "AuditEventResponse",
+        "type": "object"
+      },
+      "DemoResetResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "dataset": {
+            "title": "Dataset",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "organizations_removed": {
+            "minimum": 0.0,
+            "title": "Organizations Removed",
+            "type": "integer"
+          },
+          "users_removed": {
+            "minimum": 0.0,
+            "title": "Users Removed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dataset",
+          "organizations_removed",
+          "users_removed"
+        ],
+        "title": "DemoResetResponse",
+        "type": "object"
+      },
+      "DemoSeedResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "dataset": {
+            "description": "Identifier of the synthetic fixture set that was loaded.",
+            "title": "Dataset",
+            "type": "string"
+          },
+          "memberships": {
+            "minimum": 0.0,
+            "title": "Memberships",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "organizations": {
+            "minimum": 0.0,
+            "title": "Organizations",
+            "type": "integer"
+          },
+          "policy_rules_activated": {
+            "default": 0,
+            "description": "Always 0. The seed never activates a policy rule, because no source policy document has been supplied and a rule cannot be activated without a verified clause.",
+            "minimum": 0.0,
+            "title": "Policy Rules Activated",
+            "type": "integer"
+          },
+          "synthetic": {
+            "default": true,
+            "description": "Always true. No real receipt or employee data is ever seeded.",
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "users": {
+            "minimum": 0.0,
+            "title": "Users",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dataset",
+          "organizations",
+          "users",
+          "memberships"
+        ],
+        "title": "DemoSeedResponse",
+        "type": "object"
+      },
+      "EnumCatalogueResponse": {
+        "additionalProperties": false,
+        "description": "Every canonical enum, keyed by the name used in docs/api-contract.md.",
+        "properties": {
+          "enums": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "description": "Enum name -> ordered list of permitted values.",
+            "title": "Enums",
+            "type": "object"
+          }
+        },
+        "required": [
+          "enums"
+        ],
+        "title": "EnumCatalogueResponse",
+        "type": "object"
+      },
+      "HealthComponent": {
+        "additionalProperties": false,
+        "description": "Status of one dependency.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable machine-readable code such as DATABASE_UNAVAILABLE. Never a raw error.",
+            "title": "Detail"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "unavailable",
+              "not_configured",
+              "not_implemented",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "HealthComponent",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "description": "Aggregate service health.",
+        "properties": {
+          "api_version": {
+            "description": "Advertised API version prefix, for example v1.",
+            "title": "Api Version",
+            "type": "string"
+          },
+          "app_version": {
+            "title": "App Version",
+            "type": "string"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "components": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HealthComponent"
+            },
+            "description": "Per-dependency status keyed by a stable component name.",
+            "title": "Components",
+            "type": "object"
+          },
+          "demo_mode": {
+            "description": "True when demo routes and the demo identity switcher are active.",
+            "title": "Demo Mode",
+            "type": "boolean"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "degraded",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "app_version",
+          "api_version",
+          "environment",
+          "demo_mode",
+          "checked_at",
+          "components"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "MembershipStatus": {
+        "description": "Employment state of an organization membership.",
+        "enum": [
+          "active",
+          "on_leave",
+          "suspended",
+          "terminated",
+          "invited"
+        ],
+        "title": "MembershipStatus",
+        "type": "string"
+      },
+      "MembershipSummary": {
+        "additionalProperties": false,
+        "description": "An employee's organizational position, as needed for display and routing.",
+        "properties": {
+          "cost_center_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Center Name"
+          },
+          "department_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Name"
+          },
+          "employee_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_grade_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Grade label only. Never used by a client to infer an allowance: the effective allowance comes from the resolved policy assignment.",
+            "title": "Job Grade Name"
+          },
+          "joined_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joined On"
+          },
+          "manager_membership_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manager Membership Id"
+          },
+          "office_location_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Location Name"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MembershipStatus"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummary"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "user",
+          "status"
+        ],
+        "title": "MembershipSummary",
+        "type": "object"
+      },
+      "PageInfo": {
+        "additionalProperties": false,
+        "description": "Pagination metadata.",
+        "properties": {
+          "limit": {
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Opaque cursor for the next page. Null on the final page.",
+            "title": "Next Cursor"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total matching rows, or null when the count is intentionally omitted.",
+            "title": "Total"
+          }
+        },
+        "required": [
+          "limit"
+        ],
+        "title": "PageInfo",
+        "type": "object"
+      },
+      "RoleAssignmentSummary": {
+        "additionalProperties": false,
+        "description": "A granted role, with the scope it applies to.",
+        "properties": {
+          "granted_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleCode"
+          },
+          "scope_id": {
+            "format": "uuid",
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "scope_type": {
+            "description": "organization | department | cost_center | team | self",
+            "title": "Scope Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "scope_type",
+          "scope_id"
+        ],
+        "title": "RoleAssignmentSummary",
+        "type": "object"
+      },
+      "RoleCode": {
+        "description": "Role identifiers granted through organization memberships.\n\nA privileged-sounding role name never implies permissions. The actual\npermission set for each role lives in app/core/permissions.py and is\ndocumented in docs/authorization-matrix.md.",
+        "enum": [
+          "employee",
+          "manager",
+          "hr_reviewer",
+          "finance_reviewer",
+          "finance_admin",
+          "org_admin",
+          "policy_admin",
+          "auditor",
+          "service"
+        ],
+        "title": "RoleCode",
+        "type": "string"
+      },
+      "UserSummary": {
+        "additionalProperties": false,
+        "description": "Minimal, safe representation of a person.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "title": "UserSummary",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Evidence-first expense auditing API. This build is a **scaffold**: the contract, data model, authorization model and module boundaries are in place, while extraction, policy rules and the claim workflow are not yet implemented. GET /api/v1/meta lists what is missing so nothing silently pretends to work.",
+    "title": "Proofline API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/demo/import/email": {
+      "post": {
+        "description": "The contract describes this route for demoing a cross-channel duplicate. It is not implemented, and it must never be presented as a real email integration.",
+        "operationId": "simulate_email_import_api_v1_demo_import_email_post",
+        "responses": {
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Simulate Email Import Api V1 Demo Import Email Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Simulate an email-channel submission (NOT IMPLEMENTED)",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/api/v1/demo/reset": {
+      "post": {
+        "description": "Deletes the fixed demo organization and demo-provider users. Non-demo data is not reachable from this operation. Audit events are append-only and survive the reset; the reset itself is recorded as an audit event.",
+        "operationId": "reset_api_v1_demo_reset_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoResetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Remove only the synthetic demo dataset (demo mode only)",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/api/v1/demo/seed": {
+      "post": {
+        "description": "Loads deterministic, clearly labelled synthetic data: one fictional organization, fictional people, memberships, role grants and reporting edges, plus an unapproved and empty policy version. Creates no policy rules and no allowance limits, because both require real organizational data and a verified policy clause.",
+        "operationId": "seed_api_v1_demo_seed_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoSeedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Load the synthetic demo dataset (demo mode only)",
+        "tags": [
+          "demo"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "description": "Reports service health, the database probe result and the status of each dependency. Contains no secrets, no connection strings and no stack traces. Unauthenticated by design so a load balancer can reach it.",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Service health",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "description": "Resolves the caller's own organization membership. The actor is derived from the validated identity and server-side role grants; nothing about identity, role or scope is taken from the request body or query string.",
+        "operationId": "read_me_api_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "The authenticated employee's own membership",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/me/audit": {
+      "get": {
+        "description": "An employee may read their own audit trail. Reading another actor's trail requires a scoped review permission and is not exposed here.",
+        "operationId": "read_my_audit_api_v1_me_audit_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Audit events attributed to the authenticated actor",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/me/roles": {
+      "get": {
+        "description": "Returns the caller's own non-revoked role grants with the scope each applies to. Granted only through organization memberships; a client cannot request someone else's grants, because the membership is taken from the validated identity.",
+        "operationId": "read_my_roles_api_v1_me_roles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoleAssignmentSummary"
+                  },
+                  "title": "Response Read My Roles Api V1 Me Roles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "The authenticated actor's own role grants",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/meta": {
+      "get": {
+        "description": "Contract version, implemented endpoint count and the list of capabilities the contract describes but this build does not implement.",
+        "operationId": "meta_api_v1_meta_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiMetaResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Service and contract metadata",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/meta/enums": {
+      "get": {
+        "description": "Every enumerated value in the canonical contract, keyed by the name used in docs/api-contract.md. Clients must not invent local alternatives; a divergence between a client's list and this endpoint is a bug.",
+        "operationId": "enums_api_v1_meta_enums_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnumCatalogueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Canonical enum catalogue",
+        "tags": [
+          "system"
+        ]
+      }
+    }
+  }
+}

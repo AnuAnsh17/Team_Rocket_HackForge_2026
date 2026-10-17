@@ -1,0 +1,50 @@
+{
+  "name": "proofline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Proofline - evidence-first expense auditor. Monorepo root: workspace orchestration only.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "postinstall": "node ./scripts/workspace-note.mjs",
+
+    "api:generate": "npm run --workspace @proofline/api-client generate",
+    "api:check": "npm run --workspace @proofline/api-client check",
+
+    "portal:dev": "npm run --workspace @proofline/portal dev",
+    "portal:build": "npm run --workspace @proofline/portal build",
+    "portal:typecheck": "npm run --workspace @proofline/portal typecheck",
+    "portal:lint": "npm run --workspace @proofline/portal lint",
+    "portal:test": "npm run --workspace @proofline/portal test",
+
+    "console:dev": "npm run --workspace @proofline/console dev",
+    "console:build": "npm run --workspace @proofline/console build",
+    "console:typecheck": "npm run --workspace @proofline/console typecheck",
+    "console:lint": "npm run --workspace @proofline/console lint",
+    "console:test": "npm run --workspace @proofline/console test",
+
+    "mobile:start": "npm run --workspace @proofline/mobile start",
+    "mobile:android": "npm run --workspace @proofline/mobile android",
+    "mobile:typecheck": "npm run --workspace @proofline/mobile typecheck",
+    "mobile:lint": "npm run --workspace @proofline/mobile lint",
+    "mobile:test": "npm run --workspace @proofline/mobile test",
+
+    "typecheck": "npm run api:check && npm run portal:typecheck && npm run console:typecheck && npm run mobile:typecheck",
+    "lint": "npm run portal:lint && npm run console:lint && npm run mobile:lint",
+    "test": "npm run portal:test && npm run console:test && npm run mobile:test",
+    "build": "npm run api:check && npm run portal:build && npm run console:build",
+
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:log": "docker compose logs -f postgres"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}
