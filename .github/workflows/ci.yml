@@ -100,7 +100,7 @@ jobs:
         run: |
           python -m venv .venv
           ./.venv/bin/python -m pip install --upgrade pip
-          ./.venv/bin/python -m pip install -e ".[dev]"
+          ./.venv/bin/python -m pip install -e ".[dev,benchmark]"
 
       - name: Lint
         working-directory: backend
@@ -112,7 +112,7 @@ jobs:
 
       - name: Type check
         working-directory: backend
-        run: ./.venv/bin/python -m mypy app
+        run: ./.venv/bin/python -m mypy app scripts
 
       - name: Apply migrations
         working-directory: backend

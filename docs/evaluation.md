@@ -1,8 +1,9 @@
 # Evaluation Plan
 
-**Status:** the harness does not exist and no metric has been measured. Nothing in this
-document is a result. It states what will be measured, how, and against what, so that
-the numbers reported later cannot be chosen after the fact.
+**Status:** the offline receipt benchmark/validator and local API runner exist at
+`backend/scripts/receipt_benchmark.py`; no dataset has passed validation and no metric
+has been measured. Nothing in this document is a result. It states what will be measured,
+how, and against what, so that the numbers reported later cannot be chosen after the fact.
 
 The build plan is explicit that no accuracy percentage may be claimed without
 validation evidence. This document exists to make that constraint operational.
@@ -22,8 +23,10 @@ independently and never averaged into a single "accuracy" number.
 
 ## 2. Dataset requirements
 
-**Dataset status: not supplied.** This is the primary blocker for the whole evaluation
-plan and it is an open question in `docs/policy-assumptions.md`.
+**Benchmark dataset status: still being collected; no approved manifest or ground truth
+is present.** The Desktop collection folder is not benchmark-ready until the schema in
+[`docs/receipt-benchmark.md`](receipt-benchmark.md) is complete and validation passes.
+This remains an open data-rights/privacy input in `docs/policy-assumptions.md`.
 
 Required before any number can be reported:
 
@@ -130,13 +133,14 @@ exceptions. So the report must include:
 
 | Piece | Status |
 |---|---|
-| `ExtractionEvaluation` data model | Not implemented |
-| Labelled receipt set | Not supplied |
-| Extraction harness (`scripts/evaluate_receipts.py`) | Not written |
-| Provider adapter | Interface only; `UnavailableExtractor` returns no fields |
+| Benchmark CLI (offline validation, local API runner and scoring) | Implemented; no inference run made in this task |
+| Labelled receipt set | Collection workspace exists; approved manifest/labels not supplied |
+| Provider adapter | OpenCode Go structured extraction and local IndicOCR are implemented; quality is unmeasured |
 | Policy conformance set | Blocked on the policy document |
 | Duplicate labelled pairs | Not supplied |
 | Any measured metric | None |
 
-The only honest statement today is: **extraction is not implemented, no policy is
-loaded, and no metric has been measured.**
+The honest statement today is: **receipt extraction is implemented, but benchmark
+accuracy is unknown; no policy is loaded, and no metric has been measured.** Runbook,
+dataset schema, matching/normalization rules and privacy gates are in
+[`docs/receipt-benchmark.md`](receipt-benchmark.md).

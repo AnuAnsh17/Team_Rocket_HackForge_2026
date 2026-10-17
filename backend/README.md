@@ -22,8 +22,8 @@ client displays what it returns.
 ```bash
 cd backend
 py -3.14 -m venv .venv
-./.venv/Scripts/python.exe -m pip install -e ".[dev]"     # Windows
-# source .venv/bin/activate && pip install -e ".[dev]"    # POSIX
+./.venv/Scripts/python.exe -m pip install -e ".[dev,benchmark]"     # Windows
+# source .venv/bin/activate && pip install -e ".[dev,benchmark]"    # POSIX
 
 cp ../.env.example ../.env      # then edit; placeholders only
 ./.venv/Scripts/alembic upgrade head

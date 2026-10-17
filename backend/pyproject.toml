@@ -37,6 +37,10 @@ dev = [
 extraction = [
     # No provider has been selected. Add the verified SDK here.
 ]
+benchmark = [
+    # Needed only by the offline dataset validator to fully decode images.
+    "Pillow==13.0.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
