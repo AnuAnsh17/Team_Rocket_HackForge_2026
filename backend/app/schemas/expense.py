@@ -9,7 +9,15 @@ from decimal import Decimal
 from pydantic import Field
 
 from app.core.enums import ExpenseChannel, ExpenseStatus
-from app.schemas.common import ApiModel, FieldValue, Money, MoneyString, NonNegativeMoney, Page
+from app.schemas.common import (
+    ApiModel,
+    CurrencyCode,
+    FieldValue,
+    Money,
+    MoneyString,
+    NonNegativeMoney,
+    Page,
+)
 from app.schemas.identity import UserSummary
 from app.schemas.receipt import ReceiptSummary
 from app.schemas.review import FindingResponse
@@ -150,7 +158,7 @@ class CreateExpenseRequest(ApiModel):
     merchant: str | None = Field(default=None, max_length=300)
     expense_date: date | None = None
     amount: MoneyString | None = Field(default=None, ge=0)
-    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    currency: CurrencyCode | None = None
     category: str | None = Field(default=None, max_length=64)
     business_purpose: str | None = None
     client_name: str | None = Field(default=None, max_length=200)
@@ -171,9 +179,15 @@ class UpdateExpenseRequest(ApiModel):
     merchant: str | None = Field(default=None, max_length=300)
     expense_date: date | None = None
     amount: MoneyString | None = Field(default=None, ge=0)
-    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    currency: CurrencyCode | None = None
     category: str | None = Field(default=None, max_length=64)
     business_purpose: str | None = None
     client_name: str | None = Field(default=None, max_length=200)
     attendee_count: int | None = Field(default=None, ge=0)
     trip_id: uuid.UUID | None = None
+
+
+class SubmitExpenseRequest(ApiModel):
+    """Submit a complete draft for human review."""
+
+    expected_version: int = Field(..., ge=1, description="Required optimistic-concurrency token.")

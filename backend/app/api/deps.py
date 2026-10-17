@@ -70,6 +70,18 @@ def get_session(request: Request) -> Iterator[Session]:
     try:
         yield session
         session.commit()
+        callbacks = getattr(request.state, "commit_callbacks", [])
+        request.state.commit_callbacks = []
+        for callback in callbacks:
+            try:
+                callback()
+            except Exception as exc:  # the committed deletion must not be rolled back
+                from app.core.logging import get_logger
+
+                get_logger(__name__).error(
+                    "post-commit cleanup failed",
+                    extra={"error_type": type(exc).__name__},
+                )
     except Exception:
         session.rollback()
         callbacks = getattr(request.state, "rollback_callbacks", [])

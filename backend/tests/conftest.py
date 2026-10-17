@@ -41,6 +41,7 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config as AlembicConfig
 from app.core.config import Settings, get_settings
+from fastapi import Request
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -143,22 +144,33 @@ def db(engine: sa.Engine) -> Iterator[Session]:
 
 
 @pytest.fixture
-def client(db: Session) -> Iterator[TestClient]:
+def client(db: Session, tmp_path) -> Iterator[TestClient]:
     """A TestClient that shares the test's transaction.
 
     ``get_session`` is overridden so HTTP requests and direct fixture work see the
     same uncommitted data, and so the rollback above covers anything a request
     wrote.
     """
-    from app.api.deps import get_session
+    from app.api.deps import get_receipt_storage, get_session
     from app.main import create_app
+    from app.storage.local import LocalPrivateReceiptStorage
 
     app = create_app()
 
-    def _override_get_session() -> Iterator[Session]:
-        yield db
+    def _override_get_session(request: Request) -> Iterator[Session]:
+        try:
+            yield db
+            for callback in getattr(request.state, "commit_callbacks", []):
+                callback()
+        except Exception:
+            for callback in getattr(request.state, "rollback_callbacks", []):
+                callback()
+            raise
 
     app.dependency_overrides[get_session] = _override_get_session
+    app.dependency_overrides[get_receipt_storage] = lambda: LocalPrivateReceiptStorage(
+        root=tmp_path / "private-receipts"
+    )
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

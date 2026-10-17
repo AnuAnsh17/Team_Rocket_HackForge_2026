@@ -277,7 +277,7 @@ class TestDocumentedRoutesAreAccountedFor:
 
     def test_the_backend_declares_unimplemented_workflows(self, client: TestClient) -> None:
         body = client.get(f"{API_PREFIX}/meta").json()
-        assert body["implemented_endpoint_count"] < 20, (
+        assert body["implemented_endpoint_count"] < 30, (
             "This endpoint set is intentionally limited; update this expectation and the "
             "coverage report together if it changes."
         )

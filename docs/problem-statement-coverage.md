@@ -569,12 +569,13 @@ receipt set is available, so there is no measured receipt accuracy, latency or c
 The worker is process-local, retries are explicit after restart to avoid automatic
 re-submission and possible duplicate provider charges, production Supabase authentication
 and hosted private storage are still absent,
-and there is no claim submission, policy rule execution or reimbursement decision path.
+and policy rule execution and reimbursement processing remain unavailable. Versioned
+claim correction, submission, scoped human review decisions and authorized audit reads
+are implemented as workflow records only; human approval is not a policy result.
 
-The portal, mobile capture screen and finance receipt review surface now consume the
-generated backend contract. The console requires an expense UUID because a scoped expense
-list/detail workflow is not yet implemented. This milestone does not make Proofline a
-complete expense auditor and does not change the historical sixteen-area scorecard above.
+The portal and console consume the claim list/detail and human review lifecycle. This
+milestone does not make Proofline a complete expense auditor and does not change the
+historical sixteen-area scorecard above.
 
 ## 9. Maintenance of this document
 

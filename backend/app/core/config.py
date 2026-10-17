@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_json: bool = True
     demo_mode: bool = False
+    demo_synthetic_policy_enabled: bool = False
 
     # --- Database --------------------------------------------------------
     database_url: str = _LOCAL_DATABASE_URL
@@ -162,6 +163,10 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _fail_closed(self) -> Settings:
         if self.app_env in ("production", "staging"):
+            if self.demo_synthetic_policy_enabled:
+                raise ValueError(
+                    "DEMO_SYNTHETIC_POLICY_ENABLED is permitted only in local development/test."
+                )
             if self.demo_mode:
                 raise ValueError(
                     "DEMO_MODE must be false when APP_ENV is "
@@ -181,6 +186,13 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"AUTH_PROVIDER=demo is not permitted when APP_ENV is {self.app_env!r}"
                 )
+
+        if self.demo_synthetic_policy_enabled and (
+            self.app_env not in ("development", "test") or not self.demo_mode
+        ):
+            raise ValueError(
+                "DEMO_SYNTHETIC_POLICY_ENABLED requires DEMO_MODE=true in development or test."
+            )
 
         if self.app_env == "production" and self.auth_provider == "supabase":
             missing = [

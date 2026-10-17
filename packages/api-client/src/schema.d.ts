@@ -50,7 +50,7 @@ export interface paths {
         put?: never;
         /**
          * Load the synthetic demo dataset (demo mode only)
-         * @description Loads deterministic, clearly labelled synthetic data: one fictional organization, fictional people, memberships, role grants and reporting edges, plus an unapproved and empty policy version. Creates no policy rules and no allowance limits, because both require real organizational data and a verified policy clause.
+         * @description Loads deterministic, clearly labelled synthetic data: one fictional organization, fictional people, memberships, role grants, reporting edges and claim lifecycle scenarios. No OCR result is fabricated. The optional DEMO_SYNTHETIC_POLICY_ENABLED setting adds a fictional mechanics-only rule in local demo mode; it is not company policy. No allowance limits are created.
          */
         post: operations["seed_api_v1_demo_seed_post"];
         delete?: never;
@@ -66,13 +66,66 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List authorized expenses */
+        get: operations["list_expenses_api_v1_expenses_get"];
         put?: never;
         /**
          * Create an employee-owned draft expense
          * @description Creates a draft for the caller's active membership so a receipt can be attached. This workflow slice does not support creating claims for another employee.
          */
         post: operations["create_draft_expense_api_v1_expenses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/expenses/{expense_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read an authorized expense */
+        get: operations["get_expense_api_v1_expenses__expense_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Correct claim fields */
+        patch: operations["update_expense_api_v1_expenses__expense_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/expenses/{expense_id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read authorized claim history */
+        get: operations["expense_audit_api_v1_expenses__expense_id__audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/expenses/{expense_id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a human review decision */
+        post: operations["decide_expense_api_v1_expenses__expense_id__decisions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -114,6 +167,23 @@ export interface paths {
          * @description Stores each validated receipt and creates its own persisted pending extraction run. A batch is limited to 20 files; each receipt is processed independently.
          */
         post: operations["upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/expenses/{expense_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a complete claim */
+        post: operations["submit_expense_api_v1_expenses__expense_id__submit_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -435,6 +505,24 @@ export interface components {
             /** Trip Id */
             trip_id?: string | null;
         };
+        /**
+         * DecisionRequest
+         * @description A reviewer action.
+         *
+         *     ``expected_version`` is mandatory: a decision based on a stale claim view is
+         *     refused with STALE_VERSION rather than silently overwriting newer work.
+         */
+        DecisionRequest: {
+            action: components["schemas"]["ReviewAction"];
+            /** Expected Version */
+            expected_version: number;
+            /** Notes */
+            notes?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Reason Code */
+            reason_code?: string | null;
+        };
         /** DemoResetResponse */
         DemoResetResponse: {
             /** Dataset */
@@ -449,6 +537,12 @@ export interface components {
         /** DemoSeedResponse */
         DemoSeedResponse: {
             /**
+             * Claim Scenarios Seeded
+             * @description Deterministic synthetic workflow scenarios created by the seed.
+             * @default 0
+             */
+            claim_scenarios_seeded: number;
+            /**
              * Dataset
              * @description Identifier of the synthetic fixture set that was loaded.
              */
@@ -461,7 +555,7 @@ export interface components {
             organizations: number;
             /**
              * Policy Rules Activated
-             * @description Always 0. The seed never activates a policy rule, because no source policy document has been supplied and a rule cannot be activated without a verified clause.
+             * @description Normally zero. A separate, explicitly enabled local synthetic fixture may activate one clearly labelled fictional rule; it is not company policy and is never loaded unless DEMO_SYNTHETIC_POLICY_ENABLED=true in development/test demo mode.
              * @default 0
              */
             policy_rules_activated: number;
@@ -519,6 +613,24 @@ export interface components {
             };
         };
         /**
+         * EvidenceLocation
+         * @description Optional receipt region supporting a value.
+         *
+         *     Present only when the extraction provider actually reported a region.
+         *     Coordinates are never fabricated: an absent region is ``null``.
+         */
+        EvidenceLocation: {
+            /** Page */
+            page?: number | null;
+            /** Receipt Id */
+            receipt_id?: string | null;
+            /**
+             * Region
+             * @description Normalised [x, y, width, height] within the page, when supplied.
+             */
+            region?: number[] | null;
+        };
+        /**
          * ExpenseChannel
          * @description How a claim entered the system.
          *
@@ -527,6 +639,79 @@ export interface components {
          * @enum {string}
          */
         ExpenseChannel: "android" | "web" | "bulk" | "email_simulated";
+        /** ExpenseListResponse */
+        ExpenseListResponse: {
+            /** Items */
+            items: components["schemas"]["ExpenseSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /**
+         * ExpenseResponse
+         * @description The canonical claim detail.
+         *
+         *     Field naming and nesting are fixed by docs/api-contract.md. Both web
+         *     applications and the mobile app consume exactly this shape; neither may add
+         *     a private variant.
+         */
+        ExpenseResponse: {
+            amount: components["schemas"]["Money"];
+            /** @description Normalised reporting amount. Null unless the approved policy requires conversion; this build applies no exchange rate. */
+            amount_reporting?: components["schemas"]["NonNegativeMoney"] | null;
+            /** Attendee Count */
+            attendee_count?: number | null;
+            /** Business Purpose */
+            business_purpose?: string | null;
+            /** Category */
+            category?: string | null;
+            channel: components["schemas"]["ExpenseChannel"];
+            /** Client Name */
+            client_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at?: string | null;
+            employee: components["schemas"]["UserSummary"];
+            /** Evaluated Policy Version Id */
+            evaluated_policy_version_id?: string | null;
+            expense_date: components["schemas"]["FieldValue_date_"];
+            /** Findings */
+            findings?: components["schemas"]["FindingResponse"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Items */
+            line_items?: components["schemas"]["LineItemResponse"][];
+            merchant: components["schemas"]["FieldValue_str_"];
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            receipt_number?: components["schemas"]["FieldValue_str_"] | null;
+            /** Receipts */
+            receipts?: components["schemas"]["ReceiptSummary"][];
+            status: components["schemas"]["ExpenseStatus"];
+            /** Submitted At */
+            submitted_at?: string | null;
+            trip?: components["schemas"]["TripSummary"] | null;
+            /** Trip Id */
+            trip_id?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Version
+             * @description Optimistic-concurrency token. Send it back on any mutation.
+             */
+            version: number;
+        };
         /**
          * ExpenseStatus
          * @description Workflow status of an expense claim.
@@ -539,6 +724,63 @@ export interface components {
          * @enum {string}
          */
         ExpenseStatus: "draft" | "submitted" | "needs_info" | "in_review" | "approved" | "rejected" | "withdrawn";
+        /**
+         * ExpenseSummary
+         * @description Row shape for list endpoints and review queues.
+         */
+        ExpenseSummary: {
+            amount: components["schemas"]["Money"];
+            /**
+             * Blocking Finding Count
+             * @default 0
+             */
+            blocking_finding_count: number;
+            /** Category */
+            category?: string | null;
+            channel: components["schemas"]["ExpenseChannel"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            employee: components["schemas"]["UserSummary"];
+            /** Expense Date */
+            expense_date?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Merchant */
+            merchant?: string | null;
+            /**
+             * Open Duplicate Candidate Count
+             * @default 0
+             */
+            open_duplicate_candidate_count: number;
+            /**
+             * Open Finding Count
+             * @default 0
+             */
+            open_finding_count: number;
+            /**
+             * Receipt Count
+             * @default 0
+             */
+            receipt_count: number;
+            status: components["schemas"]["ExpenseStatus"];
+            /** Submitted At */
+            submitted_at?: string | null;
+            /** Trip Id */
+            trip_id?: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
         /**
          * ExtractionRunSummary
          * @description One historical extraction attempt. Past runs are never rewritten.
@@ -583,6 +825,142 @@ export interface components {
          * @enum {string}
          */
         ExtractionStatus: "pending" | "running" | "success" | "partial" | "failed" | "unavailable";
+        /**
+         * FieldSource
+         * @description Provenance of a single expense field value.
+         *
+         *     Employee-entered values must never masquerade as receipt evidence, which is
+         *     why the provenance travels with the value instead of being inferred.
+         * @enum {string}
+         */
+        FieldSource: "receipt_extraction" | "employee_input" | "reviewer_correction" | "imported_data" | "computed";
+        /** FieldValue[date] */
+        FieldValue_date_: {
+            /**
+             * Confidence
+             * @description Provider quality signal, NOT a calibrated probability. Null whenever the provider supplies no meaningful value rather than being invented.
+             */
+            confidence?: number | null;
+            evidence?: components["schemas"]["EvidenceLocation"] | null;
+            /**
+             * Reviewed
+             * @default false
+             */
+            reviewed: boolean;
+            source?: components["schemas"]["FieldSource"] | null;
+            /** Uncertainty Reason */
+            uncertainty_reason?: string | null;
+            /** Value */
+            value?: string | null;
+        };
+        /** FieldValue[str] */
+        FieldValue_str_: {
+            /**
+             * Confidence
+             * @description Provider quality signal, NOT a calibrated probability. Null whenever the provider supplies no meaningful value rather than being invented.
+             */
+            confidence?: number | null;
+            evidence?: components["schemas"]["EvidenceLocation"] | null;
+            /**
+             * Reviewed
+             * @default false
+             */
+            reviewed: boolean;
+            source?: components["schemas"]["FieldSource"] | null;
+            /** Uncertainty Reason */
+            uncertainty_reason?: string | null;
+            /** Value */
+            value?: string | null;
+        };
+        /**
+         * FindingResponse
+         * @description One rule outcome, with everything needed to explain it.
+         *
+         *     ``result`` is tri-state and ``UNKNOWN`` is a valid, non-accusatory answer.
+         *     ``recommended_action`` is advisory: it does not itself change the claim.
+         */
+        FindingResponse: {
+            /** Calculation */
+            calculation?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Employee Message
+             * @description Employee-facing wording. Deliberately separate from the reviewer message and never accusatory.
+             */
+            employee_message?: string | null;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            } | null;
+            /** Expected */
+            expected?: string | null;
+            /**
+             * Expense Id
+             * Format: uuid
+             */
+            expense_id: string;
+            /** Expense Version */
+            expense_version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Message
+             * @description Reviewer-facing explanation.
+             */
+            message: string;
+            /** Observed */
+            observed?: string | null;
+            /** Policy Version Id */
+            policy_version_id?: string | null;
+            /** Policy Version Label */
+            policy_version_label?: string | null;
+            recommended_action: components["schemas"]["RecommendedAction"];
+            /** Resolved At */
+            resolved_at?: string | null;
+            result: components["schemas"]["FindingResult"];
+            /** Rule Id */
+            rule_id: string;
+            severity: components["schemas"]["FindingSeverity"];
+            /** @description The verified clause the rule came from. Null only for structural checks that do not depend on a policy clause. */
+            source_reference?: components["schemas"]["SourceReference"] | null;
+            status: components["schemas"]["FindingStatus"];
+            /** Superseded By Finding Id */
+            superseded_by_finding_id?: string | null;
+            type: components["schemas"]["FindingType"];
+        };
+        /**
+         * FindingResult
+         * @description Tri-state rule outcome. UNKNOWN must never silently pass.
+         * @enum {string}
+         */
+        FindingResult: "PASS" | "FAIL" | "UNKNOWN";
+        /**
+         * FindingSeverity
+         * @description Impact and routing weight. Never a statement about guilt or fraud.
+         * @enum {string}
+         */
+        FindingSeverity: "info" | "warning" | "blocking";
+        /**
+         * FindingStatus
+         * @enum {string}
+         */
+        FindingStatus: "open" | "acknowledged" | "resolved" | "dismissed";
+        /**
+         * FindingType
+         * @description Stable finding classifiers.
+         *
+         *     This list is intentionally short and structural. Adding a member is a
+         *     contract change. No member implies fraud.
+         * @enum {string}
+         */
+        FindingType: "required_field_missing" | "field_uncertain" | "arithmetic_mismatch" | "individual_limit_exceeded" | "aggregate_limit_exceeded" | "ineligible_category" | "ineligible_line_item" | "missing_policy_context" | "policy_conflict" | "duplicate_candidate" | "approval_required" | "extraction_failed";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -644,6 +1022,46 @@ export interface components {
             status: "ok" | "degraded" | "unavailable";
         };
         /**
+         * LineItemResponse
+         * @description One receipt line, with its policy-derived eligibility.
+         *
+         *     ``eligibility`` is NOT_EVALUATED until a verified rule has actually run, and
+         *     UNKNOWN when a rule needs evidence that is unavailable. Neither state is
+         *     presented as ineligible.
+         */
+        LineItemResponse: {
+            /**
+             * Amount
+             * @description Line amount as a decimal string. Line items carry no per-field provenance in this schema: only whole claim fields have a tracked source.
+             */
+            amount?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Discount Amount */
+            discount_amount?: string | null;
+            /** Eligibility */
+            eligibility: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ineligibility Reason */
+            ineligibility_reason?: string | null;
+            /** Line Number */
+            line_number?: number | null;
+            /** Quantity */
+            quantity?: string | null;
+            /** Tax Amount */
+            tax_amount?: string | null;
+            /** Unit Amount */
+            unit_amount?: string | null;
+        };
+        /**
          * MembershipStatus
          * @description Employment state of an organization membership.
          * @enum {string}
@@ -683,6 +1101,59 @@ export interface components {
             organization_id: string;
             status: components["schemas"]["MembershipStatus"];
             user: components["schemas"]["UserSummary"];
+        };
+        /**
+         * Money
+         * @description The canonical monetary field.
+         *
+         *     Approved contract decision: ``amount`` uses this one structure everywhere,
+         *     including provenance, so that a reviewer can always see whether a total came
+         *     from a receipt or from the employee.
+         */
+        Money: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Currency */
+            currency?: string | null;
+            evidence?: components["schemas"]["EvidenceLocation"] | null;
+            /**
+             * Reviewed
+             * @default false
+             */
+            reviewed: boolean;
+            source?: components["schemas"]["FieldSource"] | null;
+            /** Uncertainty Reason */
+            uncertainty_reason?: string | null;
+            /**
+             * Value
+             * @description Decimal amount as a JSON string.
+             */
+            value?: string | null;
+        };
+        /**
+         * NonNegativeMoney
+         * @description A monetary amount with no exchange-rate provenance.
+         *
+         *     Used for derived/computed values such as a converted reporting amount, where
+         *     the rate trio below records how the number was produced.
+         */
+        NonNegativeMoney: {
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Rate
+             * @description Applied rate, when a conversion occurred.
+             */
+            rate?: string | null;
+            /** Rate Date */
+            rate_date?: string | null;
+            /**
+             * Rate Source
+             * @description Documented source of the rate.
+             */
+            rate_source?: string | null;
+            /** Value */
+            value?: string | null;
         };
         /**
          * PageInfo
@@ -817,6 +1288,31 @@ export interface components {
             uploaded_at?: string | null;
         };
         /**
+         * ReceiptSummary
+         * @description Receipt reference embedded in an expense response.
+         */
+        ReceiptSummary: {
+            /** Byte Size */
+            byte_size?: number | null;
+            /**
+             * Content Url
+             * @description Relative URL of the authorized content endpoint. Not a storage path, not public, and not permanent: the endpoint re-checks authorization on every request.
+             */
+            content_url: string;
+            /** @default original */
+            derivation_type: components["schemas"]["DerivationType"];
+            /** Detected Mime Type */
+            detected_mime_type?: string | null;
+            extraction_status: components["schemas"]["ExtractionStatus"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Uploaded At */
+            uploaded_at?: string | null;
+        };
+        /**
          * ReceiptUploadResponse
          * @description Receipt metadata and its initial persisted extraction state.
          */
@@ -856,6 +1352,64 @@ export interface components {
             validator_version: "1";
         };
         /**
+         * RecommendedAction
+         * @description Advisory next step attached to a finding.
+         *
+         *     Distinct from :class:`ReviewAction` on purpose. A recommendation is advice
+         *     attached to a finding; a ReviewAction is a decision an authorized reviewer
+         *     actually executes. Conflating them would imply the backend had already
+         *     decided the claim.
+         * @enum {string}
+         */
+        RecommendedAction: "none" | "review" | "request_correction" | "escalate";
+        /**
+         * ReviewAction
+         * @description A reviewer/approver decision that actually transitions a claim.
+         * @enum {string}
+         */
+        ReviewAction: "approve" | "reject" | "request_correction" | "escalate";
+        /**
+         * ReviewDecisionResponse
+         * @description An executed decision, as shown in the audit timeline.
+         */
+        ReviewDecisionResponse: {
+            action: components["schemas"]["ReviewAction"];
+            /** Actor Display Name */
+            actor_display_name?: string | null;
+            /**
+             * Actor User Id
+             * Format: uuid
+             */
+            actor_user_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expense Id
+             * Format: uuid
+             */
+            expense_id: string;
+            /** Expense Version */
+            expense_version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** New Status */
+            new_status: string;
+            /** Notes */
+            notes?: string | null;
+            /** Previous Status */
+            previous_status?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Reason Code */
+            reason_code?: string | null;
+        };
+        /**
          * RoleAssignmentSummary
          * @description A granted role, with the scope it applies to.
          */
@@ -892,10 +1446,95 @@ export interface components {
          */
         RoleCode: "employee" | "manager" | "hr_reviewer" | "finance_reviewer" | "finance_admin" | "org_admin" | "policy_admin" | "auditor" | "service";
         /**
+         * SourceReference
+         * @description Where a finding's rule came from. Required on any rule-backed finding.
+         */
+        SourceReference: {
+            /**
+             * Clause
+             * @description Section/clause reference, for example 2.3.
+             */
+            clause?: string | null;
+            /**
+             * Document Id
+             * @description Identifier of the policy document the rule was derived from.
+             */
+            document_id?: string | null;
+            /**
+             * Text Excerpt
+             * @description Verified excerpt of the clause. Never paraphrased from memory.
+             */
+            text_excerpt?: string | null;
+        };
+        /**
          * StorageBackend
          * @enum {string}
          */
         StorageBackend: "local" | "supabase" | "s3";
+        /**
+         * SubmitExpenseRequest
+         * @description Submit a complete draft for human review.
+         */
+        SubmitExpenseRequest: {
+            /**
+             * Expected Version
+             * @description Required optimistic-concurrency token.
+             */
+            expected_version: number;
+        };
+        /** TripSummary */
+        TripSummary: {
+            /** Destination City */
+            destination_city?: string | null;
+            /** Destination Country Code */
+            destination_country_code?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Purpose */
+            purpose: string;
+            /** Start Date */
+            start_date?: string | null;
+            /** Status */
+            status: string;
+        };
+        /**
+         * UpdateExpenseRequest
+         * @description Correct allowed fields on a draft or submitted claim.
+         *
+         *     Plain scalar values only. The server derives ``FieldSource`` from the
+         *     caller's role (employee_input vs reviewer_correction) and records a new
+         *     provenance row; incrementing ``version`` is automatic.
+         */
+        UpdateExpenseRequest: {
+            /** Amount */
+            amount?: string | null;
+            /** Attendee Count */
+            attendee_count?: number | null;
+            /** Business Purpose */
+            business_purpose?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Client Name */
+            client_name?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Expected Version
+             * @description Required. A mismatch is refused with STALE_VERSION.
+             */
+            expected_version: number;
+            /** Expense Date */
+            expense_date?: string | null;
+            /** Merchant */
+            merchant?: string | null;
+            /** Trip Id */
+            trip_id?: string | null;
+        };
         /**
          * UserSummary
          * @description Minimal, safe representation of a person.
@@ -1003,6 +1642,40 @@ export interface operations {
             };
         };
     };
+    list_expenses_api_v1_expenses_get: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Opaque cursor from the previous page's page.next_cursor. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_draft_expense_api_v1_expenses_post: {
         parameters: {
             query?: never;
@@ -1025,6 +1698,147 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DraftExpenseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_expense_api_v1_expenses__expense_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_expense_api_v1_expenses__expense_id__patch: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateExpenseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    expense_audit_api_v1_expenses__expense_id__audit_get: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Opaque cursor from the previous page's page.next_cursor. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_expense_api_v1_expenses__expense_id__decisions_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewDecisionResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1144,6 +1958,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReceiptUploadResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_expense_api_v1_expenses__expense_id__submit_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitExpenseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseResponse"];
                 };
             };
             /** @description Validation Error */

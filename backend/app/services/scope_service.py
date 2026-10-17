@@ -69,6 +69,7 @@ def is_direct_report(session: Session, actor: Actor, expense: Expense) -> bool:
     edge = (
         session.execute(
             select(ReportingRelationship.id).where(
+                ReportingRelationship.organization_id == expense.organization_id,
                 ReportingRelationship.manager_membership_id == manager_id,
                 ReportingRelationship.employee_membership_id == expense.membership_id,
                 ReportingRelationship.relationship_type.in_(("primary", "secondary")),
@@ -84,6 +85,7 @@ def is_direct_report(session: Session, actor: Actor, expense: Expense) -> bool:
     open_edge = (
         session.execute(
             select(ReportingRelationship.id).where(
+                ReportingRelationship.organization_id == expense.organization_id,
                 ReportingRelationship.manager_membership_id == manager_id,
                 ReportingRelationship.employee_membership_id == expense.membership_id,
                 ReportingRelationship.relationship_type.in_(("primary", "secondary")),
@@ -110,12 +112,24 @@ def require_expense_read(session: Session, actor: Actor, expense_id: uuid.UUID) 
         raise NotFound("That expense was not found.")
 
     require_same_organization(actor, expense.organization_id)
+    owner_membership = session.get(OrganizationMembership, expense.membership_id)
+    if owner_membership is None or owner_membership.organization_id != expense.organization_id:
+        raise NotFound("That expense was not found.")
 
     if is_own_claim(actor, expense):
         return expense
-    if RoleCode.FINANCE_REVIEWER in actor.roles or RoleCode.FINANCE_ADMIN in actor.roles:
-        # Org-scoped finance access. Department/queue-level narrowing is applied
-        # once review queues are configured by the approved workflow.
+    if any(
+        role in actor.roles
+        for role in (
+            RoleCode.FINANCE_REVIEWER,
+            RoleCode.FINANCE_ADMIN,
+            RoleCode.HR_REVIEWER,
+            RoleCode.AUDITOR,
+        )
+    ):
+        # Permission checks remain a separate route-level gate. Scope this read
+        # to the active organization; queue/department narrowing awaits an
+        # approved workflow configuration.
         return expense
     if RoleCode.MANAGER in actor.roles and is_direct_report(session, actor, expense):
         return expense
@@ -149,6 +163,7 @@ def teammate_membership_ids(session: Session, actor: Actor) -> tuple[uuid.UUID, 
     rows = (
         session.execute(
             select(ReportingRelationship.employee_membership_id).where(
+                ReportingRelationship.organization_id == _as_uuid(actor.active_organization_id),
                 ReportingRelationship.manager_membership_id == manager_id,
                 ReportingRelationship.relationship_type.in_(("primary", "secondary")),
                 ReportingRelationship.effective_from <= today,

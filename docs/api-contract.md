@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.3.0-receipt-intelligence
+**Contract version:** 1.4.0-claim-lifecycle
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -117,8 +117,10 @@ Notes that are semantics, not style:
 }
 ```
 
-- `source` is mandatory and is assigned by the server from the caller's role. A
-  client never sends it, so an employee cannot claim reviewer provenance.
+- `source` is assigned by the server from the caller's role. A client never sends
+  it, so an employee cannot claim reviewer provenance. It is `null` only when the
+  field itself is absent and no provenance row exists; a populated field without
+  provenance is a conflict and is not represented as employee input.
 - `confidence` is an optional provider quality signal. It is **not** a calibrated
   probability, and it is `null` whenever the provider supplies no meaningful value
   rather than being invented.
@@ -314,9 +316,9 @@ human decision with a reason.
 - `X-Request-ID` is optional from the client. The server creates one when absent and
   always returns it as `X-Request-ID`. A client-supplied value is accepted only if it
   is short and printable; otherwise it is replaced.
-- `Idempotency-Key` is required on create, submit and every decision mutation. A
-  retry with the same key and body replays the stored response; a retry with the same
-  key and a different body is refused with `IDEMPOTENCY_CONFLICT`.
+- `Idempotency-Key` is required on create, correction, submit and every decision mutation. A
+  retry with the same key, method, path and body replays the stored response; a retry
+  that changes any of those is refused with `IDEMPOTENCY_CONFLICT`.
 - `expected_version` is required on corrections and decisions.
 - JSON is used unless an endpoint explicitly accepts multipart upload or CSV.
 
@@ -388,6 +390,12 @@ Status values:
 | `GET /api/v1/meta` | Contract version, implemented endpoint count, declared unimplemented capabilities. |
 | `GET /api/v1/meta/enums` | Canonical enum catalogue; the machine-readable form of section 2. |
 | `POST /api/v1/expenses` | Create a caller-owned draft to receive receipts. Requires `EXPENSE_CREATE_OWN` and `Idempotency-Key`; only caller membership is accepted. |
+| `GET /api/v1/expenses` | List expenses visible to the caller: own claims, direct reports, or organization-scoped read permissions. Uses `limit` and opaque `cursor` pagination. |
+| `GET /api/v1/expenses/{expense_id}` | Read canonical claim details, current field provenance, receipts, line items and findings after resource-scope authorization. |
+| `PATCH /api/v1/expenses/{expense_id}` | Correct a draft/needs-information claim as its owner, or record a scoped reviewer correction while in review. Requires `expected_version` and `Idempotency-Key`; the server assigns provenance. |
+| `POST /api/v1/expenses/{expense_id}/submit` | Submit an owner claim after required fields and a receipt are present. Requires `expected_version` and `Idempotency-Key`; this records workflow state, not a policy PASS. |
+| `POST /api/v1/expenses/{expense_id}/decisions` | Record a scoped human review decision, including correction request, escalation, approval or rejection. Requires `expected_version`, `Idempotency-Key`; rejection and correction require reasons. This does not make a policy decision. |
+| `GET /api/v1/expenses/{expense_id}/audit` | Read append-only claim history after the same resource-scope authorization as claim detail. |
 | `POST /api/v1/expenses/{expense_id}/receipts` | Authorized multipart upload to an own draft. Requires `RECEIPT_UPLOAD_OWN` and `Idempotency-Key`; validates size and file signature; persists one pending extraction run and returns promptly. |
 | `POST /api/v1/expenses/{expense_id}/receipts/batch` | Same ownership and validation rules for 1–20 independent receipt files; each file receives a durable extraction run. |
 | `GET /api/v1/expenses/{expense_id}/receipts` | List authorized receipt metadata and run results for the expense owner or scoped reviewer. |
@@ -407,18 +415,11 @@ which is the trust boundary this design refuses.
 
 ### 5.2 Definitions written, routes deferred
 
-The request and response models for the following exist in `app/schemas` and are
-exercised by tests, but the routes are not wired up. They are the next vertical
-slice, not abandoned work.
+The following request and response models exist or are expected as later
+capabilities, but their routes are not wired up. They remain deferred work.
 
 | Route | Blocked on |
 |---|---|
-| `GET /api/v1/expenses` | Workflow, plus review-queue scoping. |
-| `GET /api/v1/expenses/{expense_id}` | Workflow. |
-| `PATCH /api/v1/expenses/{expense_id}` | Workflow and field-provenance writes. |
-| `POST /api/v1/expenses/{expense_id}/submit` | Workflow and idempotency wiring. |
-| `POST /api/v1/expenses/{expense_id}/decisions` | Approval workflow, which depends on the real policy. |
-| `GET /api/v1/expenses/{expense_id}/audit` | Workflow. |
 | `GET /api/v1/policy/versions/current` | An approved policy document. |
 | `GET /api/v1/policy/rules` | An approved policy document. |
 | `GET /api/v1/policy/rules/{rule_id}` | An approved policy document. |
@@ -451,6 +452,12 @@ later:
   create a second finding: a unique index on that tuple makes it impossible rather
   than merely unlikely.
 - A rejected claim requires a human-entered reason. The database refuses the row.
+- Workflow status records the employee/reviewer process only. It is independent of
+  policy findings: policy evaluation remains unavailable until an authoritative
+  policy is supplied, and a human approval must never be represented as a policy PASS.
+- A correction request stores its requested information in the decision reason. The
+  employee's next PATCH appends field evidence at a new claim version; it does not
+  rewrite the prior evidence or decision.
 
 ---
 
@@ -538,9 +545,10 @@ Enforced today in `backend/tests/`:
 
 Outstanding, awaiting the corresponding implementation:
 
-- [ ] Draft -> receipt upload -> extraction -> correction -> submit -> evaluation.
-- [ ] Reviewer decision changes status and audit history atomically.
-- [ ] Stale versions and idempotency retries behave predictably end to end.
+- [x] Draft -> receipt upload -> correction -> submit -> human review decision.
+- [x] Reviewer decision changes status and audit history atomically.
+- [x] Stale versions and idempotency retries behave predictably for claim mutations.
+- [ ] Policy evaluation is persisted on submission; the authoritative policy remains absent.
 - [ ] Policy preview and final submission use the same evaluator and version.
 - [ ] Aggregate findings show contributors and recalculate when the basis changes.
 - [ ] Duplicate candidates can be confirmed and dismissed with reasons.

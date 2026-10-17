@@ -22,15 +22,14 @@ from app.schemas.meta import ApiMetaResponse, EnumCatalogueResponse
 # Version label of the reviewed human-readable contract this build targets. Must match
 # the "Contract version" line at the top of docs/api-contract.md; a contract test
 # compares the two.
-CONTRACT_VERSION = "1.3.0-receipt-intelligence"
+CONTRACT_VERSION = "1.4.0-claim-lifecycle"
 
 # Capabilities the contract describes that this build does NOT implement. Reported
 # explicitly so a caller can tell a scaffold from a finished product without
 # guessing, and so nothing silently pretends to work.
 UNIMPLEMENTED_CAPABILITIES: tuple[str, ...] = (
-    "expense update/submit workflow",
+    "approval task workflow and configured review queues",
     "receipt extraction accuracy evaluation against a labelled benchmark",
-    "reviewer decisions and approval tasks",
     "finding and duplicate candidate persistence and resolution",
     "policy rule execution (the registry holds zero rules)",
     "policy pre-flight check",

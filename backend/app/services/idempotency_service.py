@@ -1,20 +1,19 @@
 """Idempotent mutation support.
 
-A retried create/submit/decision must not create a second effect. The mechanism:
+A retried state-changing request must not create a second effect. The mechanism:
 
 1. The first request with a given ``Idempotency-Key`` for a given actor is
    processed and its response stored.
-2. A retry with the same key and the same normalised body replays the stored
+2. A retry with the same key, method, path and normalised body replays the stored
    response.
-3. A retry with the same key but a *different* body is refused with
+3. Reusing a key with a different method, path or body is refused with
    ``IDEMPOTENCY_CONFLICT``. Silently applying the second body would be worse than
    failing: the caller would believe one thing happened while another did.
 4. The same key from a *different* actor is a different key. Keys are scoped per
    actor so one user cannot consume or replay another's.
 
-Nothing in this scaffold requires idempotency yet - no mutation route is
-implemented - but the boundary exists so the first mutation route that is added
-has somewhere correct to live.
+Expense creation, correction, submission, review decisions and receipt mutation
+routes use this boundary.
 """
 
 from __future__ import annotations
@@ -94,9 +93,13 @@ def begin(
         session.flush()
         return record
 
-    if existing.request_hash != request_hash:
+    if (
+        existing.request_hash != request_hash
+        or existing.request_method != method
+        or existing.request_path != path
+    ):
         raise IdempotencyConflict(
-            "This Idempotency-Key was already used with a different request body. "
+            "This Idempotency-Key was already used for a different request. "
             "Use a new key for a new request.",
             details=[{"field": "Idempotency-Key"}],
         )

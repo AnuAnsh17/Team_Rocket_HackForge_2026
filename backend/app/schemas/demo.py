@@ -23,12 +23,16 @@ class DemoSeedResponse(ApiModel):
     organizations: int = Field(..., ge=0)
     users: int = Field(..., ge=0)
     memberships: int = Field(..., ge=0)
+    claim_scenarios_seeded: int = Field(
+        0, ge=0, description="Deterministic synthetic workflow scenarios created by the seed."
+    )
     policy_rules_activated: int = Field(
         0,
         ge=0,
         description=(
-            "Always 0. The seed never activates a policy rule, because no source policy document "
-            "has been supplied and a rule cannot be activated without a verified clause."
+            "Normally zero. A separate, explicitly enabled local synthetic fixture may activate "
+            "one clearly labelled fictional rule; it is not company policy and is never loaded "
+            "unless DEMO_SYNTHETIC_POLICY_ENABLED=true in development/test demo mode."
         ),
     )
     notes: list[str] = Field(default_factory=list)

@@ -43,6 +43,11 @@ class TestFailClosedRules:
         with pytest.raises(ValueError, match="AUTH_PROVIDER=demo"):
             _settings(AUTH_PROVIDER="demo")
 
+    def test_synthetic_policy_is_refused_in_production_and_staging(self) -> None:
+        for environment in ("production", "staging"):
+            with pytest.raises(ValueError, match="DEMO_SYNTHETIC_POLICY_ENABLED"):
+                _settings(APP_ENV=environment, DEMO_SYNTHETIC_POLICY_ENABLED="true")
+
     def test_development_database_url_is_refused_in_production(self) -> None:
         with pytest.raises(ValueError, match="DATABASE_URL must be set explicitly"):
             _settings(
@@ -67,6 +72,15 @@ class TestDevelopmentDefaults:
     def test_demo_routes_enabled_in_development_with_demo_mode(self) -> None:
         settings = Settings(_env_file=None, APP_ENV="development", DEMO_MODE="true")  # type: ignore[arg-type]
         assert settings.demo_routes_enabled is True
+
+    def test_synthetic_policy_requires_explicit_demo_mode(self) -> None:
+        with pytest.raises(ValueError, match="requires DEMO_MODE=true"):
+            Settings(
+                _env_file=None,
+                APP_ENV="development",
+                DEMO_MODE="false",
+                DEMO_SYNTHETIC_POLICY_ENABLED="true",
+            )  # type: ignore[arg-type]
 
     def test_cors_origins_accept_a_comma_separated_string(self) -> None:
         settings = Settings(  # type: ignore[arg-type]

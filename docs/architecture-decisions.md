@@ -254,19 +254,23 @@ membership.
 **Why.** A demo switcher that accepted a role claim would be a privilege-escalation
 hole wearing a demo badge. Tested in `tests/security/test_authorization.py`.
 
-## 17. Demo seeding activates nothing
+## 17. Demo seeding keeps synthetic mechanics isolated
 
 **Decided.** The seed creates one fictional organization, fictional people,
 memberships, role grants, reporting edges and one **draft, empty** policy version. It
-creates no job grades, no allowance profiles, no allowance limits, no policy rules and
-no expense claims.
+creates no job grades, allowance profiles or allowance limits. The normal seed does
+not activate policy rules. An opt-in `DEMO_SYNTHETIC_POLICY_ENABLED` fixture can add a
+fictional, explicitly labelled rule for demonstrating evaluation mechanics; it is
+accepted only with demo mode in development/test and rejected in staging/production.
+Lifecycle scenarios use the same claim workflow services as the API and create pending
+receipt/extraction records only; they do not fabricate OCR output.
 
 **Why.** Grade levels and allowances are organizational data; a limit without a cited
 clause cannot be stored anyway. Claims are created through the application so field
 provenance is written by the same code path a real claim uses.
 
-**Trade-off.** The demo has fewer moving parts than a scripted showcase would. It is
-also true, which matters more.
+**Trade-off.** The optional fixture demonstrates policy mechanics but is not evidence
+of the real organization's policy. It must never be enabled for real claims.
 
 ## 18. npm workspaces instead of pnpm
 

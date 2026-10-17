@@ -9,15 +9,16 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_session, require
+from app.api.deps import get_receipt_storage, get_session, require
 from app.core.enums import AuditActorType
 from app.core.permissions import Permission
 from app.core.security import Actor
 from app.schemas.demo import DemoResetResponse, DemoSeedResponse
 from app.services import demo_service
+from app.storage.base import ReceiptStorage
 
 router = APIRouter(tags=["demo"], prefix="/demo")
 
@@ -28,19 +29,29 @@ router = APIRouter(tags=["demo"], prefix="/demo")
     summary="Load the synthetic demo dataset (demo mode only)",
     description=(
         "Loads deterministic, clearly labelled synthetic data: one fictional organization, "
-        "fictional people, memberships, role grants and reporting edges, plus an unapproved "
-        "and empty policy version. Creates no policy rules and no allowance limits, because "
-        "both require real organizational data and a verified policy clause."
+        "fictional people, memberships, role grants, reporting edges and claim lifecycle "
+        "scenarios. No OCR result is fabricated. The optional DEMO_SYNTHETIC_POLICY_ENABLED "
+        "setting adds a fictional mechanics-only rule in local demo mode; it is not company "
+        "policy. No allowance limits are created."
     ),
 )
 def seed(
+    request: Request,
     actor: Actor = Depends(require(Permission.DEMO_SEED_RESET)),
     session: Session = Depends(get_session),
+    storage: ReceiptStorage = Depends(get_receipt_storage),
 ) -> DemoSeedResponse:
+    rollback_callbacks = getattr(request.state, "rollback_callbacks", None)
+    if rollback_callbacks is None:
+        rollback_callbacks = []
+        request.state.rollback_callbacks = rollback_callbacks
     return demo_service.seed_demo_dataset(
         session,
         actor_user_id=UUID(actor.user_id),
         actor_label=f"demo seed by {actor.user_id}",
+        include_claim_scenarios=True,
+        storage=storage,
+        rollback_callbacks=rollback_callbacks,
     )
 
 
@@ -55,10 +66,24 @@ def seed(
     ),
 )
 def reset(
+    request: Request,
     actor: Actor = Depends(require(Permission.DEMO_SEED_RESET)),
     session: Session = Depends(get_session),
+    storage: ReceiptStorage = Depends(get_receipt_storage),
 ) -> DemoResetResponse:
-    return demo_service.reset_demo_dataset(session, actor_label=f"demo reset by {actor.user_id}")
+    object_keys = demo_service.demo_receipt_object_keys(session)
+    result = demo_service.reset_demo_dataset(session, actor_label=f"demo reset by {actor.user_id}")
+    callbacks = getattr(request.state, "commit_callbacks", None)
+    if callbacks is None:
+        callbacks = []
+        request.state.commit_callbacks = callbacks
+
+    def delete_objects_after_commit() -> None:
+        for object_key in object_keys:
+            storage.delete(object_key)
+
+    callbacks.append(delete_objects_after_commit)
+    return result
 
 
 @router.post(

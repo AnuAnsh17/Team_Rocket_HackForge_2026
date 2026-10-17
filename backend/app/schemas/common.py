@@ -121,7 +121,7 @@ class FieldValue[T](ApiModel):
     """
 
     value: T | None = None
-    source: FieldSource
+    source: FieldSource | None = None
     reviewed: bool = False
     confidence: float | None = Field(
         default=None,
@@ -146,7 +146,7 @@ class Money(ApiModel):
 
     value: MoneyString | None = Field(default=None, description="Decimal amount as a JSON string.")
     currency: CurrencyCode | None = None
-    source: FieldSource
+    source: FieldSource | None = None
     reviewed: bool = False
     confidence: float | None = Field(default=None, ge=0, le=1)
     evidence: EvidenceLocation | None = None

@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         extra={
             "capabilities": [
                 "policy rules (registry holds zero rules)",
-                "expense submission, review and decision workflow",
+                "approval task workflow and review queue configuration",
                 "production authentication",
             ],
             "detail": "See GET /api/v1/meta for the authoritative list.",
@@ -113,9 +113,9 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         description=(
             "Evidence-first expense auditing API. This build supports authorized draft "
-            "creation, private receipt upload and persisted asynchronous extraction runs. "
-            "Raw OCR/model text is not retained. Production "
-            "authentication, policy evaluation and review workflows remain incomplete. "
+            "creation, private receipt upload, claim correction/submission and human review "
+            "decisions. Raw OCR/model text is not retained. Production authentication, policy "
+            "evaluation and approval task workflows remain incomplete. "
             "GET /api/v1/meta lists the outstanding capabilities."
         ),
         # The contract fixes the OpenAPI location inside the versioned prefix.

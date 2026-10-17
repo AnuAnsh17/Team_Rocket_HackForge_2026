@@ -5,10 +5,10 @@ FastAPI + Pydantic + SQLAlchemy 2 + Alembic over PostgreSQL 18. This service is 
 client displays what it returns.
 
 > **State:** a focused receipt OCR slice is implemented: an authorized employee can
-> create a draft, upload a private receipt, run configured IndicOCR, and retrieve
-> receipt metadata/content under the same scope checks. OCR text is not retained and
-> no structured expense fields or policy outcomes are inferred. Submission/review,
-> policy evaluation and production authentication remain **unimplemented**. See
+> create, correct and submit claims, upload private receipts, and record scoped human
+> review decisions with audit history. Configured IndicOCR can process receipts; OCR
+> text is not retained and no structured expense fields or policy outcomes are inferred.
+> Policy evaluation and production authentication remain **unimplemented**. See
 > `GET /api/v1/meta` for the current capability list.
 
 ## Prerequisites
@@ -67,9 +67,16 @@ workers would each load a separate model into GPU memory.
 | `/api/v1/meta/enums` | Canonical enum catalogue |
 | `/api/v1/me`, `/api/v1/me/roles`, `/api/v1/me/audit` | The caller's own data (requires an actor) |
 | `POST /api/v1/expenses` | Create an employee-owned draft |
+| `GET /api/v1/expenses` | List claims in the caller's authorized scope |
+| `GET /api/v1/expenses/{id}` | Read authorized claim details and provenance |
+| `PATCH /api/v1/expenses/{id}` | Append a versioned owner correction or scoped reviewer correction |
+| `POST /api/v1/expenses/{id}/submit` | Submit an owned claim after validation |
+| `POST /api/v1/expenses/{id}/decisions` | Record a scoped human review decision |
+| `GET /api/v1/expenses/{id}/audit` | Read authorized claim history |
 | `POST /api/v1/expenses/{id}/receipts` | Upload and OCR a receipt synchronously |
 | `GET /api/v1/receipts/{id}` | Read authorized receipt and extraction status |
 | `GET /api/v1/receipts/{id}/content` | Retrieve private content after authorization |
+| `POST /api/v1/demo/seed`, `POST /api/v1/demo/reset` | Seed/reset the synthetic lifecycle dataset in demo mode |
 
 ## Authentication in development
 

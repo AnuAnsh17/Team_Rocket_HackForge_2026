@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.core.logging import configure_logging, get_logger
 from app.db.session import dispose_engine, session_scope
 from app.services import demo_service
+from app.storage.factory import build_receipt_storage
 
 logger = get_logger("proofline.scripts.dev_reset")
 
@@ -42,9 +43,14 @@ def main() -> int:
         )
         return 1
 
+    storage = build_receipt_storage(settings)
+    object_keys: tuple[str, ...] = ()
     try:
         with session_scope() as session:
+            object_keys = demo_service.demo_receipt_object_keys(session)
             result = demo_service.reset_demo_dataset(session, actor_label="dev_reset script")
+        for object_key in object_keys:
+            storage.delete(object_key)
     finally:
         dispose_engine()
 

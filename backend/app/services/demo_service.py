@@ -15,26 +15,40 @@ What the seed deliberately does NOT create, and why:
   and a named validator (``policy_rules.source_requires_validation``). The seeded
   policy version is left in the DRAFT state on purpose, so the demo shows the real
   current behaviour: every claim evaluates to UNKNOWN because no policy governs it.
-* **No expense claims.** Claims are created through the application so that field
-  provenance is written by the same code path a real claim uses.
+* Synthetic claim scenarios are kept separate from real policy data. They are
+  created through the same workflow functions as user claims and never contain
+  fabricated extraction results.
 """
 
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.enums import (
+    ApprovalState,
     AuditActorType,
+    DerivationType,
+    ExpenseStatus,
+    ExtractionStatus,
     MembershipStatus,
     PolicyReviewState,
+    ReviewAction,
     RoleCode,
+    StorageBackend,
 )
+from app.core.errors import Conflict
 from app.core.logging import get_logger
+from app.core.permissions import Permission
+from app.core.security import Identity
+from app.models.expense import Expense
 from app.models.identity import OrganizationMembership, ReportingRelationship, RoleAssignment, User
 from app.models.organization import (
     CostCenter,
@@ -42,9 +56,21 @@ from app.models.organization import (
     OfficeLocation,
     Organization,
 )
-from app.models.policy import PolicyDocument, PolicyVersion
+from app.models.policy import PolicyAssignment, PolicyDocument, PolicyRule, PolicyVersion
+from app.models.receipt import ExtractionRun, Receipt
 from app.schemas.demo import DemoResetResponse, DemoSeedResponse
+from app.schemas.expense import CreateExpenseRequest
+from app.schemas.review import DecisionRequest
+from app.services.actor_service import resolve_actor
 from app.services.audit_service import audit
+from app.services.expense_workflow_service import (
+    create_draft_claim,
+    record_claim_decision,
+    submit_claim,
+)
+from app.services.scope_service import require_expense_read
+from app.storage.base import ReceiptStorage, validate_upload
+from app.storage.factory import build_receipt_storage
 
 logger = get_logger(__name__)
 
@@ -70,6 +96,14 @@ class DemoPerson:
 DEMO_PEOPLE: tuple[DemoPerson, ...] = (
     DemoPerson("employee.asha", "Asha Menon (synthetic employee)", (RoleCode.EMPLOYEE,)),
     DemoPerson("employee.rohit", "Rohit Verma (synthetic employee)", (RoleCode.EMPLOYEE,)),
+    DemoPerson("employee.nisha", "Nisha Kapoor (synthetic employee)", (RoleCode.EMPLOYEE,)),
+    DemoPerson("employee.vikram", "Vikram Das (synthetic employee)", (RoleCode.EMPLOYEE,)),
+    DemoPerson("employee.leela", "Leela Sen (synthetic employee)", (RoleCode.EMPLOYEE,)),
+    DemoPerson("employee.kiran", "Kiran Rao (synthetic employee)", (RoleCode.EMPLOYEE,)),
+    DemoPerson("employee.amir", "Amir Khan (synthetic employee)", (RoleCode.EMPLOYEE,)),
+    DemoPerson("employee.tara", "Tara Bose (synthetic employee)", (RoleCode.EMPLOYEE,)),
+    DemoPerson("employee.dev", "Devika Iyer (synthetic employee)", (RoleCode.EMPLOYEE,)),
+    DemoPerson("employee.omar", "Omar Sen (synthetic employee)", (RoleCode.EMPLOYEE,)),
     DemoPerson(
         "manager.priya",
         "Priya Nair (synthetic manager)",
@@ -120,6 +154,9 @@ def seed_demo_dataset(
     *,
     actor_user_id: uuid.UUID | None = None,
     actor_label: str | None = "demo seed",
+    include_claim_scenarios: bool = False,
+    storage: ReceiptStorage | None = None,
+    rollback_callbacks: list[Callable[[], None]] | None = None,
 ) -> DemoSeedResponse:
     """Load the deterministic synthetic dataset. Idempotent per record.
 
@@ -131,6 +168,17 @@ def seed_demo_dataset(
     departments = _ensure_structure(session, organization.id)
     _ensure_people(session, organization.id, departments, state)
     policy_version = _ensure_draft_policy(session, organization.id)
+    synthetic_rules = (
+        _ensure_synthetic_policy(session, organization.id)
+        if settings.demo_synthetic_policy_enabled
+        else 0
+    )
+    claim_scenarios = 0
+    if include_claim_scenarios:
+        storage = storage or build_receipt_storage(settings)
+        claim_scenarios = _ensure_claim_scenarios(
+            session, organization.id, storage, rollback_callbacks=rollback_callbacks
+        )
 
     audit(
         session,
@@ -141,7 +189,13 @@ def seed_demo_dataset(
         organization_id=organization.id,
         actor_user_id=actor_user_id,
         actor_label=actor_label,
-        after={"dataset": DEMO_DATASET, "policy_version_state": policy_version.review_state},
+        after={
+            "dataset": DEMO_DATASET,
+            "policy_version_state": policy_version.review_state,
+            "synthetic_policy_enabled": settings.demo_synthetic_policy_enabled,
+            "synthetic_policy_rules": synthetic_rules,
+            "synthetic_claim_scenarios": claim_scenarios,
+        },
     )
 
     return DemoSeedResponse(
@@ -149,14 +203,29 @@ def seed_demo_dataset(
         organizations=1,
         users=len(state.users),
         memberships=len(state.memberships),
-        policy_rules_activated=0,
+        claim_scenarios_seeded=claim_scenarios,
+        policy_rules_activated=synthetic_rules,
         notes=[
             "All names, organizations and identifiers are fictional and deterministic.",
-            "No job grades, allowance limits or policy rules were created: those require "
-            "organizational data and a verified policy clause.",
+            "No job grades or allowance limits were created; those require real organizational data and policy clauses.",
             "The seeded policy version is intentionally left in draft state, so every claim "
             "currently evaluates to UNKNOWN rather than PASS.",
+            *(
+                [
+                    "A separate fictional demo policy is enabled. Its meal cap is invented for "
+                    "mechanics-only demonstrations and is never an authoritative company rule."
+                ]
+                if synthetic_rules
+                else ["DEMO_SYNTHETIC_POLICY_ENABLED is false; no fictional policy rule is active."]
+            ),
             "Use the identifiers below as X-Demo-Actor-Id values in demo mode.",
+            *(
+                [
+                    f"{claim_scenarios} deterministic synthetic claim scenarios were seeded through the shared claim workflow services."
+                ]
+                if include_claim_scenarios
+                else []
+            ),
             *[f"{person.key} -> {demo_identity_subject(person.key)}" for person in DEMO_PEOPLE],
         ],
     )
@@ -176,13 +245,18 @@ def reset_demo_dataset(
         select(Organization).where(Organization.slug == DEMO_ORG_SLUG)
     ).scalar_one_or_none()
 
-    users_removed = 0
-    for user in session.execute(select(User).where(User.auth_provider == "demo")).scalars().all():
-        session.delete(user)
-        users_removed += 1
-
+    demo_user_ids: set[uuid.UUID] = set()
     organizations_removed = 0
     if organization is not None:
+        demo_user_ids = set(
+            session.execute(
+                select(OrganizationMembership.user_id).where(
+                    OrganizationMembership.organization_id == organization.id
+                )
+            )
+            .scalars()
+            .all()
+        )
         audit(
             session,
             action="demo.reset",
@@ -194,18 +268,195 @@ def reset_demo_dataset(
             before={"slug": organization.slug, "dataset": DEMO_DATASET},
         )
         session.delete(organization)
+        session.flush()
         organizations_removed = 1
+
+    # Remove only synthetic identities that belonged to this dataset and have
+    # no remaining memberships. Demo identities in any other organization are
+    # outside the reset's authority.
+    users_removed = 0
+    for user_id in demo_user_ids:
+        user = session.get(User, user_id)
+        if user is None or user.auth_provider != "demo":
+            continue
+        has_other_membership = session.execute(
+            select(OrganizationMembership.id)
+            .where(OrganizationMembership.user_id == user_id)
+            .limit(1)
+        ).first()
+        if has_other_membership is None:
+            session.delete(user)
+            users_removed += 1
 
     return DemoResetResponse(
         dataset=DEMO_DATASET,
         organizations_removed=organizations_removed,
         users_removed=users_removed,
         notes=[
-            "Only the synthetic demo organization and demo-provider users were removed.",
+            "Only the synthetic demo organization and its demo-provider users without other memberships were removed.",
             "Audit events are append-only and intentionally survive a reset; the reset itself "
             "is recorded as an audit event.",
         ],
     )
+
+
+def demo_receipt_object_keys(session: Session) -> tuple[str, ...]:
+    """Return private object keys belonging to this dataset for post-commit cleanup."""
+    return tuple(
+        session.execute(
+            select(Receipt.object_key)
+            .join(Expense, Expense.id == Receipt.expense_id)
+            .join(Organization, Organization.id == Expense.organization_id)
+            .where(Organization.slug == DEMO_ORG_SLUG)
+        )
+        .scalars()
+        .all()
+    )
+
+
+_DEMO_RECEIPT_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000d49444154789c63f8ffffff7f0009fb03fd2a86e38a0000000049454e44ae426082"
+)
+
+
+def _ensure_claim_scenarios(
+    session: Session,
+    organization_id: uuid.UUID,
+    storage: ReceiptStorage,
+    *,
+    rollback_callbacks: list[Callable[[], None]] | None = None,
+) -> int:
+    """Seed deterministic claims through the shared claim workflow services."""
+    scenarios = (
+        ("draft", "employee.asha", None),
+        ("submitted", "employee.rohit", None),
+        ("in_review", "employee.nisha", ReviewAction.ESCALATE),
+        ("needs_info", "employee.vikram", ReviewAction.REQUEST_CORRECTION),
+        ("approved", "employee.leela", ReviewAction.APPROVE),
+        ("rejected", "employee.kiran", ReviewAction.REJECT),
+    )
+    finance_actor = resolve_actor(
+        session, Identity(subject=demo_identity_subject("finance.reviewer"), provider="demo")
+    )
+    finance_actor.require(Permission.EXPENSE_DECIDE_SCOPED)
+
+    for index, (state, person_key, action) in enumerate(scenarios):
+        employee_actor = resolve_actor(
+            session, Identity(subject=demo_identity_subject(person_key), provider="demo")
+        )
+        employee_actor.require(Permission.EXPENSE_CREATE_OWN)
+        expense_id = _sid(f"expense:claim-lifecycle:{state}")
+        expense = session.get(Expense, expense_id)
+        if expense is None:
+            body = CreateExpenseRequest(
+                channel="web",
+                merchant=f"Synthetic Demo Merchant {index + 1}",
+                expense_date=date(2026, 10, index + 1),
+                amount=Decimal("1250.00"),
+                currency="INR",
+                category="meal",
+                business_purpose="Fictional demonstration claim; no reimbursement rule implied.",
+            )
+            expense = create_draft_claim(session, employee_actor, body, expense_id=expense_id)
+        if state == "draft":
+            continue
+
+        receipt_id = _sid(f"receipt:claim-lifecycle:{state}")
+        if session.get(Receipt, receipt_id) is None:
+            checked = validate_upload(
+                _DEMO_RECEIPT_PNG,
+                declared_mime_type="image/png",
+                max_bytes=settings.receipt_max_upload_bytes,
+            )
+            if not checked.accepted or checked.detected_mime_type is None:
+                raise Conflict("The synthetic demo receipt did not pass upload validation.")
+            stored = storage.save(
+                organization_id=organization_id,
+                expense_id=expense.id,
+                data=_DEMO_RECEIPT_PNG,
+                content_type=checked.detected_mime_type,
+            )
+            if rollback_callbacks is not None:
+
+                def cleanup_object(object_key: str = stored.object_key) -> None:
+                    try:
+                        storage.delete(object_key)
+                    except Exception:
+                        logger.error("could not clean up a synthetic receipt after seed rollback")
+
+                rollback_callbacks.append(cleanup_object)
+            receipt = Receipt(
+                id=receipt_id,
+                organization_id=organization_id,
+                expense_id=expense.id,
+                storage_backend=StorageBackend(stored.storage_backend).value,
+                object_key=stored.object_key,
+                original_filename=f"synthetic-demo-{state}.png",
+                detected_mime_type=checked.detected_mime_type,
+                declared_mime_type="image/png",
+                byte_size=stored.byte_size,
+                sha256=stored.sha256,
+                derivation_type=DerivationType.ORIGINAL.value,
+                extraction_status=ExtractionStatus.PENDING.value,
+                uploaded_by_user_id=uuid.UUID(employee_actor.user_id),
+            )
+            try:
+                session.add(receipt)
+                session.flush()
+                session.add(
+                    ExtractionRun(
+                        id=_sid(f"extraction-run:claim-lifecycle:{state}"),
+                        receipt_id=receipt.id,
+                        provider="pending",
+                        status=ExtractionStatus.PENDING.value,
+                        attempt_count=0,
+                        created_by_user_id=uuid.UUID(employee_actor.user_id),
+                    )
+                )
+                session.flush()
+                audit(
+                    session,
+                    action="receipt.demo_seeded",
+                    entity_type="receipt",
+                    entity_id=receipt.id,
+                    actor_type=AuditActorType.DEMO,
+                    organization_id=organization_id,
+                    actor_user_id=uuid.UUID(employee_actor.user_id),
+                    actor_label=f"{person_key} (synthetic)",
+                    after={
+                        "expense_id": str(expense.id),
+                        "status": "pending",
+                        "synthetic": True,
+                    },
+                )
+            except Exception:
+                if rollback_callbacks is None:
+                    try:
+                        storage.delete(stored.object_key)
+                    except Exception:
+                        logger.error("could not clean up a synthetic receipt after seed failure")
+                raise
+
+        if expense.status == ExpenseStatus.DRAFT.value:
+            submit_claim(session, employee_actor, expense, expense.version)
+        if action is not None and expense.status == ExpenseStatus.SUBMITTED.value:
+            require_expense_read(session, finance_actor, expense.id)
+            reason = (
+                "Synthetic demo correction request: please confirm the fictional attendee context."
+                if action == ReviewAction.REQUEST_CORRECTION
+                else "Synthetic demonstration decision; not a policy outcome."
+                if action == ReviewAction.REJECT
+                else None
+            )
+            record_claim_decision(
+                session,
+                finance_actor,
+                expense,
+                DecisionRequest(action=action, reason=reason, expected_version=expense.version),
+            )
+    session.flush()
+    return len(scenarios)
 
 
 def _ensure_organization(session: Session) -> Organization:
@@ -238,6 +489,9 @@ def _ensure_structure(session: Session, organization_id: uuid.UUID) -> dict[str,
         ("engineering", "ENG", "Engineering (synthetic)"),
         ("sales", "SLS", "Sales (synthetic)"),
         ("finance", "FIN", "Finance (synthetic)"),
+        ("operations", "OPS", "Operations (synthetic)"),
+        ("people", "PPL", "People (synthetic)"),
+        ("product", "PRD", "Product (synthetic)"),
     ):
         existing = session.execute(
             select(Department).where(
@@ -310,6 +564,14 @@ def _ensure_people(
     placement: dict[str, tuple[str, str]] = {
         "employee.asha": ("department:engineering", "office:blr"),
         "employee.rohit": ("department:sales", "office:mum"),
+        "employee.nisha": ("department:engineering", "office:blr"),
+        "employee.vikram": ("department:sales", "office:mum"),
+        "employee.leela": ("department:operations", "office:blr"),
+        "employee.kiran": ("department:operations", "office:mum"),
+        "employee.amir": ("department:people", "office:blr"),
+        "employee.tara": ("department:product", "office:mum"),
+        "employee.dev": ("department:product", "office:blr"),
+        "employee.omar": ("department:people", "office:mum"),
         "manager.priya": ("department:engineering", "office:blr"),
         "finance.reviewer": ("department:finance", "office:blr"),
         "finance.admin": ("department:finance", "office:blr"),
@@ -321,6 +583,14 @@ def _ensure_people(
     primary_manager: dict[str, str] = {
         "employee.asha": "manager.priya",
         "employee.rohit": "manager.priya",
+        "employee.nisha": "manager.priya",
+        "employee.vikram": "manager.priya",
+        "employee.leela": "manager.priya",
+        "employee.kiran": "manager.priya",
+        "employee.amir": "manager.priya",
+        "employee.tara": "manager.priya",
+        "employee.dev": "manager.priya",
+        "employee.omar": "manager.priya",
     }
 
     membership_ids: dict[str, uuid.UUID] = {}
@@ -354,7 +624,13 @@ def _ensure_people(
                 # and inventing them would create an allowance assumption.
                 job_grade_id=None,
                 department_id=structure[department_key],
-                cost_center_id=structure.get("cost_center:cc-eng"),
+                cost_center_id=(
+                    structure.get("cost_center:cc-sales")
+                    if department_key == "department:sales"
+                    else structure.get("cost_center:cc-eng")
+                    if department_key == "department:engineering"
+                    else None
+                ),
                 office_location_id=structure[office_key],
                 joined_on=None,
                 is_primary=person.key == "employee.asha",
@@ -455,3 +731,95 @@ def _ensure_draft_policy(session: Session, organization_id: uuid.UUID) -> Policy
         session.add(version)
         session.flush()
     return version
+
+
+def _ensure_synthetic_policy(session: Session, organization_id: uuid.UUID) -> int:
+    """Create a fictional policy rule only under the validated local demo flag."""
+    policy_admin_id = _sid("user:policy.admin")
+    document_id = _sid("synthetic-policy-document")
+    version_id = _sid("synthetic-policy-version")
+    document = session.get(PolicyDocument, document_id)
+    if document is None:
+        document = PolicyDocument(
+            id=document_id,
+            organization_id=organization_id,
+            title="DEMO ONLY: fictional meal policy (not company policy)",
+            authoritative=False,
+            notes=(
+                "Synthetic fixture. Its amounts and conditions are invented only to demonstrate "
+                "the evaluator and must never be used for real reimbursement decisions."
+            ),
+        )
+        session.add(document)
+        session.flush()
+    version = session.get(PolicyVersion, version_id)
+    if version is None:
+        version = PolicyVersion(
+            id=version_id,
+            policy_document_id=document.id,
+            version_label="DEMO ONLY - fictional v1",
+            effective_from=date(2020, 1, 1),
+            review_state=PolicyReviewState.APPROVED.value,
+            approved_by_user_id=policy_admin_id,
+            approved_at=datetime(2020, 1, 1, tzinfo=UTC),
+            notes="FICTIONAL DEMO FIXTURE; NOT an authoritative reimbursement policy.",
+        )
+        session.add(version)
+        session.flush()
+    rule_id = "demo_only_meal_cap"
+    rule = session.execute(
+        select(PolicyRule).where(
+            PolicyRule.policy_version_id == version.id,
+            PolicyRule.rule_id == rule_id,
+        )
+    ).scalar_one_or_none()
+    if rule is None:
+        rule = PolicyRule(
+            id=_sid("synthetic-policy-rule:meal-cap"),
+            policy_version_id=version.id,
+            rule_id=rule_id,
+            title="DEMO ONLY: fictional meal cap",
+            description="Mechanics-only example; not a real company rule.",
+            category="meal",
+            evaluator_type="demo_only_meal_cap_v1",
+            parameters={"synthetic_cap": "1500.00"},
+            source_reference={"document_id": str(document.id), "clause": "DEMO ONLY"},
+            source_clause="DEMO ONLY - fictional fixture, not an authoritative clause",
+            source_excerpt=(
+                "Synthetic demonstration text only. The INR 1500.00 amount is invented and "
+                "must never be interpreted as company policy."
+            ),
+            review_state=PolicyReviewState.APPROVED.value,
+            is_active=True,
+            validated_by_user_id=policy_admin_id,
+            validated_at=datetime(2020, 1, 1, tzinfo=UTC),
+        )
+        session.add(rule)
+        session.flush()
+    assignment = session.execute(
+        select(PolicyAssignment).where(
+            PolicyAssignment.organization_id == organization_id,
+            PolicyAssignment.policy_version_id == version.id,
+            PolicyAssignment.scope_type == "organization",
+            PolicyAssignment.scope_id == organization_id,
+        )
+    ).scalar_one_or_none()
+    if assignment is None:
+        session.add(
+            PolicyAssignment(
+                id=_sid("synthetic-policy-assignment:organization"),
+                organization_id=organization_id,
+                policy_version_id=version.id,
+                scope_type="organization",
+                scope_id=organization_id,
+                scope_key=None,
+                priority=0,
+                approval_state=ApprovalState.APPROVED.value,
+                effective_from=date(2020, 1, 1),
+                assigned_by_user_id=policy_admin_id,
+                assigned_at=datetime(2020, 1, 1, tzinfo=UTC),
+                notes="DEMO ONLY: fictional policy assignment.",
+            )
+        )
+        session.flush()
+    return 1

@@ -253,8 +253,10 @@ def upload_receipt(
     expense = require_expense_write(session, actor, expense_id)
     if not is_own_claim(actor, expense):
         raise Forbidden("Receipt uploads are limited to the caller's own expense drafts.")
-    if expense.status != "draft":
-        raise ValidationFailed("Receipts may only be added to a draft expense.")
+    if expense.status not in {"draft", "needs_info"}:
+        raise ValidationFailed(
+            "Receipts may only be added to a draft or needs-information expense."
+        )
 
     data = file.file.read(request.app.state.max_receipt_bytes + 1)
     checked = validate_upload(
@@ -318,8 +320,10 @@ def upload_receipt_batch(
     expense = require_expense_write(session, actor, expense_id)
     if not is_own_claim(actor, expense):
         raise Forbidden("Receipt uploads are limited to the caller's own expense drafts.")
-    if expense.status != "draft":
-        raise ValidationFailed("Receipts may only be added to a draft expense.")
+    if expense.status not in {"draft", "needs_info"}:
+        raise ValidationFailed(
+            "Receipts may only be added to a draft or needs-information expense."
+        )
     outputs: list[ReceiptUploadResponse] = []
     for index, file in enumerate(files):
         data = file.file.read(request.app.state.max_receipt_bytes + 1)

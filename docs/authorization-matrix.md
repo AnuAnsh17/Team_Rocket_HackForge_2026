@@ -1,10 +1,8 @@
 # Authorization Matrix
 
-**Status:** the permission model is implemented and tested
+**Status:** the permission model and claim lifecycle routes are implemented and tested
 (`app/core/permissions.py`, `backend/tests/unit/test_permissions.py`,
-`backend/tests/security/test_authorization.py`). The *routes* that consume most of
-these permissions are not implemented yet - see
-`docs/api-contract.md` section 5.2.
+`backend/tests/security/test_authorization.py`, and claim lifecycle integration tests).
 
 ## The rule that shapes everything else
 
@@ -58,11 +56,18 @@ broader than they are:
 
 - `require_same_organization` - the tenant boundary. A valid permission from one
   organization never authorises access to another's records.
-- `require_expense_read` - the owning employee; finance reviewers and finance admins
-  within the organization; a manager only through an active `primary` or `secondary`
-  reporting edge. A `dotted` relationship is recorded for context and confers no
-  approval authority.
+- `require_expense_read` - the owning employee; authorized finance, HR and auditor
+  roles within the organization; a manager only through an active `primary` or
+  `secondary` reporting edge. A `dotted` relationship is recorded for context and
+  confers no approval authority.
 - `require_expense_write` - the owner or an authorized finance reviewer.
+
+Claim routes separately require the corresponding permission. An org-scoped read
+role does not automatically receive mutation rights, and a manager's review
+permission still requires a direct-report relationship. Claim submission, correction
+and reviewer decisions use optimistic versions, idempotency keys and an audit event
+in the same database transaction. Reviewer actions are workflow decisions and do not
+turn unresolved policy into a `PASS`.
 
 A record the caller may not see raises the **same** error a missing record raises, so
 claim existence is not disclosed to an unauthorized caller.

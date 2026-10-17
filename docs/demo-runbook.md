@@ -15,6 +15,10 @@ works end to end today:
 - An employee can create a draft, upload a receipt privately, and retrieve the receipt
   only after authorization. With the isolated IndicOCR runtime configured, image OCR
   runs synchronously and its truthful status is persisted.
+- Employees can correct and submit claims; managers and reviewers can read only their
+  authorized scope, record human review decisions, request corrections and inspect
+  claim audit history. The deterministic seed includes lifecycle examples and pending
+  synthetic receipts; it does not invent OCR results.
 - The authorization model refuses cross-organization, cross-employee and
   unpermissioned access - with tests.
 
@@ -22,7 +26,6 @@ What does **not** work and must not be implied:
 
 - Structured merchant/date/amount extraction and OCR text retention. The raw result
   is deliberately not persisted while the retention decision is open.
-- Claim submission, correction and reviewer decisions.
 - Policy evaluation: the registry holds zero rules, so every claim would evaluate to
   `UNKNOWN`.
 - Production authentication.
@@ -73,19 +76,28 @@ A short, truthful walkthrough of the foundation:
 1. **Health and honesty.** `GET /api/v1/health` shows database health. Explain that
    policy evaluation and structured extraction are not built; OCR status depends on
    whether the local runtime paths are configured.
-2. **Identity resolution.** `GET /api/v1/me` with an employee's actor id returns that
+2. **Claim lifecycle.** `GET /api/v1/expenses` and `GET /api/v1/expenses/{id}` show
+   only authorized claims. Submit a draft, request a correction as a scoped reviewer,
+   then correct and resubmit as its employee. Human approval is a workflow event, not
+   a policy PASS.
+3. **Identity resolution.** `GET /api/v1/me` with an employee's actor id returns that
    employee's membership. Swap to the finance admin's id and it returns theirs. Roles
    come from the database, not from the request.
-3. **Authorization refusing cleanly.** `GET /api/v1/me` with no header is `401`. Seed as
+4. **Authorization refusing cleanly.** `GET /api/v1/me` with no header is `401`. Seed as
    an employee and `POST /api/v1/demo/seed` is `403`. Set
    `X-Demo-Organization-Id` to another organization and it is `403`.
-4. **Append-only audit.** `GET /api/v1/me/audit` shows the actor's own events with a
+5. **Append-only audit.** `GET /api/v1/me/audit` shows the actor's own events with a
    correlation id. Show the trigger in `docs/database-design.md`: the database refuses
    `UPDATE` and `DELETE` on `audit_events`.
-5. **The schema as the product's argument.** `docs/database-design.md` - the CHECK
+6. **The schema as the product's argument.** `docs/database-design.md` - the CHECK
    constraints that make an unsourced allowance limit and an unvalidated active rule
    *unstorable*. This is the strongest thing built so far, and it is not a slide.
-6. **Demo reset determinism.** Reset and seed again; the same ids appear.
+7. **Demo reset determinism.** Reset and seed again; the same ids appear.
+
+The optional `DEMO_SYNTHETIC_POLICY_ENABLED=true` setting activates only a fictional,
+explicitly labelled meal-cap fixture for mechanics demonstrations. It is rejected in
+staging/production and requires `DEMO_MODE=true` in development/test. Leave it false
+unless you are specifically demonstrating rule evaluation; it is not company policy.
 
 ## 4. Fallback
 
@@ -117,6 +129,7 @@ For any recorded demo, note:
 
 ## 7. When the real features land
 
-Update this runbook with: the seed's expected rule results per fixture (once the policy
-is encoded), a verification pass over the integration path, and a genuinely rehearsed
-end-to-end narrative. This OCR slice is not a policy or approval workflow.
+Update this runbook with: the seed's expected rule results per fixture (once the actual
+policy is verified), a verification pass over the integration path, and a genuinely
+rehearsed end-to-end narrative. The synthetic workflow and policy fixtures are demo
+mechanics only; neither establishes production policy or accuracy.

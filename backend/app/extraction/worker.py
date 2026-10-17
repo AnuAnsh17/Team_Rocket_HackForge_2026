@@ -165,6 +165,9 @@ class ExtractionJobWorker:
                 receipt = session.get(Receipt, run.receipt_id)
                 if receipt is None:
                     return
+                run.provider = result.provider
+                run.model = result.model
+                run.prompt_version = result.prompt_version
                 run.status = status.value
                 run.finished_at = now
                 run.latency_ms = result.latency_ms

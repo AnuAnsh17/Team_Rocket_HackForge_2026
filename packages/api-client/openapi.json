@@ -319,6 +319,7 @@
               {
                 "maxLength": 3,
                 "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
                 "type": "string"
               },
               {
@@ -380,6 +381,60 @@
         "title": "CreateExpenseRequest",
         "type": "object"
       },
+      "DecisionRequest": {
+        "additionalProperties": false,
+        "description": "A reviewer action.\n\n``expected_version`` is mandatory: a decision based on a stale claim view is\nrefused with STALE_VERSION rather than silently overwriting newer work.",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ReviewAction"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          }
+        },
+        "required": [
+          "action",
+          "expected_version"
+        ],
+        "title": "DecisionRequest",
+        "type": "object"
+      },
       "DemoResetResponse": {
         "additionalProperties": false,
         "properties": {
@@ -416,6 +471,13 @@
       "DemoSeedResponse": {
         "additionalProperties": false,
         "properties": {
+          "claim_scenarios_seeded": {
+            "default": 0,
+            "description": "Deterministic synthetic workflow scenarios created by the seed.",
+            "minimum": 0.0,
+            "title": "Claim Scenarios Seeded",
+            "type": "integer"
+          },
           "dataset": {
             "description": "Identifier of the synthetic fixture set that was loaded.",
             "title": "Dataset",
@@ -440,7 +502,7 @@
           },
           "policy_rules_activated": {
             "default": 0,
-            "description": "Always 0. The seed never activates a policy rule, because no source policy document has been supplied and a rule cannot be activated without a verified clause.",
+            "description": "Normally zero. A separate, explicitly enabled local synthetic fixture may activate one clearly labelled fictional rule; it is not company policy and is never loaded unless DEMO_SYNTHETIC_POLICY_ENABLED=true in development/test demo mode.",
             "minimum": 0.0,
             "title": "Policy Rules Activated",
             "type": "integer"
@@ -541,6 +603,53 @@
         "title": "EnumCatalogueResponse",
         "type": "object"
       },
+      "EvidenceLocation": {
+        "additionalProperties": false,
+        "description": "Optional receipt region supporting a value.\n\nPresent only when the extraction provider actually reported a region.\nCoordinates are never fabricated: an absent region is ``null``.",
+        "properties": {
+          "page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "receipt_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Id"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Normalised [x, y, width, height] within the page, when supplied.",
+            "title": "Region"
+          }
+        },
+        "title": "EvidenceLocation",
+        "type": "object"
+      },
       "ExpenseChannel": {
         "description": "How a claim entered the system.\n\n``EMAIL_SIMULATED`` is demo-only and must never be presented as a real\nemail integration.",
         "enum": [
@@ -551,6 +660,235 @@
         ],
         "title": "ExpenseChannel",
         "type": "string"
+      },
+      "ExpenseListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "title": "ExpenseListResponse",
+        "type": "object"
+      },
+      "ExpenseResponse": {
+        "additionalProperties": false,
+        "description": "The canonical claim detail.\n\nField naming and nesting are fixed by docs/api-contract.md. Both web\napplications and the mobile app consume exactly this shape; neither may add\na private variant.",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "amount_reporting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeMoney"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Normalised reporting amount. Null unless the approved policy requires conversion; this build applies no exchange rate."
+          },
+          "attendee_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attendee Count"
+          },
+          "business_purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Purpose"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/ExpenseChannel"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "evaluated_policy_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluated Policy Version Id"
+          },
+          "expense_date": {
+            "$ref": "#/components/schemas/FieldValue_date_"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/FindingResponse"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "line_items": {
+            "items": {
+              "$ref": "#/components/schemas/LineItemResponse"
+            },
+            "title": "Line Items",
+            "type": "array"
+          },
+          "merchant": {
+            "$ref": "#/components/schemas/FieldValue_str_"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "receipt_number": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldValue_str_"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "receipts": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptSummary"
+            },
+            "title": "Receipts",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExpenseStatus"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "trip": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "description": "Optimistic-concurrency token. Send it back on any mutation.",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "organization_id",
+          "employee",
+          "channel",
+          "status",
+          "merchant",
+          "expense_date",
+          "amount",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ExpenseResponse",
+        "type": "object"
       },
       "ExpenseStatus": {
         "description": "Workflow status of an expense claim.\n\nDeliberately NOT used to represent individual findings: a claim can carry\nmany findings while holding exactly one workflow status.\n\n``WITHDRAWN`` is reserved. No endpoint currently produces it; see\ndocs/api-contract.md section 5 for the explanation.",
@@ -565,6 +903,137 @@
         ],
         "title": "ExpenseStatus",
         "type": "string"
+      },
+      "ExpenseSummary": {
+        "additionalProperties": false,
+        "description": "Row shape for list endpoints and review queues.",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "blocking_finding_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Blocking Finding Count",
+            "type": "integer"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/ExpenseChannel"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "expense_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "open_duplicate_candidate_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Open Duplicate Candidate Count",
+            "type": "integer"
+          },
+          "open_finding_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Open Finding Count",
+            "type": "integer"
+          },
+          "receipt_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Receipt Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExpenseStatus"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "employee",
+          "channel",
+          "status",
+          "amount",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ExpenseSummary",
+        "type": "object"
       },
       "ExtractionRunSummary": {
         "additionalProperties": false,
@@ -703,6 +1172,383 @@
         "title": "ExtractionStatus",
         "type": "string"
       },
+      "FieldSource": {
+        "description": "Provenance of a single expense field value.\n\nEmployee-entered values must never masquerade as receipt evidence, which is\nwhy the provenance travels with the value instead of being inferred.",
+        "enum": [
+          "receipt_extraction",
+          "employee_input",
+          "reviewer_correction",
+          "imported_data",
+          "computed"
+        ],
+        "title": "FieldSource",
+        "type": "string"
+      },
+      "FieldValue_date_": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider quality signal, NOT a calibrated probability. Null whenever the provider supplies no meaningful value rather than being invented.",
+            "title": "Confidence"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceLocation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewed": {
+            "default": false,
+            "title": "Reviewed",
+            "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uncertainty_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "title": "FieldValue[date]",
+        "type": "object"
+      },
+      "FieldValue_str_": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider quality signal, NOT a calibrated probability. Null whenever the provider supplies no meaningful value rather than being invented.",
+            "title": "Confidence"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceLocation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewed": {
+            "default": false,
+            "title": "Reviewed",
+            "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uncertainty_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "title": "FieldValue[str]",
+        "type": "object"
+      },
+      "FindingResponse": {
+        "additionalProperties": false,
+        "description": "One rule outcome, with everything needed to explain it.\n\n``result`` is tri-state and ``UNKNOWN`` is a valid, non-accusatory answer.\n``recommended_action`` is advisory: it does not itself change the claim.",
+        "properties": {
+          "calculation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculation"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "employee_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Employee-facing wording. Deliberately separate from the reviewer message and never accusatory.",
+            "title": "Employee Message"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "expense_id": {
+            "format": "uuid",
+            "title": "Expense Id",
+            "type": "string"
+          },
+          "expense_version": {
+            "title": "Expense Version",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "description": "Reviewer-facing explanation.",
+            "title": "Message",
+            "type": "string"
+          },
+          "observed": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed"
+          },
+          "policy_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version Id"
+          },
+          "policy_version_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version Label"
+          },
+          "recommended_action": {
+            "$ref": "#/components/schemas/RecommendedAction"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "result": {
+            "$ref": "#/components/schemas/FindingResult"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/FindingSeverity"
+          },
+          "source_reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceReference"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The verified clause the rule came from. Null only for structural checks that do not depend on a policy clause."
+          },
+          "status": {
+            "$ref": "#/components/schemas/FindingStatus"
+          },
+          "superseded_by_finding_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded By Finding Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/FindingType"
+          }
+        },
+        "required": [
+          "id",
+          "expense_id",
+          "type",
+          "rule_id",
+          "result",
+          "severity",
+          "message",
+          "recommended_action",
+          "status",
+          "expense_version",
+          "created_at"
+        ],
+        "title": "FindingResponse",
+        "type": "object"
+      },
+      "FindingResult": {
+        "description": "Tri-state rule outcome. UNKNOWN must never silently pass.",
+        "enum": [
+          "PASS",
+          "FAIL",
+          "UNKNOWN"
+        ],
+        "title": "FindingResult",
+        "type": "string"
+      },
+      "FindingSeverity": {
+        "description": "Impact and routing weight. Never a statement about guilt or fraud.",
+        "enum": [
+          "info",
+          "warning",
+          "blocking"
+        ],
+        "title": "FindingSeverity",
+        "type": "string"
+      },
+      "FindingStatus": {
+        "enum": [
+          "open",
+          "acknowledged",
+          "resolved",
+          "dismissed"
+        ],
+        "title": "FindingStatus",
+        "type": "string"
+      },
+      "FindingType": {
+        "description": "Stable finding classifiers.\n\nThis list is intentionally short and structural. Adding a member is a\ncontract change. No member implies fraud.",
+        "enum": [
+          "required_field_missing",
+          "field_uncertain",
+          "arithmetic_mismatch",
+          "individual_limit_exceeded",
+          "aggregate_limit_exceeded",
+          "ineligible_category",
+          "ineligible_line_item",
+          "missing_policy_context",
+          "policy_conflict",
+          "duplicate_candidate",
+          "approval_required",
+          "extraction_failed"
+        ],
+        "title": "FindingType",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -817,6 +1663,150 @@
           "components"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "LineItemResponse": {
+        "additionalProperties": false,
+        "description": "One receipt line, with its policy-derived eligibility.\n\n``eligibility`` is NOT_EVALUATED until a verified rule has actually run, and\nUNKNOWN when a rule needs evidence that is unavailable. Neither state is\npresented as ineligible.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Line amount as a decimal string. Line items carry no per-field provenance in this schema: only whole claim fields have a tracked source.",
+            "title": "Amount"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "discount_amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Amount"
+          },
+          "eligibility": {
+            "title": "Eligibility",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ineligibility_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ineligibility Reason"
+          },
+          "line_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Number"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "tax_amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Amount"
+          },
+          "unit_amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Amount"
+          }
+        },
+        "required": [
+          "id",
+          "eligibility"
+        ],
+        "title": "LineItemResponse",
         "type": "object"
       },
       "MembershipStatus": {
@@ -939,6 +1929,167 @@
           "status"
         ],
         "title": "MembershipSummary",
+        "type": "object"
+      },
+      "Money": {
+        "additionalProperties": false,
+        "description": "The canonical monetary field.\n\nApproved contract decision: ``amount`` uses this one structure everywhere,\nincluding provenance, so that a reviewer can always see whether a total came\nfrom a receipt or from the employee.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceLocation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewed": {
+            "default": false,
+            "title": "Reviewed",
+            "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uncertainty_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decimal amount as a JSON string.",
+            "title": "Value"
+          }
+        },
+        "title": "Money",
+        "type": "object"
+      },
+      "NonNegativeMoney": {
+        "additionalProperties": false,
+        "description": "A monetary amount with no exchange-rate provenance.\n\nUsed for derived/computed values such as a converted reporting amount, where\nthe rate trio below records how the number was produced.",
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Applied rate, when a conversion occurred.",
+            "title": "Rate"
+          },
+          "rate_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Date"
+          },
+          "rate_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Documented source of the rate.",
+            "title": "Rate Source"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "title": "NonNegativeMoney",
         "type": "object"
       },
       "PageInfo": {
@@ -1329,6 +2480,71 @@
         "title": "ReceiptResponse",
         "type": "object"
       },
+      "ReceiptSummary": {
+        "additionalProperties": false,
+        "description": "Receipt reference embedded in an expense response.",
+        "properties": {
+          "byte_size": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byte Size"
+          },
+          "content_url": {
+            "description": "Relative URL of the authorized content endpoint. Not a storage path, not public, and not permanent: the endpoint re-checks authorization on every request.",
+            "title": "Content Url",
+            "type": "string"
+          },
+          "derivation_type": {
+            "$ref": "#/components/schemas/DerivationType",
+            "default": "original"
+          },
+          "detected_mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected Mime Type"
+          },
+          "extraction_status": {
+            "$ref": "#/components/schemas/ExtractionStatus"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "uploaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded At"
+          }
+        },
+        "required": [
+          "id",
+          "content_url",
+          "extraction_status"
+        ],
+        "title": "ReceiptSummary",
+        "type": "object"
+      },
       "ReceiptUploadResponse": {
         "additionalProperties": false,
         "description": "Receipt metadata and its initial persisted extraction state.",
@@ -1406,6 +2622,131 @@
         "title": "ReceiptValidationResult",
         "type": "object"
       },
+      "RecommendedAction": {
+        "description": "Advisory next step attached to a finding.\n\nDistinct from :class:`ReviewAction` on purpose. A recommendation is advice\nattached to a finding; a ReviewAction is a decision an authorized reviewer\nactually executes. Conflating them would imply the backend had already\ndecided the claim.",
+        "enum": [
+          "none",
+          "review",
+          "request_correction",
+          "escalate"
+        ],
+        "title": "RecommendedAction",
+        "type": "string"
+      },
+      "ReviewAction": {
+        "description": "A reviewer/approver decision that actually transitions a claim.",
+        "enum": [
+          "approve",
+          "reject",
+          "request_correction",
+          "escalate"
+        ],
+        "title": "ReviewAction",
+        "type": "string"
+      },
+      "ReviewDecisionResponse": {
+        "additionalProperties": false,
+        "description": "An executed decision, as shown in the audit timeline.",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ReviewAction"
+          },
+          "actor_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Display Name"
+          },
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expense_id": {
+            "format": "uuid",
+            "title": "Expense Id",
+            "type": "string"
+          },
+          "expense_version": {
+            "title": "Expense Version",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "new_status": {
+            "title": "New Status",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "previous_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          }
+        },
+        "required": [
+          "id",
+          "expense_id",
+          "actor_user_id",
+          "action",
+          "new_status",
+          "expense_version",
+          "created_at"
+        ],
+        "title": "ReviewDecisionResponse",
+        "type": "object"
+      },
       "RoleAssignmentSummary": {
         "additionalProperties": false,
         "description": "A granted role, with the scope it applies to.",
@@ -1478,6 +2819,50 @@
         "title": "RoleCode",
         "type": "string"
       },
+      "SourceReference": {
+        "additionalProperties": false,
+        "description": "Where a finding's rule came from. Required on any rule-backed finding.",
+        "properties": {
+          "clause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Section/clause reference, for example 2.3.",
+            "title": "Clause"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Identifier of the policy document the rule was derived from.",
+            "title": "Document Id"
+          },
+          "text_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Verified excerpt of the clause. Never paraphrased from memory.",
+            "title": "Text Excerpt"
+          }
+        },
+        "title": "SourceReference",
+        "type": "object"
+      },
       "StorageBackend": {
         "enum": [
           "local",
@@ -1486,6 +2871,222 @@
         ],
         "title": "StorageBackend",
         "type": "string"
+      },
+      "SubmitExpenseRequest": {
+        "additionalProperties": false,
+        "description": "Submit a complete draft for human review.",
+        "properties": {
+          "expected_version": {
+            "description": "Required optimistic-concurrency token.",
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "SubmitExpenseRequest",
+        "type": "object"
+      },
+      "TripSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "destination_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination City"
+          },
+          "destination_country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Country Code"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "status"
+        ],
+        "title": "TripSummary",
+        "type": "object"
+      },
+      "UpdateExpenseRequest": {
+        "additionalProperties": false,
+        "description": "Correct allowed fields on a draft or submitted claim.\n\nPlain scalar values only. The server derives ``FieldSource`` from the\ncaller's role (employee_input vs reviewer_correction) and records a new\nprovenance row; incrementing ``version`` is automatic.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "attendee_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attendee Count"
+          },
+          "business_purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Purpose"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "expected_version": {
+            "description": "Required. A mismatch is refused with STALE_VERSION.",
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "expense_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Date"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "UpdateExpenseRequest",
+        "type": "object"
       },
       "UserSummary": {
         "additionalProperties": false,
@@ -1563,7 +3164,7 @@
     }
   },
   "info": {
-    "description": "Evidence-first expense auditing API. This build supports authorized draft creation, private receipt upload and persisted asynchronous extraction runs. Raw OCR/model text is not retained. Production authentication, policy evaluation and review workflows remain incomplete. GET /api/v1/meta lists the outstanding capabilities.",
+    "description": "Evidence-first expense auditing API. This build supports authorized draft creation, private receipt upload, claim correction/submission and human review decisions. Raw OCR/model text is not retained. Production authentication, policy evaluation and approval task workflows remain incomplete. GET /api/v1/meta lists the outstanding capabilities.",
     "title": "Proofline API",
     "version": "0.1.0"
   },
@@ -1619,7 +3220,7 @@
     },
     "/api/v1/demo/seed": {
       "post": {
-        "description": "Loads deterministic, clearly labelled synthetic data: one fictional organization, fictional people, memberships, role grants and reporting edges, plus an unapproved and empty policy version. Creates no policy rules and no allowance limits, because both require real organizational data and a verified policy clause.",
+        "description": "Loads deterministic, clearly labelled synthetic data: one fictional organization, fictional people, memberships, role grants, reporting edges and claim lifecycle scenarios. No OCR result is fabricated. The optional DEMO_SYNTHETIC_POLICY_ENABLED setting adds a fictional mechanics-only rule in local demo mode; it is not company policy. No allowance limits are created.",
         "operationId": "seed_api_v1_demo_seed_post",
         "responses": {
           "200": {
@@ -1640,6 +3241,69 @@
       }
     },
     "/api/v1/expenses": {
+      "get": {
+        "operationId": "list_expenses_api_v1_expenses_get",
+        "parameters": [
+          {
+            "description": "Maximum number of items to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from the previous page's page.next_cursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque cursor from the previous page's page.next_cursor.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List authorized expenses",
+        "tags": [
+          "expenses"
+        ]
+      },
       "post": {
         "description": "Creates a draft for the caller's active membership so a receipt can be attached. This workflow slice does not support creating claims for another employee.",
         "operationId": "create_draft_expense_api_v1_expenses_post",
@@ -1687,6 +3351,246 @@
           }
         },
         "summary": "Create an employee-owned draft expense",
+        "tags": [
+          "expenses"
+        ]
+      }
+    },
+    "/api/v1/expenses/{expense_id}": {
+      "get": {
+        "operationId": "get_expense_api_v1_expenses__expense_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read an authorized expense",
+        "tags": [
+          "expenses"
+        ]
+      },
+      "patch": {
+        "operationId": "update_expense_api_v1_expenses__expense_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExpenseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Correct claim fields",
+        "tags": [
+          "expenses"
+        ]
+      }
+    },
+    "/api/v1/expenses/{expense_id}/audit": {
+      "get": {
+        "operationId": "expense_audit_api_v1_expenses__expense_id__audit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from the previous page's page.next_cursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque cursor from the previous page's page.next_cursor.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read authorized claim history",
+        "tags": [
+          "expenses"
+        ]
+      }
+    },
+    "/api/v1/expenses/{expense_id}/decisions": {
+      "post": {
+        "operationId": "decide_expense_api_v1_expenses__expense_id__decisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record a human review decision",
         "tags": [
           "expenses"
         ]
@@ -1870,6 +3774,68 @@
         "summary": "Upload a batch of up to 20 independent receipts",
         "tags": [
           "receipts"
+        ]
+      }
+    },
+    "/api/v1/expenses/{expense_id}/submit": {
+      "post": {
+        "operationId": "submit_expense_api_v1_expenses__expense_id__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitExpenseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit a complete claim",
+        "tags": [
+          "expenses"
         ]
       }
     },
