@@ -1,0 +1,36 @@
+{
+  "//": [
+    "The compiler options below MIRROR node_modules/expo/tsconfig.base.json from Expo SDK 58",
+    "(expo 58.0.14, pinned in package.json). They are inlined rather than reached with",
+    "\"extends\": \"expo/tsconfig.base\" for one concrete reason: the test runner's oxc",
+    "transformer resolves that package specifier as a literal path and fails with",
+    "\"Tsconfig not found\", so every vitest run would break. A relative path such as",
+    "\"../../node_modules/expo/tsconfig.base.json\" would also work, but it would hard-code",
+    "npm's hoisting layout. Inlining removes the dependency entirely and works under both",
+    "tsc and oxc. If the Expo SDK is upgraded, diff this block against the new",
+    "expo/tsconfig.base.json."
+  ],
+  "compilerOptions": {
+    "allowJs": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "lib": ["DOM", "ESNext"],
+    "module": "preserve",
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "customConditions": ["react-native"],
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "target": "ESNext",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@proofline/api-client": ["../../packages/api-client/src/index.ts"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "babel.config.js", "metro.config.js", "android", "ios"]
+}

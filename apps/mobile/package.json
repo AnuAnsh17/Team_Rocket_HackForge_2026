@@ -1,0 +1,33 @@
+{
+  "name": "@proofline/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Proofline employee Android app: capture a receipt, correct the extracted values, submit a claim and follow its status.",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "doctor": "npx --no-install expo-doctor"
+  },
+  "dependencies": {
+    "@proofline/api-client": "0.1.0",
+    "expo": "~58.0.14",
+    "expo-constants": "~58.0.12",
+    "expo-router": "~58.0.23",
+    "expo-status-bar": "~58.0.3",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-screens": "4.23.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "eslint": "10.13.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2",
+    "vitest": "5.0.5"
+  }
+}

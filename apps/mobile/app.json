@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "Proofline",
+    "slug": "proofline",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "proofline",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.proofline.employee",
+      "edgeToEdgeEnabled": true,
+      "permissions": ["CAMERA"],
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1020"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.proofline.employee",
+      "supportsTablet": false
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "_typedRoutesComment": "typedRoutes is intentionally off. It requires a generated .expo/types/router.d.ts, which only expo start/export produces, so enabling it would make `tsc --noEmit` fail on a clean checkout and in CI.",
+      "typedRoutes": false
+    },
+    "extra": {
+      "_comment": "Client-visible configuration only. Never place a service-role key, an extraction API key or a database URL in this file: an app bundle is trivially extractable.",
+      "apiBaseUrl": "http://localhost:8000/api/v1"
+    }
+  }
+}
