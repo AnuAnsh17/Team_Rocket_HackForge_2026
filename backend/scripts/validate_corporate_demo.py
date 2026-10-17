@@ -13,6 +13,7 @@ import json
 import sys
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from app.db.session import dispose_engine, session_scope
 from app.models.expense import Expense
@@ -51,7 +52,7 @@ def main() -> int:
     manifest = json.loads((dataset_root / "manifest.json").read_text(encoding="utf-8"))
     samples = {s["id"]: s for s in manifest["samples"]}
 
-    findings: dict[str, object] = {}
+    findings: dict[str, Any] = {}
     problems: list[str] = []
 
     with session_scope() as session:
@@ -267,14 +268,15 @@ def main() -> int:
             problems.append(f"{len(digest_mismatch)} stored objects do not match their digest")
 
         # --- distributions ---
-        def distribution(column, label):
+        def distribution(column: Any, label: str) -> dict[str, int]:
             rows = session.execute(
                 select(column, func.count())
                 .where(Expense.organization_id == org.id)
                 .group_by(column)
             ).all()
-            findings[label] = {str(k): int(v) for k, v in rows if k is not None}
-            return findings[label]
+            values: dict[str, int] = {str(k): int(v) for k, v in rows if k is not None}
+            findings[label] = values
+            return values
 
         by_status = distribution(Expense.status, "claims_by_status")
         distribution(Expense.category, "claims_by_category")
@@ -377,16 +379,16 @@ def main() -> int:
         checked = 0
         mismatched = []
         for sample_id, sample in samples.items():
-            receipt = canonical.get(sample_id)
-            if receipt is None:
+            canonical_receipt = canonical.get(sample_id)
+            if canonical_receipt is None:
                 continue
             gt = json.loads((dataset_root / sample["ground_truth"]).read_text(encoding="utf-8"))
             cell = gt["fields"]["grand_total"]
             if cell["annotation"] != "verified_value":
                 continue
             expected = Decimal(str(cell["value"]))
-            expense = session.get(Expense, receipt.expense_id)
-            actual = expense.amount if expense else None
+            receipt_expense = session.get(Expense, canonical_receipt.expense_id)
+            actual = receipt_expense.amount if receipt_expense else None
             if actual is None:
                 mismatched.append({"sample": sample_id, "expected": str(expected), "actual": None})
             else:

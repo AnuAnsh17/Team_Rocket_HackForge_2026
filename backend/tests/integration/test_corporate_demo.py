@@ -13,11 +13,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import subprocess
+import sys
+import uuid
 from pathlib import Path
 
 import pytest
 from app.core.enums import PolicyReviewState  # noqa: F401  (documents intent in assertions)
+from app.models.audit import AuditEvent
 from app.models.expense import Expense
 from app.models.identity import OrganizationMembership, User
 from app.models.organization import AllowanceProfile, Department, OfficeLocation
@@ -68,8 +73,10 @@ def corporate(
     db: Session, tiny_dataset: Path, tmp_path: Path
 ) -> corporate_demo_service.CorporateSeedResult:
     """Base demo seed plus the corporate extension, inside the test's transaction."""
-    demo_service.seed_demo_dataset(db)
     storage = LocalPrivateReceiptStorage(root=tmp_path / "private-receipts")
+    # include_claim_scenarios mirrors scripts/dev_seed.py, so the fixture has the same
+    # pre-existing claims a real seeding run leaves behind.
+    demo_service.seed_demo_dataset(db, include_claim_scenarios=True, storage=storage)
     return seed_corporate_demo(db, dataset_root=tiny_dataset, storage=storage, duplicate_budget=2)
 
 
@@ -167,45 +174,181 @@ def test_every_sample_becomes_a_claim_with_a_readable_receipt(
 
 
 @requires_benchmark
-def test_seed_is_idempotent(db: Session, tiny_dataset: Path, tmp_path: Path) -> None:
-    demo_service.seed_demo_dataset(db)
-    storage = LocalPrivateReceiptStorage(root=tmp_path / "private-receipts")
-    seed_corporate_demo(db, dataset_root=tiny_dataset, storage=storage, duplicate_budget=2)
+def _snapshot(db: Session, organization_id: uuid.UUID) -> dict[str, dict[str, tuple]]:
+    """Every mutable field a repeat seed run could plausibly disturb.
 
+    Comparing counts alone is not enough: a second run could rewrite a timestamp, flip a
+    status, or re-point a receipt at a different claim while leaving every count identical.
+    """
+    expenses = {
+        str(expense.id): (
+            expense.status,
+            expense.version,
+            expense.merchant,
+            expense.expense_date,
+            expense.amount,
+            expense.currency,
+            expense.category,
+            expense.created_at,
+            expense.submitted_at,
+            expense.decided_at,
+            str(expense.membership_id),
+        )
+        for expense in db.execute(
+            select(Expense).where(Expense.organization_id == organization_id)
+        ).scalars()
+    }
+    receipts = {
+        str(receipt.id): (
+            receipt.object_key,
+            receipt.sha256,
+            receipt.byte_size,
+            str(receipt.expense_id),
+            str(receipt.parent_receipt_id) if receipt.parent_receipt_id else None,
+            receipt.derivation_type,
+            receipt.extraction_status,
+        )
+        for receipt in db.execute(
+            select(Receipt).where(Receipt.organization_id == organization_id)
+        ).scalars()
+    }
+    # audit_events is append-only, so any new row is a first-class signal that a repeat run
+    # did something it should not have.
+    audits = {
+        str(event.id): (event.action, str(event.entity_id), event.created_at)
+        for event in db.execute(
+            select(AuditEvent).where(AuditEvent.organization_id == organization_id)
+        ).scalars()
+    }
+    memberships = {
+        str(membership.id): (
+            membership.employee_code,
+            membership.status,
+            membership.joined_on,
+            str(membership.department_id),
+            str(membership.office_location_id),
+            str(membership.job_grade_id),
+            str(membership.cost_center_id),
+            str(membership.primary_manager_membership_id)
+            if membership.primary_manager_membership_id
+            else None,
+        )
+        for membership in db.execute(
+            select(OrganizationMembership).where(
+                OrganizationMembership.organization_id == organization_id
+            )
+        ).scalars()
+    }
+    return {
+        "expenses": expenses,
+        "receipts": receipts,
+        "audits": audits,
+        "memberships": memberships,
+    }
+
+
+@requires_benchmark
+def test_seed_is_idempotent_at_field_level(db: Session, tiny_dataset: Path, tmp_path: Path) -> None:
+    storage = LocalPrivateReceiptStorage(root=tmp_path / "private-receipts")
+    demo_service.seed_demo_dataset(db, include_claim_scenarios=True, storage=storage)
     organization = demo_service._ensure_organization(db)
 
-    def counts() -> tuple[int, int, int, int]:
-        return (
-            db.execute(
-                select(func.count())
-                .select_from(Expense)
-                .where(Expense.organization_id == organization.id)
-            ).scalar_one(),
-            db.execute(
-                select(func.count())
-                .select_from(Receipt)
-                .where(Receipt.organization_id == organization.id)
-            ).scalar_one(),
-            db.execute(
-                select(func.count())
-                .select_from(OrganizationMembership)
-                .where(OrganizationMembership.organization_id == organization.id)
-            ).scalar_one(),
-            db.execute(
-                select(func.count())
-                .select_from(AllowanceProfile)
-                .where(AllowanceProfile.organization_id == organization.id)
-            ).scalar_one(),
-        )
+    # What the BASE seeder left behind, captured before this module runs at all. "Pre-existing"
+    # is defined by observation rather than by hard-coding the other seeder's internal ids,
+    # which are free to change without this test silently stopping checking anything.
+    pre_existing = _snapshot(db, organization.id)
+    base_expense_ids = set(pre_existing["expenses"])
+    assert base_expense_ids, "the base seeder should have created claims to protect"
 
-    before = counts()
+    seed_corporate_demo(db, dataset_root=tiny_dataset, storage=storage, duplicate_budget=2)
+    after_first = _snapshot(db, organization.id)
+    assert set(after_first["expenses"]) > base_expense_ids, "the corporate seed added no claims"
+
     second = seed_corporate_demo(db, dataset_root=tiny_dataset, storage=storage, duplicate_budget=2)
-    after = counts()
+    after_second = _snapshot(db, organization.id)
 
-    assert before == after, f"a second seed run changed the data: {before} -> {after}"
     assert second.claims_created == 0
     assert second.receipts_created == 0
     assert second.people_created == 0
+
+    # 1. A repeat run changes nothing at all, field by field.
+    for section in ("expenses", "receipts", "audits", "memberships"):
+        assert after_first[section].keys() == after_second[section].keys(), (
+            f"a second seed run changed the set of {section}"
+        )
+        changed = {
+            key: (after_first[section][key], after_second[section][key])
+            for key in after_first[section]
+            if after_first[section][key] != after_second[section][key]
+        }
+        assert not changed, f"a second seed run mutated {section}: {list(changed)[:5]}"
+
+    # 2. This seeder never rewrites another seeder's claims or workflow history - not their
+    #    status, not their timestamps, and not the audit events that recorded them.
+    for claim_id in base_expense_ids:
+        assert pre_existing["expenses"][claim_id] == after_second["expenses"][claim_id], (
+            f"the base seeder's claim {claim_id} was modified by the corporate seed"
+        )
+    base_audits = {
+        key: value for key, value in pre_existing["audits"].items() if key in after_second["audits"]
+    }
+    for audit_id, value in base_audits.items():
+        assert after_second["audits"][audit_id] == value, (
+            f"a pre-existing audit event {audit_id} was altered"
+        )
+    # 3. Every audit event that existed before is still present: none were dropped.
+    assert set(pre_existing["audits"]) <= set(after_second["audits"]), (
+        "audit events disappeared during corporate seeding"
+    )
+
+
+@requires_benchmark
+def test_derived_values_do_not_depend_on_hash_randomisation(tmp_path: Path) -> None:
+    """Identifiers and planned states must be identical in separate processes.
+
+    ``hash()`` is salted per process, so an earlier revision produced different values on
+    each run. Deriving them through uuid5 and a seeded ``random.Random`` is what makes the
+    dataset reproducible; this runs the derivation twice under different PYTHONHASHSEED
+    values and insists the output is byte-identical.
+    """
+    script = (
+        "import json, random\n"
+        "from app.services.corporate_demo_service import _plan_state, _sid\n"
+        "samples = ['sample-0101', 'sample-0102', 'sample-0151']\n"
+        "rng = random.Random(20261018)\n"
+        "print(json.dumps({\n"
+        "    'expenses': [str(_sid(f'expense:corporate-demo:{s}')) for s in samples],\n"
+        "    'receipts': [str(_sid(f'receipt:corporate-demo:{s}')) for s in samples],\n"
+        "    'states': [_plan_state(i, True, None, rng) for i in range(10)],\n"
+        "}, sort_keys=True))\n"
+    )
+    outputs = []
+    for seed in ("0", "12345"):
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            cwd=str(Path(__file__).resolve().parents[2]),
+        )
+        assert result.returncode == 0, result.stderr
+        outputs.append(result.stdout.strip())
+
+    assert outputs[0] == outputs[1], (
+        "derived identifiers differ between processes, so seeding is not reproducible"
+    )
+
+
+def test_seeder_uses_no_process_randomised_hash() -> None:
+    """Direct regression guard for the ``hash()``-derived timestamps that were removed."""
+    source = Path(corporate_demo_service.__file__).read_text(encoding="utf-8")
+    offenders = [
+        line.strip()
+        for line in source.splitlines()
+        if "hash(" in line and "sha256" not in line and "hashlib" not in line
+    ]
+    assert not offenders, f"process-randomised hash() found in the seeder: {offenders}"
 
 
 @requires_benchmark

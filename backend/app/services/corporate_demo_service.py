@@ -27,6 +27,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -38,12 +39,13 @@ from app.core.enums import (
     ExpenseChannel,
     ExtractionStatus,
     MembershipStatus,
+    PolicyReviewState,
     ReviewAction,
     RoleCode,
 )
 from app.core.errors import Conflict, ValidationFailed
 from app.core.logging import get_logger
-from app.core.security import Actor
+from app.core.security import Actor, Identity
 from app.models.expense import Expense
 from app.models.identity import (
     OrganizationMembership,
@@ -60,11 +62,10 @@ from app.models.organization import (
     OfficeLocation,
     Organization,
 )
-from app.models.policy import PolicyReviewState
 from app.models.receipt import Receipt
 from app.schemas.expense import CreateExpenseRequest
 from app.schemas.review import DecisionRequest
-from app.services.actor_service import Identity, resolve_actor
+from app.services.actor_service import resolve_actor
 from app.services.audit_service import audit
 from app.services.demo_service import DEMO_ORG_SLUG, _sid, demo_identity_subject
 from app.services.expense_workflow_service import (
@@ -347,7 +348,7 @@ CORPORATE_PEOPLE: tuple[CorporatePerson, ...] = (
 # Allowance profiles. FICTION. Never promoted into policy evaluation.
 # ---------------------------------------------------------------------------
 
-ALLOWANCE_PROFILES: tuple[dict, ...] = (
+ALLOWANCE_PROFILES: tuple[dict[str, Any], ...] = (
     {
         "code": "AP-STD",
         "name": f"Standard office employee ({DEMO_POLICY_NOTE})",
@@ -478,18 +479,20 @@ def _decimal_or_none(value: object) -> Decimal | None:
         return None
 
 
-def _load_manifest(dataset_root: Path) -> dict:
+def _load_manifest(dataset_root: Path) -> dict[str, Any]:
     manifest_path = dataset_root / "manifest.json"
     if not manifest_path.is_file():
         raise ValidationFailed(
             f"No manifest.json under {dataset_root}. Point --dataset at the benchmark folder."
         )
-    return json.loads(manifest_path.read_text(encoding="utf-8"))
+    loaded: dict[str, Any] = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return loaded
 
 
-def _ground_truth(dataset_root: Path, sample: dict) -> dict:
+def _ground_truth(dataset_root: Path, sample: dict[str, Any]) -> dict[str, Any]:
     path = dataset_root / sample["ground_truth"]
-    return json.loads(path.read_text(encoding="utf-8"))
+    loaded: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return loaded
 
 
 # ---------------------------------------------------------------------------
@@ -500,42 +503,45 @@ def _ground_truth(dataset_root: Path, sample: dict) -> dict:
 def _ensure_structure(session: Session, organization_id: uuid.UUID) -> dict[str, uuid.UUID]:
     created: dict[str, uuid.UUID] = {}
 
+    # Each loop uses its own variable. Reusing one name across four model classes made mypy
+    # infer the first model's type for all of them, which is the whole reason this function
+    # previously reported a dozen bogus "Department | None" errors.
     for key, code, name in DEPARTMENTS:
-        row = session.execute(
+        department = session.execute(
             select(Department).where(
                 Department.organization_id == organization_id, Department.code == code
             )
         ).scalar_one_or_none()
-        if row is None:
-            row = Department(
+        if department is None:
+            department = Department(
                 id=_sid(f"department:{key}"), organization_id=organization_id, code=code, name=name
             )
-            session.add(row)
+            session.add(department)
             session.flush()
-        created[f"department:{key}"] = row.id
+        created[f"department:{key}"] = department.id
 
     for key, code, name in COST_CENTRES:
-        row = session.execute(
+        centre = session.execute(
             select(CostCenter).where(
                 CostCenter.organization_id == organization_id, CostCenter.code == code
             )
         ).scalar_one_or_none()
-        if row is None:
-            row = CostCenter(
+        if centre is None:
+            centre = CostCenter(
                 id=_sid(f"cost_center:{key}"), organization_id=organization_id, code=code, name=name
             )
-            session.add(row)
+            session.add(centre)
             session.flush()
-        created[f"cost_center:{key}"] = row.id
+        created[f"cost_center:{key}"] = centre.id
 
     for key, code, name, city, region, tz in OFFICES:
-        row = session.execute(
+        office = session.execute(
             select(OfficeLocation).where(
                 OfficeLocation.organization_id == organization_id, OfficeLocation.code == code
             )
         ).scalar_one_or_none()
-        if row is None:
-            row = OfficeLocation(
+        if office is None:
+            office = OfficeLocation(
                 id=_sid(f"office:{key}"),
                 organization_id=organization_id,
                 code=code,
@@ -545,27 +551,27 @@ def _ensure_structure(session: Session, organization_id: uuid.UUID) -> dict[str,
                 country_code="IN",
                 timezone=tz,
             )
-            session.add(row)
+            session.add(office)
             session.flush()
-        created[f"office:{key}"] = row.id
+        created[f"office:{key}"] = office.id
 
-    for code, name, order in JOB_GRADES:
-        row = session.execute(
+    for grade_code, grade_name, order in JOB_GRADES:
+        grade = session.execute(
             select(JobGrade).where(
-                JobGrade.organization_id == organization_id, JobGrade.code == code
+                JobGrade.organization_id == organization_id, JobGrade.code == grade_code
             )
         ).scalar_one_or_none()
-        if row is None:
-            row = JobGrade(
-                id=_sid(f"job_grade:{code}"),
+        if grade is None:
+            grade = JobGrade(
+                id=_sid(f"job_grade:{grade_code}"),
                 organization_id=organization_id,
-                code=code,
-                name=name,
+                code=grade_code,
+                name=grade_name,
                 sort_order=order,
             )
-            session.add(row)
+            session.add(grade)
             session.flush()
-        created[f"job_grade:{code}"] = row.id
+        created[f"job_grade:{grade_code}"] = grade.id
 
     # Register rows the BASE seeder already owns (engineering, sales, finance, blr, mum and
     # their cost centres). Without this, a new person placed into an existing department
@@ -578,9 +584,7 @@ def _ensure_structure(session: Session, organization_id: uuid.UUID) -> dict[str,
     # Four explicit passes rather than one loop over a union of model classes: the union
     # defeats type narrowing and produced a wall of unrelated mypy errors.
     for department in (
-        session.execute(
-            select(Department).where(Department.organization_id == organization_id)
-        )
+        session.execute(select(Department).where(Department.organization_id == organization_id))
         .scalars()
         .all()
     ):
@@ -590,9 +594,7 @@ def _ensure_structure(session: Session, organization_id: uuid.UUID) -> dict[str,
             created.setdefault(f"department:{_first_word(department.name)}", department.id)
 
     for centre in (
-        session.execute(
-            select(CostCenter).where(CostCenter.organization_id == organization_id)
-        )
+        session.execute(select(CostCenter).where(CostCenter.organization_id == organization_id))
         .scalars()
         .all()
     ):
@@ -611,9 +613,7 @@ def _ensure_structure(session: Session, organization_id: uuid.UUID) -> dict[str,
             created.setdefault(f"office:{office.city.lower()}", office.id)
 
     for grade in (
-        session.execute(
-            select(JobGrade).where(JobGrade.organization_id == organization_id)
-        )
+        session.execute(select(JobGrade).where(JobGrade.organization_id == organization_id))
         .scalars()
         .all()
     ):
@@ -711,7 +711,6 @@ def _next_employee_sequence(session: Session, organization_id: uuid.UUID) -> int
 def _ensure_people(
     session: Session, organization_id: uuid.UUID, structure: dict[str, uuid.UUID]
 ) -> tuple[int, int]:
-    profile_by_grade = {spec["grade"]: spec["code"] for spec in ALLOWANCE_PROFILES}
     created = 0
 
     # Managers first so a report's manager always exists by the time it is linked.
@@ -886,7 +885,8 @@ def _backfill_base_profiles(
         .all()
     }
     for sequence, membership in enumerate(ordered, start=1):
-        city = office_codes.get(membership.office_location_id) or "BLR"
+        office_id = membership.office_location_id
+        city = (office_codes.get(office_id) if office_id is not None else None) or "BLR"
         code = f"PL-{city}-EMP-{sequence:03d}"
         if membership.employee_code != code:
             # Unconditional: one pass owns the whole series, so the codes can never collide
@@ -1336,34 +1336,32 @@ def _import_claims(
             result.claims_created += 1
 
 
-def _spread_workflow_clock(session: Session, organization_id: uuid.UUID) -> None:
-    """Backdate the workflow timestamps so the history spans real months.
-
-    The state transitions themselves were performed by the workflow services. This only
-    moves the clock, because a seed run happens in one instant and would otherwise put every
-    submission and decision in the same second, leaving the history charts with a single
-    point. Ordering is preserved: created <= submitted <= decided, and every date is on or
-    after the receipt's own transaction date.
-    """
-    rows = (
-        session.execute(select(Expense).where(Expense.organization_id == organization_id))
-        .scalars()
-        .all()
-    )
-    for expense in rows:
-        if expense.expense_date is None:
-            continue
-        base = dt.datetime.combine(expense.expense_date, dt.time(9, 30), tzinfo=dt.UTC)
-        created = base + dt.timedelta(hours=6 + (hash(str(expense.id)) % 10))
-        expense.created_at = created
-        if expense.submitted_at is not None:
-            submitted = created + dt.timedelta(hours=8 + (hash(str(expense.id)) % 20))
-            expense.submitted_at = submitted
-            if expense.decided_at is not None:
-                expense.decided_at = submitted + dt.timedelta(
-                    hours=20 + (hash(str(expense.id)) % 60)
-                )
-    session.flush()
+# NOTE ON WORKFLOW TIMESTAMPS - a limitation, stated rather than worked around.
+#
+# An earlier revision of this module backdated every seeded claim's created_at,
+# submitted_at and decided_at so the approval history spanned several months. That has been
+# REMOVED, and deliberately not replaced, because it produced a timeline that contradicted
+# the audit trail:
+#
+#   * audit_events is append-only (the database enforces it with a trigger), and the audit
+#     writer takes no timestamp parameter, so an audit event's time is fixed at insert. It
+#     therefore cannot be moved to match a backdated claim.
+#   * The workflow services stamp the real clock. So a claim could read
+#     submitted_at = 2016-02-11 while the audit event recording that submission is stamped
+#     2026-10-17 - a ten-year contradiction visible to anyone comparing the two.
+#
+# Making the story consistent therefore means NOT rewriting the clock: the seeded claims
+# carry the seed run's timestamps, which is exactly what their audit events record, and
+# lifecycle ordering holds because the services perform the transitions in order.
+#
+# The historical dimension of the demo is the receipt's EVIDENCED transaction date
+# (expenses.expense_date), which is real data and is preserved untouched - that is what
+# drives month-by-month spend analytics. What the demo deliberately does NOT claim is a
+# fabricated audit history: month-over-month spend is evidenced, decision timing is not.
+#
+# Producing genuinely historical workflow timestamps would require threading a clock or an
+# explicit occurred_at through expense_workflow_service and the audit writer. That is a
+# change to shared workflow/audit code and is out of scope for this data-seeding branch.
 
 
 def seed_corporate_demo(
@@ -1433,7 +1431,7 @@ def seed_corporate_demo(
             .where(AllowanceProfile.organization_id == organization.id)
         ).scalar_one()
     )
-    created_profiles, created_items = _ensure_allowance_profiles(session, organization.id)
+    created_profiles, _ = _ensure_allowance_profiles(session, organization.id)
     result.allowance_profiles = existing_profiles + created_profiles
     result.allowance_items = int(
         session.execute(
@@ -1458,7 +1456,8 @@ def seed_corporate_demo(
         rollback_callbacks=rollback_callbacks,
         duplicate_budget=duplicate_budget,
     )
-    _spread_workflow_clock(session, organization.id)
+    # Workflow timestamps are intentionally left as the services wrote them; see the note
+    # above on why backdating them would contradict the append-only audit trail.
 
     result.claims_total = int(
         session.execute(
