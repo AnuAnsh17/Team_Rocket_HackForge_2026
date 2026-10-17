@@ -1,4 +1,44 @@
 export interface paths {
+    "/api/v1/analytics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read transaction-date dashboard overview
+         * @description Returns organization-scoped counts and exact currency-separated aggregates for the inclusive expense_date range. Claims without expense_date are counted separately and are not assigned to the selected period. Approved is a workflow status, not a policy PASS or a payment record.
+         */
+        get: operations["get_overview_api_v1_analytics_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/analytics/spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read filtered spend aggregation
+         * @description Groups persisted expenses within the inclusive expense_date range by one selected dimension and currency. Missing transaction dates are excluded from groups and counted separately. Employee grouping/filtering requires analytics:read_org. Empty calendar months are omitted and therefore represent zero dated claims for that month.
+         */
+        get: operations["get_spend_api_v1_analytics_spend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/demo/import/email": {
         parameters: {
             query?: never;
@@ -371,6 +411,267 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnalyticsCategoryAmount */
+        AnalyticsCategoryAmount: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /**
+             * Category
+             * @description Null means no category is recorded; other values are stored as entered.
+             */
+            category?: string | null;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+        };
+        /** AnalyticsDepartmentAmount */
+        AnalyticsDepartmentAmount: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Department Id
+             * @description Null means the current membership has no department.
+             */
+            department_id?: string | null;
+            /** Department Name */
+            department_name?: string | null;
+        };
+        /**
+         * AnalyticsGroupBy
+         * @enum {string}
+         */
+        AnalyticsGroupBy: "month" | "department" | "location" | "category" | "employee" | "status";
+        /** AnalyticsLocationAmount */
+        AnalyticsLocationAmount: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Office Location Id
+             * @description Null means the current membership has no office location.
+             */
+            office_location_id?: string | null;
+            /** Office Location Name */
+            office_location_name?: string | null;
+        };
+        /** AnalyticsMonthlyAmount */
+        AnalyticsMonthlyAmount: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Month
+             * Format: date
+             * @description First calendar date of the month containing the expense dates.
+             */
+            month: string;
+        };
+        /**
+         * AnalyticsOverviewResponse
+         * @description Organization-level overview for an inclusive transaction-date range.
+         */
+        AnalyticsOverviewResponse: {
+            /** By Category */
+            by_category: components["schemas"]["AnalyticsCategoryAmount"][];
+            /** By Department */
+            by_department: components["schemas"]["AnalyticsDepartmentAmount"][];
+            /** By Office Location */
+            by_office_location: components["schemas"]["AnalyticsLocationAmount"][];
+            /**
+             * Claim Count
+             * @description Dated claims whose expense_date is in the requested range.
+             */
+            claim_count: number;
+            /**
+             * Claims Missing Critical Fields
+             * @description Dated in-range claims missing merchant, expense_date, amount or currency.
+             */
+            claims_missing_critical_fields: number;
+            /** Claims Needing Information */
+            claims_needing_information: number;
+            /**
+             * Claims Requiring Review
+             * @description Claims in submitted or in_review workflow status.
+             */
+            claims_requiring_review: number;
+            /**
+             * Claims With Uncertain Critical Fields
+             * @description Dated in-range claims with current critical-field evidence carrying uncertainty_reason.
+             */
+            claims_with_uncertain_critical_fields: number;
+            /**
+             * Claims With Unknown Transaction Date
+             * @description All organization claims with no expense_date; these cannot be assigned to the selected period.
+             */
+            claims_with_unknown_transaction_date: number;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * Monthly Totals
+             * @description Sparse calendar-month buckets; an omitted month had no dated claims in the requested range.
+             */
+            monthly_totals: components["schemas"]["AnalyticsMonthlyAmount"][];
+            /** Status Amounts */
+            status_amounts: components["schemas"]["AnalyticsStatusAmount"][];
+            /** Status Counts */
+            status_counts: components["schemas"]["AnalyticsStatusCount"][];
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+        };
+        /** AnalyticsSpendResponse */
+        AnalyticsSpendResponse: {
+            /**
+             * Claims With Unknown Transaction Date
+             * @description Claims matching the other filters but lacking expense_date; excluded from groups.
+             */
+            claims_with_unknown_transaction_date: number;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            group_by: components["schemas"]["AnalyticsGroupBy"];
+            results: components["schemas"]["Page_AnalyticsSpendRow_"];
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+        };
+        /**
+         * AnalyticsSpendRow
+         * @description One group and one currency; separate rows prevent mixed-currency totals.
+         */
+        AnalyticsSpendRow: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /**
+             * Bucket Start
+             * @description Calendar month start when group_by=month.
+             */
+            bucket_start?: string | null;
+            /** Category */
+            category?: string | null;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Department Id */
+            department_id?: string | null;
+            /** Department Name */
+            department_name?: string | null;
+            /** Employee Display Name */
+            employee_display_name?: string | null;
+            /**
+             * Employee Membership Id
+             * @description Present only for group_by=employee; requires analytics:read_org.
+             */
+            employee_membership_id?: string | null;
+            /** Office Location Id */
+            office_location_id?: string | null;
+            /** Office Location Name */
+            office_location_name?: string | null;
+            status?: components["schemas"]["ExpenseStatus"] | null;
+        };
+        /** AnalyticsStatusAmount */
+        AnalyticsStatusAmount: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+            status: components["schemas"]["ExpenseStatus"];
+        };
+        /** AnalyticsStatusCount */
+        AnalyticsStatusCount: {
+            /** Claim Count */
+            claim_count: number;
+            status: components["schemas"]["ExpenseStatus"];
+        };
         /**
          * ApiMetaResponse
          * @description Service and contract identity.
@@ -1173,6 +1474,12 @@ export interface components {
              */
             total?: number | null;
         };
+        /** Page[AnalyticsSpendRow] */
+        Page_AnalyticsSpendRow_: {
+            /** Items */
+            items: components["schemas"]["AnalyticsSpendRow"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /**
          * ReceiptExtractionData
          * @description Persisted/public extraction data with server-owned version metadata.
@@ -1580,6 +1887,93 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_overview_api_v1_analytics_overview_get: {
+        parameters: {
+            query: {
+                /** @description Inclusive lower transaction-date boundary (YYYY-MM-DD). */
+                from: string;
+                /** @description Inclusive upper transaction-date boundary (YYYY-MM-DD). */
+                to: string;
+                department_id?: string | null;
+                office_location_id?: string | null;
+                /** @description Organization membership UUID; requires analytics:read_org. */
+                employee_membership_id?: string | null;
+                category?: string | null;
+                currency?: string | null;
+                status?: components["schemas"]["ExpenseStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsOverviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_spend_api_v1_analytics_spend_get: {
+        parameters: {
+            query: {
+                group_by?: components["schemas"]["AnalyticsGroupBy"];
+                /** @description Inclusive lower transaction-date boundary (YYYY-MM-DD). */
+                from: string;
+                /** @description Inclusive upper transaction-date boundary (YYYY-MM-DD). */
+                to: string;
+                department_id?: string | null;
+                office_location_id?: string | null;
+                /** @description Organization membership UUID; requires analytics:read_org. */
+                employee_membership_id?: string | null;
+                category?: string | null;
+                currency?: string | null;
+                status?: components["schemas"]["ExpenseStatus"] | null;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Opaque cursor from the previous page's page.next_cursor. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSpendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     simulate_email_import_api_v1_demo_import_email_post: {
         parameters: {
             query?: never;

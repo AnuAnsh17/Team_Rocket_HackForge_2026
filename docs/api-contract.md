@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.4.0-claim-lifecycle
+**Contract version:** 1.5.0-analytics
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -27,6 +27,7 @@ unimplemented route works.
 | 1.1 -> 1.1.1 | A policy-assignment scope carries exactly one of `scope_id` (UUID) or `scope_key` (text), decided by the dimension | Three of the ten dimensions are not UUID-valued (legal entity, jurisdiction, expense category), and a single UUID column could not express them, so assignments scoped to those dimensions never matched. Uniqueness is now over the effective selector. No route is affected today: the policy routes are declared unimplemented. |
 | 1.1.1 -> 1.2.0 | Minimal employee-owned draft creation, private receipt upload/content retrieval and IndicOCR status tracking | Reuses the existing auth, storage, receipt and extraction-run schema. OCR text is not persisted pending a retention decision. |
 | 1.2.0 -> 1.3.0 | DeepSeek structured extraction contract, bounded persisted worker, batches, retry and authorized result listing | Each upload is its own job. Provider output is schema-validated, then deterministically checked; original receipt and run history remain traceable. |
+| 1.4.0 -> 1.5.0 | Organization-scoped overview and spend analytics | Queries aggregate persisted claims by inclusive transaction-date range and currency; workflow approval is not policy approval or payment. |
 
 ---
 
@@ -405,6 +406,8 @@ Status values:
 | `GET /api/v1/me` | The caller's own organization membership. |
 | `GET /api/v1/me/roles` | The caller's own non-revoked role grants with their scope. |
 | `GET /api/v1/me/audit` | Audit events attributed to the caller. |
+| `GET /api/v1/analytics/overview` | Database-backed status, amount, completeness, department, location, category and monthly aggregates for a required inclusive `from`/`to` transaction-date range. Requires analytics and organization-scoped expense-read permissions. |
+| `GET /api/v1/analytics/spend` | Paginated exact spend groups for a required `from`/`to` range. Supports `group_by=month|department|location|category|employee|status` plus department, location, employee-membership, category, currency and status filters. Employee grouping/filtering requires `analytics:read_org`. |
 | `POST /api/v1/demo/seed` | Load the deterministic synthetic dataset. Demo mode only. |
 | `POST /api/v1/demo/reset` | Remove only the synthetic dataset. Demo mode only. |
 | `POST /api/v1/demo/import/email` | Present but answers `501`: no email integration exists. |
@@ -412,6 +415,34 @@ Status values:
 `/api/v1/me` deliberately returns no permission list. Permissions are enforced
 server-side; publishing them to a client would invite a client to rely on them,
 which is the trust boundary this design refuses.
+
+### 5.1.1 Analytics semantics
+
+- Both routes require ISO `from` and `to` dates, inclusive, and use only
+  `expenses.expense_date`. Claims with a null transaction date are excluded from the
+  requested period and reported separately. They are never bucketed by `created_at`,
+  `submitted_at` or `decided_at`.
+- `status_counts` includes every canonical `ExpenseStatus`, including zero-count
+  statuses. `claims_requiring_review` is the count of `submitted` plus `in_review`;
+  `claims_needing_information` is reported separately.
+- Amounts are grouped by the stored currency and serialized as decimal strings. They
+  are never combined across currencies or converted. An `approved` workflow status
+  means a human review approved the claim; it does not mean policy PASS or payment.
+- Status totals, department/location/category summaries and monthly buckets include
+  every claim in the date range regardless of open duplicate candidates. Candidate
+  rows are not joined, so they cannot multiply claims or be mistaken for confirmed
+  duplicates. Empty month buckets are omitted; within the requested range, an absent
+  month means there were no dated claims for it.
+- Department and office summaries use the membership's current persisted department
+  and office. Historical snapshots are not stored on expenses, so an organizational
+  transfer can change historical attribution.
+- A missing category is represented by `category: null`; other categories remain the
+  persisted free-form category strings. Missing department/location ids and names are
+  null. Missing or uncertain critical fields use persisted values and current
+  `expense_field_evidence.uncertainty_reason`; no confidence threshold is invented.
+- `group_by=employee` and `employee_membership_id` filtering require
+  `analytics:read_org`. Paginated spend rows contain one grouping key and one currency.
+  Group results are ordered consistently before applying the standard opaque cursor.
 
 ### 5.2 Definitions written, routes deferred
 
@@ -430,8 +461,6 @@ capabilities, but their routes are not wired up. They remain deferred work.
 | `GET /api/v1/duplicates` | Candidate persistence. |
 | `POST /api/v1/duplicates/{candidate_id}/confirm` | Candidate persistence. |
 | `POST /api/v1/duplicates/{candidate_id}/dismiss` | Candidate persistence. |
-| `GET /api/v1/analytics/overview` | Claims data. |
-| `GET /api/v1/analytics/spend` | Claims data. |
 | `GET /api/v1/audit` | Org-scoped audit reads and the reviewer permission model. |
 | `GET /api/v1/audit/export` | As above, plus CSV formula-injection mitigation. |
 | `GET /api/v1/users` | Organization administration. |

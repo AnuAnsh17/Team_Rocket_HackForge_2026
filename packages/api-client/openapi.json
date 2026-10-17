@@ -1,6 +1,673 @@
 {
   "components": {
     "schemas": {
+      "AnalyticsCategoryAmount": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means no category is recorded; other values are stored as entered.",
+            "title": "Category"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count"
+        ],
+        "title": "AnalyticsCategoryAmount",
+        "type": "object"
+      },
+      "AnalyticsDepartmentAmount": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means the current membership has no department.",
+            "title": "Department Id"
+          },
+          "department_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Name"
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count"
+        ],
+        "title": "AnalyticsDepartmentAmount",
+        "type": "object"
+      },
+      "AnalyticsGroupBy": {
+        "enum": [
+          "month",
+          "department",
+          "location",
+          "category",
+          "employee",
+          "status"
+        ],
+        "title": "AnalyticsGroupBy",
+        "type": "string"
+      },
+      "AnalyticsLocationAmount": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "office_location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means the current membership has no office location.",
+            "title": "Office Location Id"
+          },
+          "office_location_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Location Name"
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count"
+        ],
+        "title": "AnalyticsLocationAmount",
+        "type": "object"
+      },
+      "AnalyticsMonthlyAmount": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "month": {
+            "description": "First calendar date of the month containing the expense dates.",
+            "format": "date",
+            "title": "Month",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count",
+          "month"
+        ],
+        "title": "AnalyticsMonthlyAmount",
+        "type": "object"
+      },
+      "AnalyticsOverviewResponse": {
+        "additionalProperties": false,
+        "description": "Organization-level overview for an inclusive transaction-date range.",
+        "properties": {
+          "by_category": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsCategoryAmount"
+            },
+            "title": "By Category",
+            "type": "array"
+          },
+          "by_department": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsDepartmentAmount"
+            },
+            "title": "By Department",
+            "type": "array"
+          },
+          "by_office_location": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsLocationAmount"
+            },
+            "title": "By Office Location",
+            "type": "array"
+          },
+          "claim_count": {
+            "description": "Dated claims whose expense_date is in the requested range.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "claims_missing_critical_fields": {
+            "description": "Dated in-range claims missing merchant, expense_date, amount or currency.",
+            "minimum": 0.0,
+            "title": "Claims Missing Critical Fields",
+            "type": "integer"
+          },
+          "claims_needing_information": {
+            "minimum": 0.0,
+            "title": "Claims Needing Information",
+            "type": "integer"
+          },
+          "claims_requiring_review": {
+            "description": "Claims in submitted or in_review workflow status.",
+            "minimum": 0.0,
+            "title": "Claims Requiring Review",
+            "type": "integer"
+          },
+          "claims_with_uncertain_critical_fields": {
+            "description": "Dated in-range claims with current critical-field evidence carrying uncertainty_reason.",
+            "minimum": 0.0,
+            "title": "Claims With Uncertain Critical Fields",
+            "type": "integer"
+          },
+          "claims_with_unknown_transaction_date": {
+            "description": "All organization claims with no expense_date; these cannot be assigned to the selected period.",
+            "minimum": 0.0,
+            "title": "Claims With Unknown Transaction Date",
+            "type": "integer"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "monthly_totals": {
+            "description": "Sparse calendar-month buckets; an omitted month had no dated claims in the requested range.",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsMonthlyAmount"
+            },
+            "title": "Monthly Totals",
+            "type": "array"
+          },
+          "status_amounts": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusAmount"
+            },
+            "title": "Status Amounts",
+            "type": "array"
+          },
+          "status_counts": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStatusCount"
+            },
+            "title": "Status Counts",
+            "type": "array"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_date",
+          "to_date",
+          "claim_count",
+          "claims_requiring_review",
+          "claims_needing_information",
+          "claims_missing_critical_fields",
+          "claims_with_uncertain_critical_fields",
+          "claims_with_unknown_transaction_date",
+          "status_counts",
+          "status_amounts",
+          "by_department",
+          "by_office_location",
+          "by_category",
+          "monthly_totals"
+        ],
+        "title": "AnalyticsOverviewResponse",
+        "type": "object"
+      },
+      "AnalyticsSpendResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "claims_with_unknown_transaction_date": {
+            "description": "Claims matching the other filters but lacking expense_date; excluded from groups.",
+            "minimum": 0.0,
+            "title": "Claims With Unknown Transaction Date",
+            "type": "integer"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "group_by": {
+            "$ref": "#/components/schemas/AnalyticsGroupBy"
+          },
+          "results": {
+            "$ref": "#/components/schemas/Page_AnalyticsSpendRow_"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_date",
+          "to_date",
+          "group_by",
+          "claims_with_unknown_transaction_date",
+          "results"
+        ],
+        "title": "AnalyticsSpendResponse",
+        "type": "object"
+      },
+      "AnalyticsSpendRow": {
+        "additionalProperties": false,
+        "description": "One group and one currency; separate rows prevent mixed-currency totals.",
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "bucket_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar month start when group_by=month.",
+            "title": "Bucket Start"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Id"
+          },
+          "department_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Name"
+          },
+          "employee_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Display Name"
+          },
+          "employee_membership_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present only for group_by=employee; requires analytics:read_org.",
+            "title": "Employee Membership Id"
+          },
+          "office_location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Location Id"
+          },
+          "office_location_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Location Name"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExpenseStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count"
+        ],
+        "title": "AnalyticsSpendRow",
+        "type": "object"
+      },
+      "AnalyticsStatusAmount": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExpenseStatus"
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count",
+          "status"
+        ],
+        "title": "AnalyticsStatusAmount",
+        "type": "object"
+      },
+      "AnalyticsStatusCount": {
+        "additionalProperties": false,
+        "properties": {
+          "claim_count": {
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExpenseStatus"
+          }
+        },
+        "required": [
+          "status",
+          "claim_count"
+        ],
+        "title": "AnalyticsStatusCount",
+        "type": "object"
+      },
       "ApiMetaResponse": {
         "additionalProperties": false,
         "description": "Service and contract identity.",
@@ -2132,6 +2799,27 @@
         "title": "PageInfo",
         "type": "object"
       },
+      "Page_AnalyticsSpendRow_": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsSpendRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "title": "Page[AnalyticsSpendRow]",
+        "type": "object"
+      },
       "ReceiptExtractionData": {
         "additionalProperties": false,
         "description": "Persisted/public extraction data with server-owned version metadata.",
@@ -3170,6 +3858,375 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/analytics/overview": {
+      "get": {
+        "description": "Returns organization-scoped counts and exact currency-separated aggregates for the inclusive expense_date range. Claims without expense_date are counted separately and are not assigned to the selected period. Approved is a workflow status, not a policy PASS or a payment record.",
+        "operationId": "get_overview_api_v1_analytics_overview_get",
+        "parameters": [
+          {
+            "description": "Inclusive lower transaction-date boundary (YYYY-MM-DD).",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "Inclusive lower transaction-date boundary (YYYY-MM-DD).",
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive upper transaction-date boundary (YYYY-MM-DD).",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "Inclusive upper transaction-date boundary (YYYY-MM-DD).",
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "office_location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Office Location Id"
+            }
+          },
+          {
+            "description": "Organization membership UUID; requires analytics:read_org.",
+            "in": "query",
+            "name": "employee_membership_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Organization membership UUID; requires analytics:read_org.",
+              "title": "Employee Membership Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 3,
+                  "minLength": 3,
+                  "pattern": "^[A-Z]{3}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read transaction-date dashboard overview",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/spend": {
+      "get": {
+        "description": "Groups persisted expenses within the inclusive expense_date range by one selected dimension and currency. Missing transaction dates are excluded from groups and counted separately. Employee grouping/filtering requires analytics:read_org. Empty calendar months are omitted and therefore represent zero dated claims for that month.",
+        "operationId": "get_spend_api_v1_analytics_spend_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AnalyticsGroupBy",
+              "default": "month"
+            }
+          },
+          {
+            "description": "Inclusive lower transaction-date boundary (YYYY-MM-DD).",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "Inclusive lower transaction-date boundary (YYYY-MM-DD).",
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive upper transaction-date boundary (YYYY-MM-DD).",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "Inclusive upper transaction-date boundary (YYYY-MM-DD).",
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "office_location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Office Location Id"
+            }
+          },
+          {
+            "description": "Organization membership UUID; requires analytics:read_org.",
+            "in": "query",
+            "name": "employee_membership_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Organization membership UUID; requires analytics:read_org.",
+              "title": "Employee Membership Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 3,
+                  "minLength": 3,
+                  "pattern": "^[A-Z]{3}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from the previous page's page.next_cursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque cursor from the previous page's page.next_cursor.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSpendResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read filtered spend aggregation",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/api/v1/demo/import/email": {
       "post": {
         "description": "The contract describes this route for demoing a cross-channel duplicate. It is not implemented, and it must never be presented as a real email integration.",
