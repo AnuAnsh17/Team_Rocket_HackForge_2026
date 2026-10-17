@@ -26,7 +26,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from app.core.enums import (
     TEXT_VALUED_SCOPE_TYPES,
@@ -36,6 +36,7 @@ from app.core.enums import (
     PolicyExceptionType,
     PolicyReviewState,
 )
+from app.core.scope_keys import canonical_form_sql, normalize_scope_key
 from app.db.base import (
     MONEY,
     Base,
@@ -205,6 +206,24 @@ class PolicyAssignment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    @validates("scope_key")
+    def _canonicalise_scope_key(self, _key: str, value: str | None) -> str | None:
+        """Store text scope keys in canonical form.
+
+        ``scope_key`` is a matching key, not a display string: it is compared against a
+        value the claim presents, so storing the form an administrator typed would make
+        matching depend on punctuation and casing. Display values come from the source
+        entity -- ``organizations.legal_entity_name`` for a legal entity.
+
+        Blank input raises BlankScopeKeyError rather than being stored, because a key
+        that normalizes to nothing can never match a claim. The database enforces the
+        same rule independently; this makes the failure legible at the point of the
+        mistake instead of at the constraint.
+        """
+        if value is None:
+            return None
+        return normalize_scope_key(value)
+
     __table_args__ = (
         # A scope assignment must carry exactly the selector its dimension needs, and
         # no other. This is what stops a category assignment being stored with a UUID
@@ -219,6 +238,27 @@ class PolicyAssignment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "  AND scope_key IS NOT NULL AND scope_id IS NULL"
             ")",
             name="scope_selector_consistent",
+        ),
+        # Defence in depth for the normalization contract in app/core/scope_keys.py.
+        # A text selector must be non-blank, carry no surrounding whitespace and already
+        # be lowercased. PostgreSQL cannot compute Python's casefold(), so this is
+        # deliberately the part of the contract it CAN verify exactly; the application
+        # is what guarantees full canonical form, and the unique index below is over the
+        # canonical column so uniqueness matches the resolver by construction.
+        #
+        # A blank key is refused here because it can never match anything: the
+        # assignment would look configured and never apply.
+        CheckConstraint(
+            "("
+            "  scope_type NOT IN "
+            + in_list(sorted(t.value for t in TEXT_VALUED_SCOPE_TYPES))
+            + " OR ("
+            "    scope_key IS NOT NULL"
+            "    AND scope_key <> ''"
+            f"    AND scope_key = {canonical_form_sql('scope_key')}"
+            "  )"
+            ")",
+            name="scope_key_canonical",
         ),
         in_enum("scope_type", PolicyAssignmentScopeType),
         in_enum("approval_state", ApprovalState),

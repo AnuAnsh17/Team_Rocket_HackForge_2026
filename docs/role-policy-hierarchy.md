@@ -50,12 +50,47 @@ else derives from that pair: the database CHECK constraint that refuses a mismat
 selector, the resolver's dispatch, and the tests. A dimension added to the enum without
 being classified raises instead of silently never matching.
 
-Text keys are compared after trimming surrounding whitespace and folding case, so
-`"IN-MH"` and `" in-mh "` denote the same jurisdiction. That is a matching convenience,
-not a policy rule: it does not declare two *different* keys to be the same, and it does
-not introduce precedence. The unique index on
-`lower(coalesce(scope_key, ''))` applies the same normalisation, so the database cannot
-hold two assignments the resolver would consider identical.
+### The scope key normalization contract
+
+Defined once, in `backend/app/core/scope_keys.py`. A text scope key's canonical form is:
+
+```
+canonical = collapse_whitespace(raw).casefold()
+```
+
+- `collapse_whitespace` trims, and collapses internal runs to one space, every character
+  in `SCOPE_KEY_WHITESPACE`. That set is pinned by a test to exactly Python's
+  `str.isspace()` definition (29 characters), so it cannot drift.
+- `casefold()`, not `lower()`: case folding is the Unicode operation for caseless
+  comparison, and the two differ for real input (`"straße".casefold() == "strasse"`).
+- The canonical form is idempotent.
+
+**`scope_key` stores the canonical form.** It is a matching key, not a display string:
+display values come from the source entity, such as `organizations.legal_entity_name`.
+The unique index is over that canonical column, so **database uniqueness is over exactly
+the string the resolver compares** — by construction, not by two implementations agreeing.
+
+That construction is deliberate, because the two had drifted. The resolver previously used
+`strip().casefold()` while the index used `lower(coalesce(scope_key, ''))`, so `"in-mh"`
+and `" in-mh "` could both be stored even though the resolver treated them as one key, and
+Python's case folding is not PostgreSQL's lowercasing. The fix was not to reimplement case
+folding in SQL; it was to remove the second implementation.
+
+**What the database verifies independently.** A CHECK constraint requires that a stored
+text key equals its own canonical form (trimmed, collapsed, lowercased, non-blank), using
+PostgreSQL's `lower()` and the same whitespace character list. This is defence in depth
+against a write that bypasses the application, and it is what refuses a blank key —
+one that could never match anything.
+
+**Known residue.** PostgreSQL cannot compute `casefold()`. A row written by a path that
+bypasses the application *and* uses a character PostgreSQL's `lower()` leaves alone *and*
+that Python's `casefold()` would change could still be stored non-canonically. Matching
+canonicalizes **both** sides, so such a row still matches correctly rather than becoming
+inert; the residue is that it could coexist with its canonical twin, which surfaces as a
+reported resolution *conflict* rather than a silent duplicate. Closing it completely would
+mean either restricting keys to ASCII (rejecting legitimate non-ASCII legal entity names)
+or maintaining a hand-written replica of Unicode case folding in SQL — the mistake this
+contract was written to undo.
 
 ## Precedence is configuration, not specificity
 

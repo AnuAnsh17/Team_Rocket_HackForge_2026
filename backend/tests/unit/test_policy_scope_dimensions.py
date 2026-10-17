@@ -261,9 +261,29 @@ class TestTextSelectorNormalisation:
             assignment = _assignment(PolicyAssignmentScopeType.JURISDICTION, scope_key=other)
             assert _matches(assignment, scope) is False, other
 
-    def test_a_blank_key_never_matches(self, scope: EvaluationScope) -> None:
-        assignment = _assignment(PolicyAssignmentScopeType.EXPENSE_CATEGORY, scope_key="   ")
-        assert _matches(assignment, scope) is False
+    def test_a_blank_key_cannot_be_constructed_at_all(self) -> None:
+        """A blank key is now refused before it can reach the matcher.
+
+        Previously a blank key could exist and simply never matched anything -- an
+        assignment that looked configured and silently did nothing. It is now refused at
+        construction by the model validator, and independently by the database CHECK.
+        """
+        from app.core.scope_keys import BlankScopeKeyError
+
+        with pytest.raises(BlankScopeKeyError):
+            _assignment(PolicyAssignmentScopeType.EXPENSE_CATEGORY, scope_key="   ")
+
+    def test_a_claim_whose_category_is_blank_still_matches_nothing(
+        self, scope: EvaluationScope
+    ) -> None:
+        # The read path stays permissive: a claim with no usable category value has no
+        # value for the dimension, so it matches no assignment. That is not an error and
+        # must not raise.
+        assignment = _assignment(PolicyAssignmentScopeType.EXPENSE_CATEGORY, scope_key="meal")
+        blank_claim = EvaluationScope(
+            organization_id=ORGANIZATION_ID, membership_id=MEMBERSHIP_ID, category="   "
+        )
+        assert _matches(assignment, blank_claim) is False
 
 
 class TestAbsentDimensionNeverMatches:

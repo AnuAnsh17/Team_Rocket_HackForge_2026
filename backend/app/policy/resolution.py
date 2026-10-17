@@ -36,6 +36,7 @@ from app.core.enums import (
     scope_selector_kind,
 )
 from app.core.logging import get_logger
+from app.core.scope_keys import canonical_match_key
 from app.models.policy import PolicyAssignment, PolicyVersion
 from app.policy.base import EvaluationScope
 
@@ -78,22 +79,13 @@ class ResolvedPolicy:
     dimensions_consulted: dict[str, str | None] = field(default_factory=dict)
 
 
-def _text_key(value: str | None) -> str | None:
-    """Normalise a text scope key for comparison.
-
-    Surrounding whitespace is stripped and case is folded, because a jurisdiction
-    code written "in-mh" and "IN-MH" denote the same jurisdiction, and a category
-    written "Meal" and "meal" denote the same category. This is a matching
-    convenience, not a policy rule: it does NOT decide that two *different* keys are
-    the same, and it does not introduce precedence. The unique index on
-    ``lower(coalesce(scope_key, ''))`` in the migration applies the same
-    normalisation, so the database cannot hold two assignments the resolver would
-    consider identical.
-    """
-    if value is None:
-        return None
-    normalised = value.strip().casefold()
-    return normalised or None
+# Text matching delegates entirely to app/core/scope_keys.py. There is deliberately no
+# local normalization here: the previous local implementation
+# (``value.strip().casefold()``) differed from the database's
+# ``lower(COALESCE(scope_key, ''))``, which let two keys the resolver considered
+# identical both be stored. The contract now lives in one module, and ``scope_key``
+# stores the canonical form, so the unique index and this comparison operate on exactly
+# the same string.
 
 
 def _presented_selector(scope: EvaluationScope, scope_type: str) -> uuid.UUID | str | None:
@@ -123,11 +115,11 @@ def _presented_selector(scope: EvaluationScope, scope_type: str) -> uuid.UUID | 
     if member is PolicyAssignmentScopeType.LEGAL_ENTITY:
         # The organization's recorded legal entity. A text dimension: there is no
         # legal_entities table, so there is no id to compare against.
-        return _text_key(scope.legal_entity_name)
+        return canonical_match_key(scope.legal_entity_name)
     if member is PolicyAssignmentScopeType.JURISDICTION:
-        return _text_key(scope.jurisdiction_code)
+        return canonical_match_key(scope.jurisdiction_code)
     if member is PolicyAssignmentScopeType.EXPENSE_CATEGORY:
-        return _text_key(scope.category)
+        return canonical_match_key(scope.category)
     raise ValueError(  # pragma: no cover - unreachable while the enum is exhaustive
         f"no selector is defined for scope type {member.value!r}"
     )
@@ -147,7 +139,12 @@ def _matches(assignment: PolicyAssignment, scope: EvaluationScope) -> bool:
         return False
     if kind == "uuid":
         return assignment.scope_id is not None and assignment.scope_id == presented
-    return assignment.scope_key is not None and _text_key(assignment.scope_key) == presented
+    # Both sides are canonicalised. The stored key is required to be canonical already
+    # (see app/core/scope_keys.py and the CHECK constraint), and canonicalising the
+    # stored side as well means a legacy or out-of-band row still matches correctly
+    # instead of silently never applying.
+    stored = canonical_match_key(assignment.scope_key)
+    return stored is not None and stored == presented
 
 
 def resolve_effective_policy(
