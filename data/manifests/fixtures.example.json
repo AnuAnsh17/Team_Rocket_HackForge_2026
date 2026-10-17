@@ -1,0 +1,139 @@
+{
+  "$comment": "Manifest of the required demo cases from PROOFLINE_BUILD_PLAN.md section 10. Expected POLICY outcomes are deliberately null: each requires a verified policy clause, and filling them in without the authoritative document would be inventing policy. Structural expectations are filled in. See data/README.md.",
+  "schema_version": "0.1.0",
+  "dataset": "proofline-required-cases",
+  "synthetic_only": true,
+  "policy_document": null,
+  "policy_version": null,
+  "fixtures": [
+    {
+      "id": "FX-01",
+      "category": "clean_receipt",
+      "description": "Clean, machine-printed receipt with all critical fields legible.",
+      "input": { "kind": "receipt_image", "path": null, "channel": "android" },
+      "claim": { "merchant": null, "expense_date": null, "amount": null, "currency": null, "category": null },
+      "critical_fields": ["merchant", "transaction_date", "total", "currency"],
+      "expected": {
+        "extraction": { "all_critical_fields_present": true, "uncertain_fields": [] },
+        "policy_results": null,
+        "duplicate_candidate_ids": [],
+        "state_transitions": ["draft", "submitted"]
+      }
+    },
+    {
+      "id": "FX-02",
+      "category": "degraded_receipt_one_uncertain_field",
+      "description": "Faded or rotated receipt where exactly one critical field is unreliable; must route to the employee correction path rather than guess.",
+      "input": { "kind": "receipt_image", "path": null, "channel": "android", "degradation": ["faded", "rotated"] },
+      "claim": {},
+      "critical_fields": ["merchant", "transaction_date", "total", "currency"],
+      "expected": {
+        "extraction": { "all_critical_fields_present": false, "uncertain_fields": ["<the one degraded field>"] },
+        "policy_results": null,
+        "required_findings": ["field_uncertain"],
+        "employee_route": "request_correction",
+        "state_transitions": ["draft", "submitted", "needs_info"]
+      }
+    },
+    {
+      "id": "FX-03",
+      "category": "missing_required_context",
+      "description": "Receipt is clean but a business-context field the policy requires for this category is absent.",
+      "input": { "kind": "receipt_image", "path": null, "channel": "web" },
+      "claim": { "client_name": null, "attendee_count": null },
+      "critical_fields": ["client_name"],
+      "expected": {
+        "extraction": { "all_critical_fields_present": true },
+        "policy_results": null,
+        "required_findings": ["required_field_missing"],
+        "policy_dependency": "which categories require client name or attendee count is a policy question that has not been answered"
+      }
+    },
+    {
+      "id": "FX-04",
+      "category": "arithmetic_mismatch",
+      "description": "Line items, tax and discount do not reconcile to the printed total, and the receipt itself supports the comparison.",
+      "input": { "kind": "receipt_image", "path": null, "channel": "android" },
+      "claim": {},
+      "expected": {
+        "extraction": { "line_items_present": true, "subtotal_present": true, "total_present": true },
+        "policy_results": null,
+        "required_findings": ["arithmetic_mismatch"],
+        "policy_dependency": "the tolerance for rounding differences is a policy question"
+      }
+    },
+    {
+      "id": "FX-05",
+      "category": "aggregate_limit_exceeded",
+      "description": "Several individually acceptable claims in one period together exceed a real cumulative limit.",
+      "input": { "kind": "claim_set", "paths": [], "channel": "web" },
+      "expected": {
+        "policy_results": null,
+        "required_findings": ["aggregate_limit_exceeded"],
+        "must_include": ["related_expense_ids", "calculation", "evaluated_scope"],
+        "blocked_on_policy": true,
+        "note": "Only valid if the approved policy contains a cumulative rule. If it does not, this case must be replaced rather than invented."
+      }
+    },
+    {
+      "id": "FX-06",
+      "category": "cross_channel_duplicate_candidate",
+      "description": "The same transaction arrives through two channels, with the second image cropped or recompressed.",
+      "input": { "kind": "receipt_image_pair", "paths": [], "channels": ["android", "email_simulated"] },
+      "expected": {
+        "extraction": {},
+        "candidate_expected": true,
+        "expected_signals": ["exact_hash", "normalized_field_match"],
+        "perceptual_similarity_implemented": false,
+        "reviewer_action": "confirm or dismiss, with a reason",
+        "must_not": ["auto_reject", "label the employee fraudulent"]
+      }
+    },
+    {
+      "id": "FX-07",
+      "category": "hard_negative_duplicate",
+      "description": "Two genuinely different transactions with the same amount and the same date.",
+      "input": { "kind": "receipt_image_pair", "paths": [] },
+      "expected": {
+        "candidate_expected": false,
+        "note": "Field agreement alone must never confirm a duplicate. This case exists to catch a detector that escalates on amount and date."
+      }
+    },
+    {
+      "id": "FX-08",
+      "category": "policy_exception",
+      "description": "A claim that would breach the assigned policy but is covered by an explicit, authorized, time-bounded exception.",
+      "input": { "kind": "claim", "path": null },
+      "expected": {
+        "policy_results": null,
+        "requires": ["policy_exceptions row with reason, approver and effective range"],
+        "blocked_on_policy": true
+      }
+    },
+    {
+      "id": "FX-09",
+      "category": "unknown_missing_evidence",
+      "description": "A rule cannot reach a conclusion because required evidence or context is absent.",
+      "input": { "kind": "claim", "path": null },
+      "expected": {
+        "policy_results": null,
+        "expected_result": "UNKNOWN",
+        "must_not": ["PASS", "FAIL without evidence"],
+        "routing": "review or correction, never a silent pass",
+        "blocked_on_policy": true
+      }
+    },
+    {
+      "id": "FX-10",
+      "category": "correction_and_reevaluation",
+      "description": "A correction to a claim causes dependent findings to be re-evaluated while preserving the earlier ones.",
+      "input": { "kind": "claim_with_correction", "path": null },
+      "expected": {
+        "policy_results": null,
+        "must_preserve": ["previous finding rows", "previous field-evidence versions"],
+        "must_record": ["a new expense version", "an audit event", "superseded_by_finding_id links"],
+        "must_not": ["delete prior findings", "overwrite a reviewer-corrected value"]
+      }
+    }
+  ]
+}
