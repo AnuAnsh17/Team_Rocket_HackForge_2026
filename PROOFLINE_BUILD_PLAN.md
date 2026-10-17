@@ -602,17 +602,17 @@ Do not set artificial accuracy claims. Define acceptance targets after inspectin
 
 Replace placeholder names with confirmed team members; ownership is a proposal, not an assertion about identity.
 
-### Owner A — Backend, extraction and policy
+### Anurag — Backend, extraction and policy
 
 Owns FastAPI, persistence/migrations, canonical Pydantic models, extraction adapter, rule evaluator, context/duplicate engine, audit persistence, API docs and backend tests. Must not change a public response shape without coordinating the contract.
 
-### Owner B — Finance dashboard
+### Hrishabh — Employee Android app and integration
+
+Owns React Native/Expo app, upload/correction/status UX, employee-safe messages, typed API-client integration, physical-device testing and cross-client end-to-end tests. Coordinates deployment setup if agreed by the team.
+
+### Akash — Finance dashboard
 
 Owns Next.js dashboard, typed API integration, review workbench, evidence panel, exceptions/duplicate UI, audit timeline and analytics that are genuinely used. Must not duplicate policy calculations or derive authoritative claim status locally.
-
-### Owner C — Employee app and integration
-
-Owns React Native/Expo app, upload/correction/status UX, employee-safe messages, API client integration, physical-device testing and cross-client end-to-end tests. May own deployment orchestration if agreed by the team.
 
 ### Shared responsibilities
 
