@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/*
+ * Employee portal design tokens.
+ *
+ * Warmer and lower-density than the internal console: this is a form a person might fill
+ * in on a phone, not a table a reviewer scans for an hour. The status colours deliberately
+ * match the console so that a status means the same thing in both places.
+ */
+@theme {
+  --color-surface: #f7f8fc;
+  --color-surface-muted: #eceff7;
+  --color-surface-raised: #ffffff;
+  --color-border: #d5dae8;
+  --color-border-strong: #b3bcd4;
+  --color-text: #131829;
+  --color-text-muted: #5b6480;
+  --color-text-inverse: #ffffff;
+
+  --color-accent: #3559d6;
+  --color-accent-hover: #2745b4;
+
+  --color-status-draft: #7b8399;
+  --color-status-submitted: #2f6fc4;
+  --color-status-needs-info: #b8791a;
+  --color-status-in-review: #6f5fd8;
+  --color-status-approved: #2f8a63;
+  --color-status-rejected: #b8443c;
+  --color-status-withdrawn: #7b8399;
+
+  --color-severity-info: #2f6fc4;
+  --color-severity-warning: #b8791a;
+  --color-severity-blocking: #b8443c;
+
+  --color-result-pass: #2f8a63;
+  --color-result-fail: #b8443c;
+  --color-result-unknown: #6f5fd8;
+
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+}
+
+html,
+body {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* Tap targets: this portal is used on phones. */
+a,
+button,
+input,
+select,
+textarea {
+  min-height: 2.75rem;
+}
