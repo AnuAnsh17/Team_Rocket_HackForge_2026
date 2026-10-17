@@ -1,0 +1,18 @@
+﻿# Code owners are requested reviewers; approval is not enforced by this file.
+
+# Backend, database, ingestion/extraction, policy engine, backend tests, API contract,
+# and shared generated client.
+/backend/ @AnuAnsh17
+/docs/api-contract.md @AnuAnsh17
+/packages/api-client/ @AnuAnsh17
+
+# Client application ownership.
+/apps/mobile/ @Hrishabh7664
+/apps/portal/ @Akashjai12
+/apps/console/ @Akashjai12
+
+# Root manifests/lockfiles, CI and architecture-wide decisions need coordinated review.
+/package.json @AnuAnsh17 @Hrishabh7664 @Akashjai12
+/package-lock.json @AnuAnsh17 @Hrishabh7664 @Akashjai12
+/.github/ @AnuAnsh17 @Hrishabh7664 @Akashjai12
+/docs/architecture-decisions.md @AnuAnsh17 @Hrishabh7664 @Akashjai12

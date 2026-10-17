@@ -9,9 +9,9 @@ name: CI
 
 on:
   push:
-    branches: ["main", "chore/**", "feat/**", "fix/**"]
+    branches: [main, develop, "chore/**", "feat/**", "fix/**"]
   pull_request:
-    branches: ["main"]
+    branches: [main, develop]
   workflow_dispatch:
 
 concurrency:
@@ -203,7 +203,6 @@ jobs:
   mobile:
     name: Employee mobile app
     runs-on: ubuntu-latest
-    needs: contract
     steps:
       - uses: actions/checkout@v4
 
