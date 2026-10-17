@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proofline-backend"
+version = "0.1.0"
+description = "Proofline backend - canonical API, authorization, extraction orchestration and deterministic policy evaluation."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+# Dependency versions were verified to resolve together on Python 3.14
+# (Windows, cp314 wheels) before being pinned here. See
+# docs/architecture-decisions.md, "Dependency verification".
+dependencies = [
+    "fastapi==0.143.3",
+    "uvicorn[standard]==0.54.0",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.16.0",
+    "sqlalchemy==2.1.5",
+    "alembic==1.20.0",
+    "psycopg[binary]==3.3.6",
+    "python-multipart==0.0.32",
+    "python-json-logger==4.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "httpx==0.28.1",
+    "ruff==0.17.1",
+    "mypy==2.4.0",
+]
+# Reserved for the functional build phase. Declared here so the intended
+# boundary is visible, not because the scaffold needs them.
+extraction = [
+    # No provider has been selected. Add the verified SDK here.
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# --- Ruff ----------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["app", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "TID",  # flake8-tidy-imports
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",  # line length is handled by the formatter
+    # B008 flags a function call in an argument default. Declaring FastAPI
+    # dependencies as `x: T = Depends(...)` IS the framework's documented idiom;
+    # rewriting it to satisfy the rule would make every route harder to read.
+    "B008",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/versions/*.py" = ["E501", "I001"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# --- mypy ----------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+show_error_codes = true
+plugins = ["pydantic.mypy"]
+exclude = ["migrations/", "build/", "dist/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "scripts.*"]
+disallow_untyped_defs = false
+
+# --- pytest --------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "unit: pure unit tests, no database",
+    "integration: requires a live PostgreSQL database",
+    "contract: asserts the implemented OpenAPI matches the reviewed contract",
+    "security: authorization and access-control tests",
+    "demo: exercises demo-mode routes",
+]
+# Warnings are not escalated to errors here: a dependency's deprecation notice
+# should not fail a build, and silence would hide a real one. Warnings are
+# reviewed as part of the test output instead.
