@@ -1,8 +1,9 @@
 # Testing Strategy
 
 **Current result:** `159 passed` on the backend suite
-(`cd backend && ./.venv/Scripts/python.exe -m pytest -q`). Frontend suites are
-scaffold-level and are recorded in the final report for the scaffolding phase.
+(`cd backend && ./.venv/Scripts/python.exe -m pytest -q`), and 23 frontend tests
+(`npm run test`: 9 console, 7 portal, 7 mobile). CI runs all of it, plus the contract-drift
+check, on every branch push - see `.github/workflows/ci.yml`.
 
 ## Principles
 
@@ -105,12 +106,31 @@ must hold before any rule can be added.
 The manifest in `data/manifests/` defines the shape of each required demo case and
 leaves the expected policy outcomes null, because those depend on the policy document.
 
-## Frontend testing
+## Frontend and contract testing
 
-- Type-check and lint on every application.
-- Component render smoke tests for scaffold screens.
-- API integration is exercised through the generated client, so a contract drift is a
-  compile error rather than a runtime surprise.
+- Type-check and lint on every application, and a production build of both Next.js apps.
+- **Contract drift is a build failure.** `npm run api:check` regenerates the OpenAPI
+  document and the TypeScript schema from the backend and compares them byte for byte with
+  what is committed. This was verified to actually fail: tampering with the committed
+  `openapi.json` produced a line-level diff and exit code 1, with the working tree left
+  unmodified. A guard that cannot fail is decoration.
+- **Navigation tests** assert that every defined route is reachable by at least one role,
+  that an auditor is not offered the review sections, and that no route claims to be
+  implemented while it is not. That last assertion is the one that keeps a placeholder from
+  quietly becoming a lie as the product is built.
+- **Wording tests** read the employee-facing component source and assert that no accusatory
+  term appears anywhere in it, that the four employee states stay distinct, and that the
+  duplicate wording keeps saying "might" and "nothing is assumed".
+- **Token tests** assert that every TypeScript design token also exists in the stylesheet,
+  that `UNKNOWN` has a colour distinct from `PASS` and `FAIL`, and that no token mentions
+  fraud or risk.
+
+Component render tests are deliberately not set up yet. The assertions above target
+properties that would actually regress; a render smoke test that asserts a `<div>` exists
+would not.
+
+API integration is exercised through the generated client, so a contract drift is a compile
+error rather than a runtime surprise in one of three clients.
 
 ## What is not tested yet, and why
 

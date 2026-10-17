@@ -1,0 +1,232 @@
+name: CI
+
+# The contract check and the backend job need no secrets and no external services beyond
+# the PostgreSQL service container below. Nothing here depends on a production API key, a
+# Supabase project or a personal credential, so a fork and a first-time contributor can run
+# the whole pipeline.
+#
+# Every command here was run locally against this commit before being written down.
+
+on:
+  push:
+    branches: ["main", "chore/**", "feat/**", "fix/**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Kept out of any real environment on purpose. These are throwaway values for a
+  # disposable service container, not secrets.
+  DATABASE_URL: postgresql+psycopg://proofline:proofline@localhost:5432/proofline
+  TEST_DATABASE_URL: postgresql+psycopg://proofline:proofline@localhost:5432/proofline_test
+  APP_ENV: test
+  DEMO_MODE: "true"
+  AUTH_PROVIDER: demo
+  RECEIPT_STORAGE_BACKEND: local
+  EXTRACTION_PROVIDER: unavailable
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Contract first: if the committed TypeScript contract has drifted from the
+  # backend, every other frontend result is meaningless, so it runs before them.
+  # ---------------------------------------------------------------------------
+  contract:
+    name: API contract is not stale
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+
+      - name: Install the backend
+        working-directory: backend
+        run: |
+          python -m venv .venv
+          ./.venv/bin/python -m pip install --upgrade pip
+          ./.venv/bin/python -m pip install -e ".[dev]"
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Regenerate and compare the contract
+        run: npm run api:check
+
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    needs: contract
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: proofline
+          POSTGRES_PASSWORD: proofline
+          POSTGRES_DB: proofline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U proofline -d proofline"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install the backend
+        working-directory: backend
+        run: |
+          python -m venv .venv
+          ./.venv/bin/python -m pip install --upgrade pip
+          ./.venv/bin/python -m pip install -e ".[dev]"
+
+      - name: Lint
+        working-directory: backend
+        run: ./.venv/bin/python -m ruff check .
+
+      - name: Check formatting
+        working-directory: backend
+        run: ./.venv/bin/python -m ruff format --check .
+
+      - name: Type check
+        working-directory: backend
+        run: ./.venv/bin/python -m mypy app
+
+      - name: Apply migrations
+        working-directory: backend
+        run: ./.venv/bin/python -m alembic upgrade head
+
+      - name: Verify the migration is reversible
+        working-directory: backend
+        run: |
+          ./.venv/bin/python -m alembic downgrade base
+          ./.venv/bin/python -m alembic upgrade head
+
+      - name: Tests
+        working-directory: backend
+        # The suite runs the real migration itself, so this proves the migration
+        # applies from a clean database in CI rather than only on a developer machine.
+        run: ./.venv/bin/python -m pytest -q
+
+      - name: Confirm the service boots and serves a health check
+        working-directory: backend
+        run: |
+          ./.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          server_pid=$!
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/api/v1/health > /dev/null; then
+              echo "health endpoint responded"
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8000/api/v1/health
+          curl -fsS -o /dev/null http://127.0.0.1:8000/api/v1/openapi.json
+          kill "$server_pid"
+
+  # ---------------------------------------------------------------------------
+  console:
+    name: Internal console
+    runs-on: ubuntu-latest
+    needs: contract
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run console:typecheck
+
+      - name: Lint
+        run: npm run console:lint
+
+      - name: Tests
+        run: npm run console:test
+
+      - name: Build
+        run: npm run console:build
+
+  portal:
+    name: Employee portal
+    runs-on: ubuntu-latest
+    needs: contract
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run portal:typecheck
+
+      - name: Lint
+        run: npm run portal:lint
+
+      - name: Tests
+        run: npm run portal:test
+
+      - name: Build
+        run: npm run portal:build
+
+  # ---------------------------------------------------------------------------
+  mobile:
+    name: Employee mobile app
+    runs-on: ubuntu-latest
+    needs: contract
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run mobile:typecheck
+
+      - name: Lint
+        run: npm run mobile:lint
+
+      - name: Tests
+        run: npm run mobile:test
+
+      # No Android build here on purpose. An EAS or Gradle build needs signing
+      # credentials and takes far longer than a CI feedback loop should; it is a
+      # separate, explicitly triggered milestone. The Expo configuration is still
+      # validated so a broken app.json fails fast.
+      - name: Validate the Expo configuration
+        working-directory: apps/mobile
+        run: npx --no-install expo config --type public > /dev/null

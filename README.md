@@ -39,14 +39,32 @@ Consequences worth stating explicitly:
 
 ## Components
 
-| Path | Component | State |
-|---|---|---|
-| `backend/` | FastAPI + Pydantic + SQLAlchemy + Alembic | Foundation built; health, metadata and identity endpoints work; 159 tests pass |
-| `apps/mobile/` | React Native + Expo + TypeScript (employee Android) | See coverage report |
-| `apps/portal/` | Next.js (employee web portal) | See coverage report |
-| `apps/console/` | Next.js (internal HR/Finance/Admin) | See coverage report |
-| `packages/api-client/` | Generated TypeScript types + fetch wrapper | Shared by all three clients |
-| `docs/` | Contract, architecture, database, security, testing, runbooks | Written |
+| Path | Component | State | Checks |
+|---|---|---|---|
+| `backend/` | FastAPI + Pydantic + SQLAlchemy + Alembic | Foundation. Health, metadata and three authenticated identity endpoints work. `GET /api/v1/meta` lists every unimplemented capability. | 159 tests, ruff, ruff format, mypy, migration up/down, real server boot |
+| `apps/console/` | Next.js internal HR/Finance/Admin console | 11 placeholder routes with role-specific navigation and design tokens | build (12 routes), tsc, eslint, 9 tests |
+| `apps/portal/` | Next.js employee web portal | 7 placeholder routes, employee-facing wording rules | build (8 routes), tsc, eslint, 7 tests |
+| `apps/mobile/` | Expo + React Native employee app | 5 placeholder screens, theme vocabulary | tsc, eslint, 7 tests, `expo config` resolves. **No device run yet.** |
+| `packages/api-client/` | Generated TypeScript contract + fetch wrapper | Consumed by all three clients | `npm run api:check` (drift guard, verified to fail) |
+| `docs/` | Contract, architecture, database, security, testing, runbooks | Written | - |
+
+Every frontend screen is a labelled placeholder. Nothing in them uploads, reads, evaluates
+or submits anything, and each page names the endpoint it is waiting for.
+
+## Development commands
+
+```bash
+npm install            # once, at the root
+npm run api:generate   # regenerate contract types after a backend change
+npm run typecheck      # every workspace
+npm run lint           # every workspace
+npm run test           # every workspace
+npm run build          # both Next.js apps
+
+npm run console:dev    # http://localhost:3001  (internal console)
+npm run portal:dev     # http://localhost:3000  (employee portal)
+npm run mobile:start   # Expo dev server
+```
 
 ## Documentation map
 

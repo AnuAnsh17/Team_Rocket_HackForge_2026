@@ -1,7 +1,8 @@
 # Problem Statement Coverage
 
 **Assessment date:** 2026-10-17
-**Commit assessed:** scaffolding branch, `chore/proofline-project-scaffold`
+**Branch assessed:** `chore/proofline-project-scaffold`
+**Baseline commit:** `be26b35` (the docs-only repository as cloned)
 **Assessor's role:** this is a self-assessment of the design and the scaffold by the
 engineer who built it, not an independent evaluation.
 
@@ -400,8 +401,10 @@ one implemented.
 **What the scaffold actually delivers, stated without a percentage:** 28 domain tables
 with real constraints; one applied, verified and reversible migration; a FastAPI service
 that starts and serves health, metadata and three authenticated identity endpoints; a
-tested authorization model covering horizontal and vertical escalation; 159 passing
-backend tests; and twelve documents.
+tested authorization model covering horizontal and vertical escalation; 159 passing backend
+tests; 23 passing frontend tests; a generated TypeScript contract with a drift guard that
+was verified to fail; three client applications totalling 23 routes, every one a labelled
+placeholder; CI that runs all of it without a single secret; and twelve documents.
 
 It is not a working expense auditor. **No receipt has ever been processed by this
 system.**
@@ -421,6 +424,32 @@ system.**
 - **A reversible migration** exercised by every test run.
 - **Documentation that states what is missing**, including a machine-readable list at
   `GET /api/v1/meta`.
+
+## 5a. What the scaffolding phase delivered, commit by commit
+
+Recorded so the state of this assessment can be checked against the history rather than
+taken on trust.
+
+| Commit | Scope |
+|---|---|
+| `chore: add repository hygiene configuration` | `.gitignore`, `.gitattributes`, `.editorconfig`, `.dockerignore`, `.env.example` |
+| `docs: reconcile Proofline architecture and API contracts` | Contract corrections, build plan section 17, 11 documents, README, AGENTS |
+| `chore(backend): scaffold FastAPI application and schemas` | Config, errors, logging, middleware, enums, DTOs, security interfaces, routing, health, OpenAPI |
+| `chore(database): add schema migrations and storage foundations` | 28 tables, constraints, 8 hand-written indexes, the initial migration, private storage |
+| `chore(backend): add policy engine, extraction adapter and domain services` | Policy engine (zero rules), extraction protocol, context scope, duplicate signals, audit writer, services |
+| `test(backend): add scaffold tests and deterministic fixtures` | 159 tests, dev scripts, fixture manifest |
+| `chore(api-client): establish shared OpenAPI TypeScript client` | Workspace, generated contract, drift guard |
+| `chore(dashboard): scaffold internal finance and admin console` | 11 routes, navigation, tokens, 9 tests |
+| `chore(employee-portal): scaffold employee expense experience` | 7 routes, wording rules, 7 tests |
+| `chore(mobile): scaffold Expo employee application` | 5 screens, theme vocabulary, 7 tests |
+
+Two notes on what these commits do **not** mean:
+
+1. Commits 3-5 of the backend are horizontal slices of one deployable service, so they are
+   review units rather than independently bootable revisions. The service was validated as a
+   whole at the tests commit.
+2. No commit in this sequence processes a receipt, evaluates a rule or moves a claim through
+   a workflow, because none of that exists yet.
 
 ## 6. What realistically depends on missing inputs
 

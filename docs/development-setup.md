@@ -162,24 +162,73 @@ ending `_SECRET`/`SERVICE_ROLE_KEY` must never reach a client or a log line.
 | `alembic` cannot find `app` | Run from `backend/`. `prepend_sys_path` is set to `.`. |
 | Line-ending churn on Windows | `.gitattributes` normalises text to LF. Do not disable it. |
 
-## 6. Repository layout
+## 6. Frontend and shared-package setup
+
+Three clients share one contract, generated into `packages/api-client`:
+
+| Package | What | Dev port |
+|---|---|---|
+| `apps/console` | Next.js internal HR/Finance/Admin console | 3001 |
+| `apps/portal` | Next.js employee web portal | 3000 |
+| `apps/mobile` | Expo employee Android app | Expo dev server |
+| `packages/api-client` | Generated TypeScript types + fetch wrapper | n/a |
+
+```bash
+npm install                 # from the repository root; installs every workspace
+npm run api:generate        # regenerate the contract types from the backend
+npm run api:check           # fail if the committed contract is stale
+```
+
+| Command | Purpose |
+|---|---|
+| `npm run console:dev` / `portal:dev` / `mobile:start` | Run one client |
+| `npm run console:build` / `portal:build` | Production build |
+| `npm run console:typecheck` / `portal:typecheck` / `mobile:typecheck` | Type check |
+| `npm run console:lint` / `portal:lint` / `mobile:lint` | Lint |
+| `npm run console:test` / `portal:test` / `mobile:test` | Unit tests |
+| `npm run typecheck` / `lint` / `test` / `build` | Every workspace |
+
+Per-client environment files are `apps/<client>/.env.example`. Only `NEXT_PUBLIC_*` and
+`EXPO_PUBLIC_*` values reach a client bundle, so no service-role key, extraction API key or
+database URL may appear in any of them.
+
+### Client configuration
+
+```dotenv
+# apps/console/.env.local and apps/portal/.env.local
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+NEXT_PUBLIC_DEMO_MODE=true
+
+# apps/mobile/.env.local  (localhost will NOT work from a physical phone)
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.42:8000/api/v1
+EXPO_PUBLIC_DEMO_MODE=true
+```
+
+For a physical device, bind the backend to all interfaces
+(`uvicorn app.main:app --host 0.0.0.0 --port 8000`) and use your machine's LAN address.
+Details and the usual failure causes are in `apps/mobile/README.md`.
+
+### Regenerating the contract after a backend change
+
+1. Change the backend Pydantic model or route.
+2. `npm run api:generate`
+3. Commit `packages/api-client/openapi.json`, `packages/api-client/src/schema.d.ts` and
+   `docs/api-contract.md` **in the same commit** as the backend change.
+4. CI fails if the artifacts are stale, so this cannot be forgotten.
+
+## 7. Repository layout
 
 ```
 backend/        FastAPI application, models, migrations, tests, scripts
+apps/console/   Next.js internal HR/Finance/Admin console
+apps/portal/    Next.js employee web portal
+apps/mobile/    Expo employee Android app
+packages/api-client/  generated TypeScript types + fetch wrapper
 docs/           contract, architecture, database, security, testing, runbooks
 data/           synthetic fixture manifests only; never real receipts
+.github/        CI
 scripts/        root-level workspace helpers
-
-apps/mobile/    Expo employee Android app          (added by its own commit)
-apps/portal/    Next.js employee web portal        (added by its own commit)
-apps/console/   Next.js internal HR/Finance/Admin  (added by its own commit)
-packages/api-client/  generated TypeScript types + fetch wrapper  (added with apps)
 ```
-
-This document describes only what exists. The frontend sections of this guide -
-prerequisites, environment variables and run commands for `apps/*` - are added by the
-commits that create those applications, so no command here ever refers to a directory
-that is not yet present.
 
 ## 7. Nothing here is production-ready
 
