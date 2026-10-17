@@ -116,11 +116,14 @@ class ProoflineApiClient(
         }
     }
 
-    suspend fun createExpense(createRequest: CreateExpenseRequest): Result<Expense> = withContext(Dispatchers.IO) {
+    suspend fun createExpense(
+        createRequest: CreateExpenseRequest,
+        idempotencyKey: String = UUID.randomUUID().toString()
+    ): Result<Expense> = withContext(Dispatchers.IO) {
         runCatching {
             val body = json.encodeToString(createRequest).toRequestBody(jsonMediaType)
             val request = newRequestBuilder("expenses")
-                .addHeader("Idempotency-Key", UUID.randomUUID().toString())
+                .addHeader("Idempotency-Key", idempotencyKey)
                 .post(body)
                 .build()
             executeRequest(request)
