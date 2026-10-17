@@ -235,6 +235,67 @@ class TestMigrationParity:
         migration = self._load_migration()
         assert migration._WHITESPACE_CHARS == SCOPE_KEY_WHITESPACE
 
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "in-mh",
+            " IN-MH ",
+            "in\t\tmh",
+            "in\xa0mh",
+            "in\u3000mh",
+            "Stra\u00dfe",
+            "STRASSE",
+            "stra\u00dfe",
+            "Meal",
+            "Example  Consulting  Pvt Ltd",
+        ],
+    )
+    def test_the_frozen_canonicalisation_matches_the_live_contract(self, raw: str) -> None:
+        """The migration carries a *copy* of the contract, so the copy is pinned here.
+
+        This is the guard the review asked for in unit form: the migration cannot import
+        runtime behaviour (an applied revision must keep meaning what it meant when it
+        ran), so the only thing keeping the copy honest is a test comparing them. The
+        execution tests in ``tests/migration/`` then prove the copy is actually the one
+        the migration uses.
+        """
+        migration = self._load_migration()
+        assert migration.canonical_key(raw) == canonical_match_key(raw)
+
+    @pytest.mark.parametrize("blank", ["", "   ", "\t", "\xa0", "\u3000"])
+    def test_blank_input_is_handled_deliberately_differently_in_each_place(
+        self, blank: str
+    ) -> None:
+        """Three callers, three correct behaviours, one contract.
+
+        * the migration's frozen copy returns ``""`` -- it must be able to *detect* a key
+          that normalizes to nothing, and an exception would abort the preflight before it
+          could report which rows are at fault;
+        * the resolver's read path returns ``None`` -- a claim with no category value has
+          no value for that dimension, which is not an error;
+        * the write path raises -- storing such a key would create an assignment that can
+          never match.
+        """
+        migration = self._load_migration()
+        assert migration.canonical_key(blank) == ""
+        assert canonical_match_key(blank) is None
+        with pytest.raises(BlankScopeKeyError):
+            normalize_scope_key(blank)
+
+    def test_the_frozen_contract_is_idempotent_like_the_live_one(self) -> None:
+        migration = self._load_migration()
+        for raw in [" IN-MH ", "Stra\u00dfe", "in\t\tmh", "in\xa0mh"]:
+            once = migration.canonical_key(raw)
+            assert migration.canonical_key(once) == once
+
+    def test_the_migration_names_the_same_text_dimensions(self) -> None:
+        from app.core.enums import TEXT_VALUED_SCOPE_TYPES
+
+        migration = self._load_migration()
+        assert set(migration._TEXT_SCOPE_TYPE_VALUES) == {
+            member.value for member in TEXT_VALUED_SCOPE_TYPES
+        }
+
     def test_the_migration_guards_before_it_touches_any_data(self) -> None:
         """Both guards are what make the migration safe on populated data.
 
@@ -254,15 +315,28 @@ class TestMigrationParity:
         ).read_text(encoding="utf-8")
         upgrade_body = source.split("def upgrade() -> None:", 1)[1].split("def downgrade", 1)[0]
 
-        assert "_assert_no_blank_keys()" in upgrade_body
-        assert "_assert_no_collisions()" in upgrade_body
-        assert "_backfill_canonical_keys()" in upgrade_body
-        assert upgrade_body.index("_assert_no_blank_keys()") < upgrade_body.index(
-            "_backfill_canonical_keys()"
-        )
-        assert upgrade_body.index("_assert_no_collisions()") < upgrade_body.index(
-            "_backfill_canonical_keys()"
-        )
-        assert upgrade_body.index("_backfill_canonical_keys()") < upgrade_body.index(
-            "_NEW_UNIQUE_INDEX"
-        )
+        def position(needle: str) -> int:
+            assert needle in upgrade_body, f"{needle} is missing from upgrade()"
+            return upgrade_body.index(needle)
+
+        # 1. Refusals first, before any DDL or DML.
+        preflight = position("_preflight(connection)")
+        backfill = position("_backfill_canonical_keys(connection, rows)")
+        verify = position("_assert_stored_keys_satisfy_the_check(connection)")
+        drop_index = position("DROP INDEX IF EXISTS uq_policy_assignments_scope_selector")
+        add_check = position("create_check_constraint")
+        new_index = position("_NEW_UNIQUE_INDEX")
+
+        assert preflight < drop_index, "refusals must run before the index is dropped"
+        assert preflight < backfill, "refusals must run before any data is modified"
+        assert backfill < verify, "the result must be verified after the backfill"
+        assert verify < add_check, "the constraint is added only after verification"
+        assert add_check < new_index, "the unique index is created last"
+
+        # The preflight checks the canonical value, not the raw key -- grouping raw keys is
+        # what let a whitespace variant pass an earlier revision.
+        assert "canonical_key(row.scope_key)" in source
+        assert "canonical_key(row.scope_key)" in source.split("def _backfill", 1)[0]
+        # It groups on the same identity fields the unique index uses.
+        assert "row.organization_id" in source and "row.policy_version_id" in source
+        assert "row.scope_type" in source

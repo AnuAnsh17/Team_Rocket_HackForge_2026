@@ -103,6 +103,7 @@ markers = [
     "contract: asserts the implemented OpenAPI matches the reviewed contract",
     "security: authorization and access-control tests",
     "demo: exercises demo-mode routes",
+    "migration: applies an Alembic revision to a disposable database and inspects the result",
 ]
 # Warnings are not escalated to errors here: a dependency's deprecation notice
 # should not fail a build, and silence would hide a real one. Warnings are
