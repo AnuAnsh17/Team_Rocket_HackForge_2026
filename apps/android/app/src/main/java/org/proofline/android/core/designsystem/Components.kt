@@ -75,15 +75,13 @@ fun ProoflineScaffold(
 ) {
     Scaffold(
         topBar = {
-            Column {
-                DemoModeBanner()
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    },
+            TopAppBar(
+                title = {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                     navigationIcon = {
                         if (onBackClick != null) {
                             IconButton(onClick = onBackClick) {
@@ -100,7 +98,6 @@ fun ProoflineScaffold(
                         titleContentColor = ProoflineColors.Text
                     )
                 )
-            }
         },
         floatingActionButton = floatingActionButton,
         containerColor = ProoflineColors.Surface
