@@ -421,7 +421,10 @@ def test_invalid_dimension_ids_and_tenant_filters_are_rejected(
 
 
 def test_analytics_permission_matrix_and_authentication(
-    client: TestClient, employee_headers: dict[str, str]
+    client: TestClient,
+    employee_headers: dict[str, str],
+    finance_headers: dict[str, str],
+    analytics_dataset: dict[str, uuid.UUID],
 ) -> None:
     params = _params()
     assert client.get("/api/v1/analytics/overview", params=params).status_code == 401
@@ -445,6 +448,24 @@ def test_analytics_permission_matrix_and_authentication(
     assert (
         client.get(
             "/api/v1/analytics/overview", headers=_demo_headers("auditor"), params=params
+        ).status_code
+        == 200
+    )
+    employee_filter = {
+        **params,
+        "employee_membership_id": str(analytics_dataset["asha_membership_id"]),
+    }
+    assert (
+        client.get(
+            "/api/v1/analytics/overview",
+            headers=_demo_headers("finance.reviewer"),
+            params=employee_filter,
+        ).status_code
+        == 403
+    )
+    assert (
+        client.get(
+            "/api/v1/analytics/overview", headers=finance_headers, params=employee_filter
         ).status_code
         == 200
     )

@@ -78,7 +78,9 @@ def get_overview(
     actor: Actor = Depends(get_actor),
     session: Session = Depends(get_session),
 ) -> AnalyticsOverviewResponse:
-    organization_id = analytics_service.require_analytics_access(actor)
+    organization_id = analytics_service.require_analytics_access(
+        actor, employee_level=filters.employee_membership_id is not None
+    )
     return analytics_service.overview(session, organization_id, filters)
 
 
