@@ -256,7 +256,7 @@ Validate each enum in the backend. Use stable machine-readable codes; provide se
 
 #### Expense claims
 
-- `POST /api/v1/expenses` — create a claim with metadata and optional first receipt upload; require idempotency for retries. An alternative separate receipt upload flow is acceptable only if documented and used consistently by both clients.
+- `POST /api/v1/expenses` — create a draft from JSON metadata. Upload receipt images separately through `POST /api/v1/expenses/{expense_id}/receipts`. Both clients must use this flow.
 - `GET /api/v1/expenses` — list with filters: status, employee, date range, category, city/trip and channel; permissions enforced server-side.
 - `GET /api/v1/expenses/{expense_id}` — canonical details including safe extraction results and current open findings.
 - `PATCH /api/v1/expenses/{expense_id}` — employee/reviewer correction of allowed fields; increment version, record the correction, and re-evaluate dependent findings/aggregates.
@@ -300,7 +300,7 @@ Validate each enum in the backend. Use stable machine-readable codes; provide se
 - `POST /api/v1/demo/reset` — clear seeded demo data only; inaccessible in production.
 - `POST /api/v1/demo/import/email` — simulate email-channel arrival; never present it as a real email integration.
 
-Endpoint names can be refined before implementation, but freeze them in `docs/api-contract.md` and OpenAPI before client teams build against them. Do not casually rename endpoints after integration begins.
+Endpoint names and canonical DTOs are defined in `docs/api-contract.md`. The team must sign off before parallel client implementation. Generate OpenAPI from FastAPI and add contract checks; keep both aligned. Do not casually rename endpoints after integration begins.
 
 ### 5.3 Canonical expense response example
 
@@ -668,7 +668,7 @@ Report back with changed files, exact test commands/results, assumptions, and re
 
 ### Suggested initial agent order
 
-1. **Contract/architecture agent:** create `docs/api-contract.md`, `docs/policy-assumptions.md`, `docs/architecture-decisions.md`, canonical enums/schemas and an OpenAPI baseline. Do not implement multiple screens first.
+1. **Contract/architecture agent:** review and get team sign-off on the existing `docs/api-contract.md`, `docs/policy-assumptions.md`, canonical enums/schemas and API endpoint decisions; then implement FastAPI routes/models and check generated OpenAPI against the contract. Do not implement multiple screens first.
 2. **Backend agent:** scaffold health, database connection/migrations, core claim/receipt models, mock extraction and the end-to-end claim/decision path.
 3. **Dashboard and mobile agents:** implement against the frozen OpenAPI schema and typed client. Use mock fixtures until the first backend slice is reachable; do not invent alternative response shapes.
 4. **Policy agent:** translate only verified policy clauses to deterministic rules with tests; make unresolved clauses explicit.
