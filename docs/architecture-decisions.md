@@ -306,11 +306,39 @@ code path that forgets the rule. Uniqueness is a functional index over the coale
 lower-cased selectors, because a plain unique constraint cannot cover a table where one
 of the two columns is always NULL.
 
-**Text matching is normalised, narrowly.** Case is folded and whitespace trimmed, so
-`"IN-MH"` and `"in-mh"` are the same jurisdiction. This is a matching convenience and is
-documented as such: it does not declare two different keys equal, and it is not a
-precedence rule. Integration tests assert that `"IN"`, `"MH"`, `"IN MH"` and `"IN-MH-01"`
-all fail to match `IN-MH`.
+**Text matching is normalised by one function, not two.** The canonical form is
+`collapse_whitespace(raw).casefold()`, defined in `app/core/scope_keys.py`, with the
+whitespace set pinned by a test to exactly Python's `str.isspace()`. Everything else
+derives from it.
+
+This paragraph previously claimed that a unique index applying `lower(...)` "applies the
+same normalisation" as the resolver's `strip().casefold()`. **That was wrong**, and it was
+wrong in the specific way that matters: the two are different functions, so `"in-mh"` and
+`" in-mh "` could both be stored while the resolver treated them as one key, and Python's
+case folding is not PostgreSQL's lowercasing (`"ß".casefold() == "ss"`). The claim had
+been asserted rather than tested, and a review caught it.
+
+The fix was structural, not a patch to either function: **`scope_key` now stores the
+canonical form**, so the unique index and the resolver operate on the same string by
+construction, and there is no second implementation to drift. A CHECK constraint makes the
+database verify what it can compute exactly (trimmed, collapsed, lowercased, non-blank),
+and the application verifies the rest. The documented residue is in
+`app/core/scope_keys.py`: PostgreSQL cannot compute `casefold()`, so a row written by a
+path bypassing the application could in principle be non-canonical; matching canonicalizes
+both sides, so the outcome is a reported conflict rather than a silent duplicate.
+
+Normalisation is still narrow. It does **not** declare two different keys equal, and it is
+not precedence. Integration tests assert that `"IN"`, `"MH"`, `"IN MH"` and `"IN-MH-01"`
+all fail to match `IN-MH`, and that `"in mh"` and `"in-mh"` are separate keys that may
+both be stored.
+
+**A lesson worth keeping:** the original defect and this one share a shape — a rule that
+existed in two places, with the disagreement invisible because nobody tested the two
+against each other. The guard against a repeat is
+`tests/unit/test_scope_keys.py::TestMigrationParity`, which fails if the frozen SQL in the
+migration stops matching the live expression, and
+`test_no_two_keys_the_resolver_considers_identical_can_both_be_stored`, which asserts the
+property directly instead of asserting that a particular constraint exists.
 
 **What this deliberately does not do.** No precedence, no tie-breaking, no thresholds, no
 reimbursement rule. Where two approved versions compete, resolution still reports a

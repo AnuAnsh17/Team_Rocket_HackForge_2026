@@ -179,7 +179,10 @@ class TestSelectorConstraint:
                 policy_version_id=version_id,
                 scope_type=PolicyAssignmentScopeType.EXPENSE_CATEGORY,
                 scope_id=uuid.uuid4(),
-                scope_key=None,
+                # Deliberately a *valid* canonical key as well, so the row is refused by
+                # the selector rule alone. With scope_key omitted, both scope constraints
+                # would reject it and the assertion below could not tell which one did.
+                scope_key="meal",
             )
             db.flush()
         assert "scope_selector_consistent" in str(caught.value)
@@ -223,7 +226,7 @@ class TestSelectorConstraint:
                 policy_version_id=version_id,
                 scope_type=PolicyAssignmentScopeType.JURISDICTION,
                 scope_id=uuid.uuid4(),
-                scope_key="IN-MH",
+                scope_key="in-mh",
             )
             db.flush()
 
@@ -241,31 +244,7 @@ class TestSelectorConstraint:
             organization_id=organization_id,
             policy_version_id=version_id,
             scope_type=PolicyAssignmentScopeType.JURISDICTION,
-            scope_key="IN-MH",
-        )
-        db.flush()
-        with pytest.raises(sa.exc.IntegrityError):
-            _insert_assignment(
-                db,
-                organization_id=organization_id,
-                policy_version_id=version_id,
-                scope_type=PolicyAssignmentScopeType.JURISDICTION,
-                scope_key="IN-MH",
-            )
-            db.flush()
-
-    def test_a_case_differing_duplicate_is_also_refused(self, db: Session) -> None:
-        # The unique index lower()s the key, matching the case folding the resolver
-        # applies, so the database cannot hold two assignments the resolver would
-        # consider identical.
-        organization_id = _insert_organization(db, jurisdiction=None, legal_entity=None)
-        version_id = _insert_approved_version(db, label="uq-text-case")
-        _insert_assignment(
-            db,
-            organization_id=organization_id,
-            policy_version_id=version_id,
-            scope_type=PolicyAssignmentScopeType.JURISDICTION,
-            scope_key="IN-MH",
+            scope_key="in-mh",
         )
         db.flush()
         with pytest.raises(sa.exc.IntegrityError):
@@ -278,10 +257,178 @@ class TestSelectorConstraint:
             )
             db.flush()
 
+    def test_a_case_differing_duplicate_is_refused(self, db: Session) -> None:
+        """A case variant of a stored key cannot coexist with it.
+
+        Canonical form is lowercase, so "IN-MH" is refused outright by
+        ck_policy_assignments_scope_key_canonical rather than being admitted and then
+        deduplicated. Either way it cannot share a table with "in-mh".
+        """
+        organization_id = _insert_organization(db, jurisdiction=None, legal_entity=None)
+        version_id = _insert_approved_version(db, label="uq-text-case")
+        _insert_assignment(
+            db,
+            organization_id=organization_id,
+            policy_version_id=version_id,
+            scope_type=PolicyAssignmentScopeType.JURISDICTION,
+            scope_key="in-mh",
+        )
+        db.flush()
+        with pytest.raises(sa.exc.IntegrityError):
+            _insert_assignment(
+                db,
+                organization_id=organization_id,
+                policy_version_id=version_id,
+                scope_type=PolicyAssignmentScopeType.JURISDICTION,
+                scope_key="IN-MH",
+            )
+            db.flush()
+
+    @pytest.mark.parametrize(
+        "variant",
+        [
+            " in-mh",
+            "in-mh ",
+            "  in-mh  ",
+            "\tin-mh",
+            "in-mh\n",
+            "in-mh\u00a0",  # non-breaking space
+        ],
+    )
+    def test_a_whitespace_differing_duplicate_is_refused(self, db: Session, variant: str) -> None:
+        """The defect this migration fixes.
+
+        The resolver normalized surrounding whitespace away, so "in-mh" and " in-mh"
+        were the same key to it, while the database's unique index did not -- so both
+        could be stored and the resolution depended on row order. A variant is now
+        refused, and the rejection is asserted to name the canonical-form constraint so
+        a future change cannot satisfy this test by accident.
+        """
+        organization_id = _insert_organization(db, jurisdiction=None, legal_entity=None)
+        version_id = _insert_approved_version(db, label=f"uq-text-space-{abs(hash(variant))}")
+        _insert_assignment(
+            db,
+            organization_id=organization_id,
+            policy_version_id=version_id,
+            scope_type=PolicyAssignmentScopeType.JURISDICTION,
+            scope_key="in-mh",
+        )
+        db.flush()
+        with pytest.raises(sa.exc.IntegrityError) as caught:
+            _insert_assignment(
+                db,
+                organization_id=organization_id,
+                policy_version_id=version_id,
+                scope_type=PolicyAssignmentScopeType.JURISDICTION,
+                scope_key=variant,
+            )
+            db.flush()
+        assert "scope_key_canonical" in str(caught.value)
+
+    def test_no_two_keys_the_resolver_considers_identical_can_both_be_stored(
+        self, db: Session
+    ) -> None:
+        """The property the fix exists to establish, asserted directly.
+
+        Takes one key, and a set of variants that the resolver's own normalization treats
+        as identical, and asserts that at most one of them can be stored. This is the
+        statement "database uniqueness matches the resolver's matching semantics" in
+        executable form -- it does not depend on knowing which constraint refuses which
+        variant.
+        """
+        from app.core.scope_keys import canonical_match_key
+
+        variants = [
+            "in-mh",
+            "IN-MH",
+            "In-Mh",
+            " in-mh ",
+            "in-mh\t",
+            "  IN-MH  ",
+            "in-mh\u00a0",
+        ]
+        # Precondition: the resolver really does treat all of these as one key.
+        canonical_forms = {canonical_match_key(variant) for variant in variants}
+        assert canonical_forms == {"in-mh"}, canonical_forms
+
+        organization_id = _insert_organization(db, jurisdiction=None, legal_entity=None)
+        version_id = _insert_approved_version(db, label="uq-resolver-parity")
+
+        stored = 0
+        for variant in variants:
+            try:
+                _insert_assignment(
+                    db,
+                    organization_id=organization_id,
+                    policy_version_id=version_id,
+                    scope_type=PolicyAssignmentScopeType.JURISDICTION,
+                    scope_key=variant,
+                )
+                db.flush()
+                stored += 1
+            except sa.exc.IntegrityError:
+                db.rollback()
+                db.begin()
+
+        assert stored == 1, (
+            f"{stored} of {len(variants)} equivalent keys were stored; the resolver treats "
+            "them as the same key, so only one may exist"
+        )
+
+    @pytest.mark.parametrize("blank", ["", " ", "   ", "\t", "\n", "\u00a0"])
+    def test_a_blank_text_selector_is_refused(self, db: Session, blank: str) -> None:
+        """A key that normalizes to nothing can never match a claim.
+
+        Storing one would create an assignment that looks configured and never applies,
+        which is the same class of defect as the scope-selector mismatch. It is refused
+        rather than stored.
+        """
+        organization_id = _insert_organization(db, jurisdiction=None, legal_entity=None)
+        version_id = _insert_approved_version(db, label="ck-blank-key")
+        with pytest.raises(sa.exc.IntegrityError) as caught:
+            _insert_assignment(
+                db,
+                organization_id=organization_id,
+                policy_version_id=version_id,
+                scope_type=PolicyAssignmentScopeType.EXPENSE_CATEGORY,
+                scope_key=blank,
+            )
+            db.flush()
+        assert "scope_key_canonical" in str(caught.value)
+
+    def test_a_uuid_dimension_is_unaffected_by_the_canonical_key_rule(self, db: Session) -> None:
+        # scope_key is NULL for UUID-valued dimensions, and the canonical-form rule is
+        # written as a NOT IN over the text dimensions so it cannot catch them.
+        organization_id = _insert_organization(db, jurisdiction=None, legal_entity=None)
+        version_id = _insert_approved_version(db, label="ck-uuid-unaffected")
+        _insert_assignment(
+            db,
+            organization_id=organization_id,
+            policy_version_id=version_id,
+            scope_type=PolicyAssignmentScopeType.DEPARTMENT,
+            scope_id=uuid.uuid4(),
+        )
+        db.flush()  # no error expected
+
     def test_distinct_text_keys_are_allowed(self, db: Session) -> None:
         organization_id = _insert_organization(db, jurisdiction=None, legal_entity=None)
         version_id = _insert_approved_version(db, label="uq-text-distinct")
-        for key in ("IN-MH", "IN-KA"):
+        for key in ("in-mh", "in-ka"):
+            _insert_assignment(
+                db,
+                organization_id=organization_id,
+                policy_version_id=version_id,
+                scope_type=PolicyAssignmentScopeType.JURISDICTION,
+                scope_key=key,
+            )
+        db.flush()  # no error expected
+
+    def test_two_keys_normalizing_differently_are_both_allowed(self, db: Session) -> None:
+        # Normalization must not become fuzzy matching: "in mh" and "in-mh" are different
+        # keys, and both may be stored.
+        organization_id = _insert_organization(db, jurisdiction=None, legal_entity=None)
+        version_id = _insert_approved_version(db, label="uq-text-different-keys")
+        for key in ("in-mh", "in mh"):
             _insert_assignment(
                 db,
                 organization_id=organization_id,
@@ -331,7 +478,7 @@ class TestResolutionPerDimension:
             organization_id=organization_id,
             policy_version_id=version_id,
             scope_type=PolicyAssignmentScopeType.JURISDICTION,
-            scope_key="IN-MH",
+            scope_key="in-mh",
         )
         db.flush()
 
@@ -354,7 +501,7 @@ class TestResolutionPerDimension:
             organization_id=organization_id,
             policy_version_id=version_id,
             scope_type=PolicyAssignmentScopeType.LEGAL_ENTITY,
-            scope_key="Example Consulting Pvt Ltd",
+            scope_key="example consulting pvt ltd",
         )
         db.flush()
 
@@ -523,7 +670,7 @@ class TestResolutionStaysHonest:
             organization_id=organization_id,
             policy_version_id=first,
             scope_type=PolicyAssignmentScopeType.JURISDICTION,
-            scope_key="IN-MH",
+            scope_key="in-mh",
             priority=10,
         )
         _insert_assignment(
@@ -585,7 +732,7 @@ class TestResolutionStaysHonest:
             organization_id=organization_id,
             policy_version_id=version_id,
             scope_type=PolicyAssignmentScopeType.JURISDICTION,
-            scope_key="IN-MH",
+            scope_key="in-mh",
         )
         _insert_assignment(
             db,
