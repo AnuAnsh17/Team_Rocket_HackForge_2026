@@ -21,6 +21,7 @@ from app.core.enums import (
     StorageBackend,
 )
 from app.schemas.common import ApiModel
+from app.schemas.extraction import ReceiptExtractionData, ReceiptValidationResult
 
 
 class ReceiptSummary(ApiModel):
@@ -53,6 +54,9 @@ class ExtractionRunSummary(ApiModel):
     finished_at: datetime | None = None
     latency_ms: int | None = None
     error_code: str | None = None
+    attempt_count: int = Field(default=0, ge=0)
+    structured_result: ReceiptExtractionData | None = None
+    validation_result: ReceiptValidationResult | None = None
     is_cached_result: bool = Field(
         False,
         description=(
@@ -91,12 +95,12 @@ class ReceiptResponse(ApiModel):
 
 
 class ReceiptUploadResponse(ApiModel):
-    """Result of a multipart upload and its synchronous OCR attempt."""
+    """Receipt metadata and its initial persisted extraction state."""
 
     receipt: ReceiptResponse
     extraction_scheduled: bool = Field(
         ...,
-        description="Always false for this synchronous upload flow; inspect receipt status.",
+        description="True when a persisted extraction run was queued for background processing.",
     )
 
 

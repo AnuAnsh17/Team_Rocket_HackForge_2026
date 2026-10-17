@@ -251,13 +251,17 @@ class IndicOCRExtractor:
         raw_text = page["markdown"]
         raw_payload = json.dumps(page, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return ExtractionResult(
-            status=ExtractionStatus.SUCCESS,
+            # IndicOCR returns OCR text/layout, not normalized receipt fields. Its
+            # raw text remains memory-only until the retention decision is resolved.
+            status=ExtractionStatus.PARTIAL,
             provider=self.provider_name,
             model="bodhan-ai/indic-ocr",
             fields={},
             line_items=(),
             raw_text=raw_text,
             raw_payload_sha256=hashlib.sha256(raw_payload.encode("utf-8")).hexdigest(),
+            error_code="STRUCTURED_EXTRACTION_UNAVAILABLE",
+            error_message="IndicOCR produced text only; structured fields need human review.",
             latency_ms=(
                 result["latency_ms"]
                 if type(result.get("latency_ms")) is int and result["latency_ms"] >= 0

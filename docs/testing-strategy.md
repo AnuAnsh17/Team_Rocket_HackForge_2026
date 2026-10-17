@@ -141,7 +141,7 @@ error rather than a runtime surprise in one of three clients.
 
 | Untested | Blocked on |
 |---|---|
-| Extraction accuracy | No provider selected; no labelled receipt set |
+| Extraction accuracy | Provider integration has offline contract and persistence tests; live OpenCode Go call and labelled receipt set are still needed |
 | Policy rule correctness | No authoritative policy document |
 | Duplicate precision/recall | No labelled positive/negative pairs |
 | End-to-end claim lifecycle | Routes not implemented |

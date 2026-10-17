@@ -227,6 +227,24 @@
         "title": "Body_upload_receipt_api_v1_expenses__expense_id__receipts_post",
         "type": "object"
       },
+      "Body_upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "Body_upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post",
+        "type": "object"
+      },
       "CreateExpenseRequest": {
         "additionalProperties": false,
         "description": "Create a draft claim from JSON metadata.\n\nReceipt images are uploaded separately through\n``POST /api/v1/expenses/{expense_id}/receipts`` - the single canonical upload\nroute. This request deliberately carries no ``source`` or ``reviewed``\nfields: provenance is assigned by the server from the caller's role, so a\nclient cannot claim reviewer provenance.",
@@ -552,6 +570,12 @@
         "additionalProperties": false,
         "description": "One historical extraction attempt. Past runs are never rewritten.",
         "properties": {
+          "attempt_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Attempt Count",
+            "type": "integer"
+          },
           "error_code": {
             "anyOf": [
               {
@@ -637,6 +661,26 @@
           },
           "status": {
             "$ref": "#/components/schemas/ExtractionStatus"
+          },
+          "structured_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptExtractionData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "validation_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptValidationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -937,6 +981,211 @@
         "title": "PageInfo",
         "type": "object"
       },
+      "ReceiptExtractionData": {
+        "additionalProperties": false,
+        "description": "Persisted/public extraction data with server-owned version metadata.",
+        "properties": {
+          "currency": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata___PydanticGeneralMetadata_pattern____A-Z__3________"
+          },
+          "discount": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"
+          },
+          "grand_total": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"
+          },
+          "line_items": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptLineItem"
+            },
+            "maxItems": 100,
+            "title": "Line Items",
+            "type": "array"
+          },
+          "merchant": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MinLen_min_length_1___MaxLen_max_length_300_____"
+          },
+          "receipt_number": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MaxLen_max_length_120_____"
+          },
+          "schema_version": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "subtotal": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"
+          },
+          "tax_total": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"
+          },
+          "tip": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"
+          },
+          "transaction_date": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_date__BeforeValidator__"
+          }
+        },
+        "title": "ReceiptExtractionData",
+        "type": "object"
+      },
+      "ReceiptFieldStatus": {
+        "enum": [
+          "extracted",
+          "missing",
+          "ambiguous",
+          "illegible",
+          "not_applicable"
+        ],
+        "title": "ReceiptFieldStatus",
+        "type": "string"
+      },
+      "ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ReceiptFieldStatus"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "pattern": "^(?:0|[1-9][0-9]{0,15})(?:\\.[0-9]{1,4})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ReceiptField[Annotated[Decimal, BeforeValidator, PlainSerializer, WithJsonSchema]]",
+        "type": "object"
+      },
+      "ReceiptField_Annotated_date__BeforeValidator__": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ReceiptFieldStatus"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ReceiptField[Annotated[date, BeforeValidator]]",
+        "type": "object"
+      },
+      "ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MaxLen_max_length_120_____": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ReceiptFieldStatus"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ReceiptField[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=120)])]]",
+        "type": "object"
+      },
+      "ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MinLen_min_length_1___MaxLen_max_length_300_____": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ReceiptFieldStatus"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ReceiptField[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MinLen(min_length=1), MaxLen(max_length=300)])]]",
+        "type": "object"
+      },
+      "ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata___PydanticGeneralMetadata_pattern____A-Z__3________": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ReceiptFieldStatus"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ReceiptField[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[_PydanticGeneralMetadata(pattern='^[A-Z]{3}$')])]]",
+        "type": "object"
+      },
+      "ReceiptLineItem": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MinLen_min_length_1___MaxLen_max_length_300_____"
+          },
+          "line_total": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"
+          },
+          "unit_price": {
+            "$ref": "#/components/schemas/ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"
+          }
+        },
+        "title": "ReceiptLineItem",
+        "type": "object"
+      },
       "ReceiptResponse": {
         "additionalProperties": false,
         "description": "Receipt metadata and extraction history.",
@@ -1082,10 +1331,10 @@
       },
       "ReceiptUploadResponse": {
         "additionalProperties": false,
-        "description": "Result of a multipart upload and its synchronous OCR attempt.",
+        "description": "Receipt metadata and its initial persisted extraction state.",
         "properties": {
           "extraction_scheduled": {
-            "description": "Always false for this synchronous upload flow; inspect receipt status.",
+            "description": "True when a persisted extraction run was queued for background processing.",
             "title": "Extraction Scheduled",
             "type": "boolean"
           },
@@ -1098,6 +1347,63 @@
           "extraction_scheduled"
         ],
         "title": "ReceiptUploadResponse",
+        "type": "object"
+      },
+      "ReceiptValidationFinding": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/ValidationSeverity",
+            "default": "warning"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ReceiptValidationFinding",
+        "type": "object"
+      },
+      "ReceiptValidationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptValidationFinding"
+            },
+            "maxItems": 30,
+            "title": "Findings",
+            "type": "array"
+          },
+          "human_review_required": {
+            "default": true,
+            "title": "Human Review Required",
+            "type": "boolean"
+          },
+          "review_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "title": "Review Reasons",
+            "type": "array"
+          },
+          "validator_version": {
+            "const": "1",
+            "default": "1",
+            "title": "Validator Version",
+            "type": "string"
+          }
+        },
+        "title": "ReceiptValidationResult",
         "type": "object"
       },
       "RoleAssignmentSummary": {
@@ -1246,11 +1552,18 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "ValidationSeverity": {
+        "enum": [
+          "warning"
+        ],
+        "title": "ValidationSeverity",
+        "type": "string"
       }
     }
   },
   "info": {
-    "description": "Evidence-first expense auditing API. This build supports authorized draft creation and private receipt upload with OCR status tracking. OCR text is not retained or converted into structured expense fields. Production authentication, policy evaluation and review workflows remain incomplete. GET /api/v1/meta lists the outstanding capabilities.",
+    "description": "Evidence-first expense auditing API. This build supports authorized draft creation, private receipt upload and persisted asynchronous extraction runs. Raw OCR/model text is not retained. Production authentication, policy evaluation and review workflows remain incomplete. GET /api/v1/meta lists the outstanding capabilities.",
     "title": "Proofline API",
     "version": "0.1.0"
   },
@@ -1380,8 +1693,53 @@
       }
     },
     "/api/v1/expenses/{expense_id}/receipts": {
+      "get": {
+        "operationId": "list_expense_receipts_api_v1_expenses__expense_id__receipts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReceiptResponse"
+                  },
+                  "title": "Response List Expense Receipts Api V1 Expenses  Expense Id  Receipts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List authorized receipts and extraction runs for an expense",
+        "tags": [
+          "receipts"
+        ]
+      },
       "post": {
-        "description": "Uploads one original receipt to a caller-owned draft, validates its content and runs the configured OCR provider synchronously. Exact duplicate files remain separate receipts and are linked only by their SHA-256 signal.",
+        "description": "Uploads one original receipt to a caller-owned draft, validates its content and persists a pending extraction run for background processing. Exact duplicate files remain separate receipts and are linked only by their SHA-256 signal.",
         "operationId": "upload_receipt_api_v1_expenses__expense_id__receipts_post",
         "parameters": [
           {
@@ -1442,7 +1800,74 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Upload and OCR a private receipt",
+        "summary": "Upload a private receipt and queue extraction",
+        "tags": [
+          "receipts"
+        ]
+      }
+    },
+    "/api/v1/expenses/{expense_id}/receipts/batch": {
+      "post": {
+        "description": "Stores each validated receipt and creates its own persisted pending extraction run. A batch is limited to 20 files; each receipt is processed independently.",
+        "operationId": "upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReceiptUploadResponse"
+                  },
+                  "title": "Response Upload Receipt Batch Api V1 Expenses  Expense Id  Receipts Batch Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload a batch of up to 20 independent receipts",
         "tags": [
           "receipts"
         ]
@@ -1659,6 +2084,59 @@
           }
         },
         "summary": "Stream authorized private receipt content",
+        "tags": [
+          "receipts"
+        ]
+      }
+    },
+    "/api/v1/receipts/{receipt_id}/extractions": {
+      "post": {
+        "description": "Appends a new extraction run for a receipt owned by the caller. Previous run results are preserved and never overwritten.",
+        "operationId": "retry_receipt_extraction_api_v1_receipts__receipt_id__extractions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry extraction for an authorized receipt",
         "tags": [
           "receipts"
         ]

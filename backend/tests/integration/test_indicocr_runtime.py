@@ -10,6 +10,7 @@ from app.api.deps import get_receipt_extractor, get_receipt_storage
 from app.core.config import Settings
 from app.core.enums import ExtractionStatus
 from app.extraction.factory import build_receipt_extractor
+from app.extraction.worker import ExtractionJobWorker
 from app.models.receipt import ExtractionRun, Receipt
 from app.storage.local import LocalPrivateReceiptStorage
 from fastapi.testclient import TestClient
@@ -80,15 +81,30 @@ def test_cached_indicocr_upload_to_persistence(
         assert upload.status_code == 201, upload.text
         body = upload.json()
         receipt_id = uuid.UUID(body["receipt"]["id"])
-        assert body["receipt"]["extraction_status"] == ExtractionStatus.SUCCESS.value
+        assert body["receipt"]["extraction_status"] == ExtractionStatus.PENDING.value
         assert body["receipt"]["extraction_runs"][0]["provider"] == "indicocr"
-        assert body["receipt"]["extraction_runs"][0]["error_code"] is None
         assert "raw_text" not in upload.text
-        receipt = db.get(Receipt, receipt_id)
-        assert receipt is not None
         run = db.execute(
             select(ExtractionRun).where(ExtractionRun.receipt_id == receipt_id)
         ).scalar_one()
+        worker = ExtractionJobWorker(
+            session_factory=lambda: Session(
+                bind=db.connection(), join_transaction_mode="create_savepoint"
+            ),
+            storage=client.app.dependency_overrides[get_receipt_storage](),
+            extractor=extractor,
+            concurrency=1,
+            max_attempts=1,
+            timeout_seconds=90,
+            retry_backoff_seconds=0,
+        )
+        worker._process_run(run.id)
+        db.refresh(run)
+        assert run.status == ExtractionStatus.PARTIAL.value
+        assert run.error_code == "STRUCTURED_EXTRACTION_UNAVAILABLE"
+        assert run.structured_result is None
+        receipt = db.get(Receipt, receipt_id)
+        assert receipt is not None
         assert run.raw_text_sha256 and run.raw_payload_sha256
         assert not hasattr(run, "raw_text")
         content = client.get(body["receipt"]["content_url"], headers=employee_headers)

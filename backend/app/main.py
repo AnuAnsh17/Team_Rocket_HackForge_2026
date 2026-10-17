@@ -10,6 +10,7 @@ OpenAPI document:  http://localhost:8000/api/v1/openapi.json
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -22,7 +23,10 @@ from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import RequestContextMiddleware
-from app.db.session import dispose_engine
+from app.db.session import dispose_engine, get_session_factory
+from app.extraction.factory import build_receipt_extractor
+from app.extraction.worker import ExtractionJobWorker
+from app.storage.factory import build_receipt_storage
 
 logger = get_logger("proofline.app")
 
@@ -66,12 +70,38 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "detail": "See GET /api/v1/meta for the authoritative list.",
         },
     )
-    yield
-    extractor = getattr(app.state, "receipt_extractor", None)
-    if extractor is not None and hasattr(extractor, "close"):
-        extractor.close()
-    dispose_engine()
-    logger.info("shutdown complete")
+    worker_task: asyncio.Task[None] | None = None
+    worker_stop: asyncio.Event | None = None
+    if not settings.is_test:
+        extractor = build_receipt_extractor(settings)
+        storage = build_receipt_storage(settings)
+        app.state.receipt_extractor = extractor
+        app.state.receipt_storage = storage
+        worker_stop = asyncio.Event()
+        worker = ExtractionJobWorker(
+            session_factory=get_session_factory(),
+            storage=storage,
+            extractor=extractor,
+            concurrency=settings.extraction_concurrency,
+            max_attempts=settings.extraction_max_attempts,
+            timeout_seconds=settings.extraction_timeout_seconds,
+            retry_backoff_seconds=settings.extraction_retry_backoff_seconds,
+        )
+        worker_task = asyncio.create_task(
+            worker.run(worker_stop), name="proofline-extraction-worker"
+        )
+    try:
+        yield
+    finally:
+        if worker_stop is not None:
+            worker_stop.set()
+        if worker_task is not None:
+            await worker_task
+        active_extractor = getattr(app.state, "receipt_extractor", None)
+        if active_extractor is not None and hasattr(active_extractor, "close"):
+            active_extractor.close()
+        dispose_engine()
+        logger.info("shutdown complete")
 
 
 def create_app() -> FastAPI:
@@ -83,8 +113,8 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         description=(
             "Evidence-first expense auditing API. This build supports authorized draft "
-            "creation and private receipt upload with OCR status tracking. OCR text is "
-            "not retained or converted into structured expense fields. Production "
+            "creation, private receipt upload and persisted asynchronous extraction runs. "
+            "Raw OCR/model text is not retained. Production "
             "authentication, policy evaluation and review workflows remain incomplete. "
             "GET /api/v1/meta lists the outstanding capabilities."
         ),

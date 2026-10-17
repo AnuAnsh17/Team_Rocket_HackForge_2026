@@ -7,6 +7,10 @@
 **Assessor's role:** this is a self-assessment of the design and the scaffold by the
 engineer who built it, not an independent evaluation.
 
+> **Historical baseline.** Sections 1–8 describe the `chore/proofline-project-scaffold`
+> snapshot named above. They are not a description of the current `backend` branch.
+> The receipt-intelligence implementation status is recorded in section 9 below.
+
 ## 0. Requirement sources, and what is still missing
 
 Every requirement below is traced to a quoted source. The wording lives in
@@ -545,6 +549,32 @@ tell" when it cannot.
 document and the receipt set, and build one complete vertical slice - one receipt, one
 verified rule, one finding with a clause and a calculation, visible on the dashboard and
 traceable in the audit log. That slice is worth more than all three frontend shells.
+
+## 9. Receipt-intelligence milestone status (2026-10-18)
+
+The current `backend` branch extends the historical baseline with a real upload-to-job
+path: employee-owned draft creation, one- or up-to-20-image private upload, signature and
+size validation, SHA-256, persisted pending extraction runs, bounded in-process processing,
+authorized receipt/status/content reads, explicit owner retry, and per-run normalized
+structured results. OpenCode Go is the configurable structured provider; IndicOCR remains an
+OCR-only option. The result is schema-versioned and field statuses preserve missing or
+uncertain values. Decimal reconciliation is a backend extraction-review signal, not a
+policy finding. Raw provider text and OCR Markdown remain unpersisted and absent from DTOs.
+
+Offline tests verify provider request serialization, schema and response validation,
+retry/error mapping, bounded worker concurrency, upload and batch persistence, private
+content authorization, historical retry behavior, and extraction validation. The optional
+live OpenCode Go upload-to-persistence test was **not run** in this milestone. No labeled
+receipt set is available, so there is no measured receipt accuracy, latency or cost claim.
+The worker is process-local, retries are explicit after restart to avoid automatic
+re-submission and possible duplicate provider charges, production Supabase authentication
+and hosted private storage are still absent,
+and there is no claim submission, policy rule execution or reimbursement decision path.
+
+The portal, mobile capture screen and finance receipt review surface now consume the
+generated backend contract. The console requires an expense UUID because a scoped expense
+list/detail workflow is not yet implemented. This milestone does not make Proofline a
+complete expense auditor and does not change the historical sixteen-area scorecard above.
 
 ## 9. Maintenance of this document
 

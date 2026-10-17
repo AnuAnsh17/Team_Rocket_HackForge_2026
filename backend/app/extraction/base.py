@@ -22,6 +22,7 @@ from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
 from app.core.enums import ExtractionStatus
+from app.schemas.extraction import ReceiptExtractionPayload
 
 # Canonical field names an extractor may report. These map onto
 # ExpenseFieldName where a field also exists on the claim.
@@ -87,9 +88,11 @@ class ExtractionResult:
     prompt_version: str | None = None
     fields: dict[str, FieldEvidence] = field(default_factory=dict)
     line_items: tuple[ExtractedLineItem, ...] = ()
+    structured_data: ReceiptExtractionPayload | None = None
     raw_text: str | None = None
     raw_payload_sha256: str | None = None
     latency_ms: int | None = None
+    attempt_count: int = 1
     error_code: str | None = None
     error_message: str | None = None
     is_cached_result: bool = False

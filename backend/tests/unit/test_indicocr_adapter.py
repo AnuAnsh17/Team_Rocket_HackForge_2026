@@ -43,7 +43,8 @@ def test_valid_page_is_hash_only_evidence_and_does_not_extract_fields() -> None:
         receipt_id=uuid.uuid4(), data=b"image", content_type="image/png"
     )
 
-    assert result.status is ExtractionStatus.SUCCESS
+    assert result.status is ExtractionStatus.PARTIAL
+    assert result.error_code == "STRUCTURED_EXTRACTION_UNAVAILABLE"
     assert result.fields == {}
     assert result.line_items == ()
     assert result.raw_text == "receipt text"

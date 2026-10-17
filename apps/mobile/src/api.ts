@@ -51,7 +51,8 @@ export function mobileApiOptions(
   overrides: Partial<ApiClientOptions> = {},
 ): ApiClientOptions {
   return {
-    baseUrl: API_BASE_URL,
+    // OpenAPI paths already include /api/v1, so openapi-fetch needs only the origin.
+    baseUrl: API_BASE_URL.replace(/\/api\/v1\/?$/, ""),
     getDemoActorId,
     // Replacing demo mode with real authentication is a change to this one function.
     getToken: () => null,

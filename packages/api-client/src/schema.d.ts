@@ -86,13 +86,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** List authorized receipts and extraction runs for an expense */
+        get: operations["list_expense_receipts_api_v1_expenses__expense_id__receipts_get"];
+        put?: never;
+        /**
+         * Upload a private receipt and queue extraction
+         * @description Uploads one original receipt to a caller-owned draft, validates its content and persists a pending extraction run for background processing. Exact duplicate files remain separate receipts and are linked only by their SHA-256 signal.
+         */
+        post: operations["upload_receipt_api_v1_expenses__expense_id__receipts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/expenses/{expense_id}/receipts/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
         get?: never;
         put?: never;
         /**
-         * Upload and OCR a private receipt
-         * @description Uploads one original receipt to a caller-owned draft, validates its content and runs the configured OCR provider synchronously. Exact duplicate files remain separate receipts and are linked only by their SHA-256 signal.
+         * Upload a batch of up to 20 independent receipts
+         * @description Stores each validated receipt and creates its own persisted pending extraction run. A batch is limited to 20 files; each receipt is processed independently.
          */
-        post: operations["upload_receipt_api_v1_expenses__expense_id__receipts_post"];
+        post: operations["upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -256,6 +277,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receipts/{receipt_id}/extractions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry extraction for an authorized receipt
+         * @description Appends a new extraction run for a receipt owned by the caller. Previous run results are preserved and never overwritten.
+         */
+        post: operations["retry_receipt_extraction_api_v1_receipts__receipt_id__extractions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -351,6 +392,11 @@ export interface components {
         Body_upload_receipt_api_v1_expenses__expense_id__receipts_post: {
             /** File */
             file: string;
+        };
+        /** Body_upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post */
+        Body_upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post: {
+            /** Files */
+            files: string[];
         };
         /**
          * CreateExpenseRequest
@@ -498,6 +544,11 @@ export interface components {
          * @description One historical extraction attempt. Past runs are never rewritten.
          */
         ExtractionRunSummary: {
+            /**
+             * Attempt Count
+             * @default 0
+             */
+            attempt_count: number;
             /** Error Code */
             error_code?: string | null;
             /** Finished At */
@@ -524,6 +575,8 @@ export interface components {
             /** Started At */
             started_at?: string | null;
             status: components["schemas"]["ExtractionStatus"];
+            structured_result?: components["schemas"]["ReceiptExtractionData"] | null;
+            validation_result?: components["schemas"]["ReceiptValidationResult"] | null;
         };
         /**
          * ExtractionStatus
@@ -650,6 +703,71 @@ export interface components {
             total?: number | null;
         };
         /**
+         * ReceiptExtractionData
+         * @description Persisted/public extraction data with server-owned version metadata.
+         */
+        ReceiptExtractionData: {
+            currency?: components["schemas"]["ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata___PydanticGeneralMetadata_pattern____A-Z__3________"];
+            discount?: components["schemas"]["ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"];
+            grand_total?: components["schemas"]["ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"];
+            /** Line Items */
+            line_items?: components["schemas"]["ReceiptLineItem"][];
+            merchant?: components["schemas"]["ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MinLen_min_length_1___MaxLen_max_length_300_____"];
+            receipt_number?: components["schemas"]["ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MaxLen_max_length_120_____"];
+            /**
+             * Schema Version
+             * @default 1.0
+             * @constant
+             */
+            schema_version: "1.0";
+            subtotal?: components["schemas"]["ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"];
+            tax_total?: components["schemas"]["ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"];
+            tip?: components["schemas"]["ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"];
+            transaction_date?: components["schemas"]["ReceiptField_Annotated_date__BeforeValidator__"];
+        };
+        /**
+         * ReceiptFieldStatus
+         * @enum {string}
+         */
+        ReceiptFieldStatus: "extracted" | "missing" | "ambiguous" | "illegible" | "not_applicable";
+        /** ReceiptField[Annotated[Decimal, BeforeValidator, PlainSerializer, WithJsonSchema]] */
+        ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__: {
+            status: components["schemas"]["ReceiptFieldStatus"];
+            /** Value */
+            value?: string | null;
+        };
+        /** ReceiptField[Annotated[date, BeforeValidator]] */
+        ReceiptField_Annotated_date__BeforeValidator__: {
+            status: components["schemas"]["ReceiptFieldStatus"];
+            /** Value */
+            value?: string | null;
+        };
+        /** ReceiptField[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MaxLen(max_length=120)])]] */
+        ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MaxLen_max_length_120_____: {
+            status: components["schemas"]["ReceiptFieldStatus"];
+            /** Value */
+            value?: string | null;
+        };
+        /** ReceiptField[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[MinLen(min_length=1), MaxLen(max_length=300)])]] */
+        ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MinLen_min_length_1___MaxLen_max_length_300_____: {
+            status: components["schemas"]["ReceiptFieldStatus"];
+            /** Value */
+            value?: string | null;
+        };
+        /** ReceiptField[Annotated[str, FieldInfo(annotation=NoneType, required=True, metadata=[_PydanticGeneralMetadata(pattern='^[A-Z]{3}$')])]] */
+        "ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata___PydanticGeneralMetadata_pattern____A-Z__3________": {
+            status: components["schemas"]["ReceiptFieldStatus"];
+            /** Value */
+            value?: string | null;
+        };
+        /** ReceiptLineItem */
+        ReceiptLineItem: {
+            description?: components["schemas"]["ReceiptField_Annotated_str__FieldInfo_annotation_NoneType__required_True__metadata__MinLen_min_length_1___MaxLen_max_length_300_____"];
+            line_total?: components["schemas"]["ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"];
+            quantity?: components["schemas"]["ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"];
+            unit_price?: components["schemas"]["ReceiptField_Annotated_Decimal__BeforeValidator__PlainSerializer__WithJsonSchema__"];
+        };
+        /**
          * ReceiptResponse
          * @description Receipt metadata and extraction history.
          */
@@ -700,15 +818,42 @@ export interface components {
         };
         /**
          * ReceiptUploadResponse
-         * @description Result of a multipart upload and its synchronous OCR attempt.
+         * @description Receipt metadata and its initial persisted extraction state.
          */
         ReceiptUploadResponse: {
             /**
              * Extraction Scheduled
-             * @description Always false for this synchronous upload flow; inspect receipt status.
+             * @description True when a persisted extraction run was queued for background processing.
              */
             extraction_scheduled: boolean;
             receipt: components["schemas"]["ReceiptResponse"];
+        };
+        /** ReceiptValidationFinding */
+        ReceiptValidationFinding: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /** @default warning */
+            severity: components["schemas"]["ValidationSeverity"];
+        };
+        /** ReceiptValidationResult */
+        ReceiptValidationResult: {
+            /** Findings */
+            findings?: components["schemas"]["ReceiptValidationFinding"][];
+            /**
+             * Human Review Required
+             * @default true
+             */
+            human_review_required: boolean;
+            /** Review Reasons */
+            review_reasons?: string[];
+            /**
+             * Validator Version
+             * @default 1
+             * @constant
+             */
+            validator_version: "1";
         };
         /**
          * RoleAssignmentSummary
@@ -782,6 +927,11 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /**
+         * ValidationSeverity
+         * @enum {string}
+         */
+        ValidationSeverity: "warning";
     };
     responses: never;
     parameters: never;
@@ -888,6 +1038,37 @@ export interface operations {
             };
         };
     };
+    list_expense_receipts_api_v1_expenses__expense_id__receipts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_receipt_api_v1_expenses__expense_id__receipts_post: {
         parameters: {
             query?: never;
@@ -927,6 +1108,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_receipt_batch_api_v1_expenses__expense_id__receipts_batch_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptUploadResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -1107,6 +1325,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_receipt_extraction_api_v1_receipts__receipt_id__extractions_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

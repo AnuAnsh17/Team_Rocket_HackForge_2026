@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.2.0-receipt-ocr
+**Contract version:** 1.3.0-receipt-intelligence
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -25,7 +25,8 @@ unimplemented route works.
 | 1.0-draft -> 1.1 | Demo routes answer 404 when demo mode is off | The old text allowed 404 or 403. 404 does not disclose that a disabled demo surface exists. |
 | 1.0-draft -> 1.1 | `Idempotency-Key` required on create/submit/decision mutations | The old text required it for create/submit and merely encouraged it elsewhere, which is not a testable rule. |
 | 1.1 -> 1.1.1 | A policy-assignment scope carries exactly one of `scope_id` (UUID) or `scope_key` (text), decided by the dimension | Three of the ten dimensions are not UUID-valued (legal entity, jurisdiction, expense category), and a single UUID column could not express them, so assignments scoped to those dimensions never matched. Uniqueness is now over the effective selector. No route is affected today: the policy routes are declared unimplemented. |
-| 1.1.1 -> 1.2.0 | Minimal employee-owned draft creation, private receipt upload/content retrieval and synchronous IndicOCR status tracking | Reuses the existing auth, storage, receipt and extraction-run schema. OCR text is not persisted pending a retention decision; OCR output does not populate structured expense fields. |
+| 1.1.1 -> 1.2.0 | Minimal employee-owned draft creation, private receipt upload/content retrieval and IndicOCR status tracking | Reuses the existing auth, storage, receipt and extraction-run schema. OCR text is not persisted pending a retention decision. |
+| 1.2.0 -> 1.3.0 | DeepSeek structured extraction contract, bounded persisted worker, batches, retry and authorized result listing | Each upload is its own job. Provider output is schema-validated, then deterministically checked; original receipt and run history remain traceable. |
 
 ---
 
@@ -269,20 +270,32 @@ exists so a cached demo response is never presented as live inference. Runs are
 append-only: re-extraction adds a run and never overwrites the previous one or a
 reviewer-corrected value.
 
-The first OCR slice persists the source receipt and one extraction run. The upload
-uses multipart field `file`. IndicOCR's
-raw Markdown and page/block payload are held in memory only long enough to compute
-SHA-256 hashes; raw OCR text and payload are not stored or returned until a retention
-decision is documented. OCR success means the engine returned a valid page; it does
-not mean structured merchant/date/amount fields were extracted. Those fields remain
-unset. PDF uploads are stored but report OCR failure because the verified IndicOCR
-interface accepts JPEG, PNG and WEBP image pages only. The upload validator also
-accepts PDF, HEIC and HEIF; those source files are stored, while the current adapter
-records `OCR_UNSUPPORTED_MEDIA_TYPE` for them.
-Processing failure codes include `OCR_RUNTIME_NOT_CONFIGURED`,
-`OCR_RUNTIME_UNAVAILABLE`, `OCR_TIMEOUT`, `OCR_INVALID_OUTPUT`,
-`OCR_PROCESSING_FAILED` and `OCR_UNSUPPORTED_MEDIA_TYPE`; these appear on the
-extraction run while the uploaded receipt itself remains available for review.
+Receipt uploads use multipart field `file`; the batch route uses `files` and accepts
+up to 20 files. Each accepted receipt and `pending` extraction run are committed
+before the worker makes a provider call. `GET /expenses/{expense_id}/receipts` and
+`GET /receipts/{receipt_id}` return the persisted status and historical runs. The
+in-process poller bounds concurrency per backend process, commits `running` before
+inference, and does not hold a database transaction during provider calls. Inference
+is not retried automatically after process restart: stale jobs become `failed` and
+may be explicitly retried by the receipt owner. Run state is durable, but polling is
+single-process and is not a substitute for a distributed queue in multi-replica use.
+
+Structured output follows schema version `1.0`. Every field has a value and one of
+`extracted`, `missing`, `ambiguous`, `illegible` or `not_applicable`; only extracted
+fields can have non-null values. Money uses decimal strings, dates use unambiguous
+ISO dates, and raw provider text and OCR Markdown are neither persisted nor returned.
+Server-owned validation results include human review reasons and deterministic total
+reconciliation findings. These are extraction review signals, not policy findings.
+
+`OPENCODE_GO_API_KEY` is server-only. `EXTRACTION_PROVIDER=opencode_go` selects
+OpenCode Go's OpenAI-compatible vision chat-completions API, while `local_ocr`
+selects the existing isolated IndicOCR runtime and `unavailable` fails closed.
+OpenCode Go currently accepts JPEG, PNG and WEBP in this pipeline; other upload
+formats are refused before storage. IndicOCR also receives only these image types.
+Provider codes such as `OPENCODE_GO_TIMEOUT`, `OPENCODE_GO_INVALID_EXTRACTION`,
+`OCR_RUNTIME_UNAVAILABLE` and
+`OCR_UNSUPPORTED_MEDIA_TYPE` are safe machine-readable outcomes. A configured but
+unavailable provider does not produce fabricated fields.
 
 A duplicate candidate carries `id`, `status`, both expense ids,
 `algorithm_version`, a list of independent `signals`, `ranking_score`,
@@ -375,9 +388,12 @@ Status values:
 | `GET /api/v1/meta` | Contract version, implemented endpoint count, declared unimplemented capabilities. |
 | `GET /api/v1/meta/enums` | Canonical enum catalogue; the machine-readable form of section 2. |
 | `POST /api/v1/expenses` | Create a caller-owned draft to receive receipts. Requires `EXPENSE_CREATE_OWN` and `Idempotency-Key`; only caller membership is accepted. |
-| `POST /api/v1/expenses/{expense_id}/receipts` | Authorized multipart upload to an own draft. Requires `RECEIPT_UPLOAD_OWN` and `Idempotency-Key`; validates size and file signature; runs configured OCR synchronously. Returns receipt metadata and honest extraction status. |
+| `POST /api/v1/expenses/{expense_id}/receipts` | Authorized multipart upload to an own draft. Requires `RECEIPT_UPLOAD_OWN` and `Idempotency-Key`; validates size and file signature; persists one pending extraction run and returns promptly. |
+| `POST /api/v1/expenses/{expense_id}/receipts/batch` | Same ownership and validation rules for 1–20 independent receipt files; each file receives a durable extraction run. |
+| `GET /api/v1/expenses/{expense_id}/receipts` | List authorized receipt metadata and run results for the expense owner or scoped reviewer. |
 | `GET /api/v1/receipts/{receipt_id}` | Read authorized receipt metadata and extraction-run history. |
 | `GET /api/v1/receipts/{receipt_id}/content` | Stream private receipt bytes after rechecking expense scope; response is `private, no-store` and never a public storage URL. |
+| `POST /api/v1/receipts/{receipt_id}/extractions` | Owner-authorized, idempotent retry that appends a new pending run; refuses when another run is active. |
 | `GET /api/v1/me` | The caller's own organization membership. |
 | `GET /api/v1/me/roles` | The caller's own non-revoked role grants with their scope. |
 | `GET /api/v1/me/audit` | Audit events attributed to the caller. |
@@ -403,7 +419,6 @@ slice, not abandoned work.
 | `POST /api/v1/expenses/{expense_id}/submit` | Workflow and idempotency wiring. |
 | `POST /api/v1/expenses/{expense_id}/decisions` | Approval workflow, which depends on the real policy. |
 | `GET /api/v1/expenses/{expense_id}/audit` | Workflow. |
-| `POST /api/v1/receipts/{receipt_id}/reextract` | An extraction provider. |
 | `GET /api/v1/policy/versions/current` | An approved policy document. |
 | `GET /api/v1/policy/rules` | An approved policy document. |
 | `GET /api/v1/policy/rules/{rule_id}` | An approved policy document. |

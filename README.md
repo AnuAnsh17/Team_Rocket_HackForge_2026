@@ -4,11 +4,14 @@
 receipts and a layered expense policy into accurate, explainable, reviewable
 reimbursement decisions - including duplicates and month-wide patterns.
 
-> **Current state: scaffold, not a product.** The architecture, data model, API contract
-> and authorization model are built and tested. Receipt extraction, policy rules and the
-> claim workflow are **not implemented**. `GET /api/v1/meta` lists every unimplemented
-> capability in machine-readable form, and `docs/problem-statement-coverage.md` assesses
-> coverage honestly. No receipt has ever been processed by this system.
+> **Current state: receipt-intelligence milestone in progress, not a complete auditor.**
+> The `backend` branch now has authorized draft creation, private single/batch receipt
+> uploads, persisted extraction jobs, a configurable OpenCode Go vision extractor and
+> the existing IndicOCR adapter. The employee portal/mobile capture flows and finance
+> receipt review surface consume the canonical API. A real OpenCode Go call remains opt-in;
+> extraction accuracy has not been benchmarked. Policy rules, claim submission/review,
+> production Supabase authentication and hosted private storage remain incomplete.
+> `GET /api/v1/meta` reports the remaining capabilities.
 
 ## Start here
 
@@ -41,15 +44,16 @@ Consequences worth stating explicitly:
 
 | Path | Component | State | Checks |
 |---|---|---|---|
-| `backend/` | FastAPI + Pydantic + SQLAlchemy + Alembic | Foundation. Health, metadata and three authenticated identity endpoints work. `GET /api/v1/meta` lists every unimplemented capability. | 159 tests, ruff, ruff format, mypy, migration up/down, real server boot |
-| `apps/console/` | Next.js internal HR/Finance/Admin console | 11 placeholder routes with role-specific navigation and design tokens | build (12 routes), tsc, eslint, 9 tests |
-| `apps/portal/` | Next.js employee web portal | 7 placeholder routes, employee-facing wording rules | build (8 routes), tsc, eslint, 7 tests |
-| `apps/mobile/` | Expo + React Native employee app | 5 placeholder screens, theme vocabulary | tsc, eslint, 7 tests, `expo config` resolves. **No device run yet.** |
-| `packages/api-client/` | Generated TypeScript contract + fetch wrapper | Consumed by all three clients | `npm run api:check` (drift guard, verified to fail) |
+| `backend/` | FastAPI + Pydantic + SQLAlchemy + Alembic | Authorized draft and private receipt API; persisted asynchronous extraction runs; OpenCode Go/IndicOCR adapters; deterministic receipt consistency review | See `docs/receipt-extraction.md`; offline tests do not establish provider accuracy |
+| `apps/console/` | Next.js internal HR/Finance/Admin console | Authorized receipt lookup, structured extraction review and private original access by expense ID | `npm run console:typecheck`, `npm run console:build`, `npm run console:test` |
+| `apps/portal/` | Next.js employee web portal | Multi-image upload, per-receipt status/result display and authorized original access | `npm run portal:typecheck`, `npm run portal:build`, `npm run portal:test` |
+| `apps/mobile/` | Expo + React Native employee app | Camera/gallery capture, multi-image upload, status/result display and authorized original access | `npm run mobile:typecheck`, `npm run mobile:test`; device run still needed |
+| `packages/api-client/` | Generated TypeScript contract + fetch wrapper | OpenAPI-generated receipt, extraction and upload contracts consumed by all apps | `npm run api:generate`, `npm run api:check` |
 | `docs/` | Contract, architecture, database, security, testing, runbooks | Written | - |
 
-Every frontend screen is a labelled placeholder. Nothing in them uploads, reads, evaluates
-or submits anything, and each page names the endpoint it is waiting for.
+Receipt extraction is evidence capture only. It does not populate authoritative claim
+fields, run policy rules or approve/reject a claim. Read `docs/receipt-extraction.md` for
+provider configuration, privacy, job status, supported formats and known limitations.
 
 ## Development commands
 

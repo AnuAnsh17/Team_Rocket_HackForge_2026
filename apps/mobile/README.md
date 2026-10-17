@@ -3,10 +3,12 @@
 React Native + Expo + TypeScript. Capture a receipt, check what was read from it, submit a
 claim and follow its status.
 
-> **State: scaffold.** Navigation, screens, theme tokens, shared components and the API
-> integration layer exist. **Camera capture, upload, extraction and submission are not
-> implemented.** Every screen says what is missing. Checked in this commit: `tsc --noEmit`,
-> `eslint`, and 7 tests.
+> **Receipt capture is implemented; claim submission is not.** This screen uses Expo Image
+> Picker for camera/gallery images, creates an employee draft, uploads a batch through the
+> shared API client, shows per-receipt extraction status/fields and loads the original
+> through the authorized content endpoint. It does not call DeepSeek directly. Extraction
+> values are review evidence and do not submit or approve a claim. See
+> [`docs/receipt-extraction.md`](../../docs/receipt-extraction.md).
 
 ## Prerequisites
 

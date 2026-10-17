@@ -19,7 +19,17 @@
       "bundleIdentifier": "com.proofline.employee",
       "supportsTablet": false
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Proofline to select receipt images for your expense draft.",
+          "cameraPermission": "Allow Proofline to photograph a receipt for your expense draft.",
+          "microphonePermission": false
+        }
+      ]
+    ],
     "experiments": {
       "_typedRoutesComment": "typedRoutes is intentionally off. It requires a generated .expo/types/router.d.ts, which only expo start/export produces, so enabling it would make `tsc --noEmit` fail on a clean checkout and in CI.",
       "typedRoutes": false

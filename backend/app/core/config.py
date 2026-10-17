@@ -72,11 +72,21 @@ class Settings(BaseSettings):
 
     # --- Extraction ------------------------------------------------------
     extraction_provider: Literal[
-        "unavailable", "openai_compatible", "azure_document_intelligence", "local_ocr"
+        "unavailable",
+        "opencode_go",
+        "openai_compatible",
+        "azure_document_intelligence",
+        "local_ocr",
     ] = "unavailable"
     extraction_model: str | None = None
-    extraction_timeout_seconds: int = 60
+    extraction_timeout_seconds: int = 90
     extraction_python_executable: str | None = None
+    extraction_concurrency: int = 2
+    extraction_max_attempts: int = 3
+    extraction_retry_backoff_seconds: float = 0.5
+    opencode_go_api_key: str | None = None
+    opencode_go_model: str = "deepseek-v4.1-flash"
+    opencode_go_base_url: str = "https://opencode.ai/zen/go/v1"
 
     # --- Derived ---------------------------------------------------------
     @property
@@ -126,6 +136,27 @@ class Settings(BaseSettings):
             raise ValueError("RECEIPT_MAX_UPLOAD_BYTES must be positive")
         if value > 100 * 1024 * 1024:
             raise ValueError("RECEIPT_MAX_UPLOAD_BYTES must not exceed 100 MiB")
+        return value
+
+    @field_validator("extraction_concurrency")
+    @classmethod
+    def _sane_extraction_concurrency(cls, value: int) -> int:
+        if value < 1 or value > 16:
+            raise ValueError("EXTRACTION_CONCURRENCY must be between 1 and 16")
+        return value
+
+    @field_validator("extraction_max_attempts")
+    @classmethod
+    def _sane_extraction_attempts(cls, value: int) -> int:
+        if value < 1 or value > 5:
+            raise ValueError("EXTRACTION_MAX_ATTEMPTS must be between 1 and 5")
+        return value
+
+    @field_validator("extraction_retry_backoff_seconds")
+    @classmethod
+    def _sane_extraction_backoff(cls, value: float) -> float:
+        if value < 0 or value > 30:
+            raise ValueError("EXTRACTION_RETRY_BACKOFF_SECONDS must be between 0 and 30")
         return value
 
     @model_validator(mode="after")

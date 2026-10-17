@@ -110,6 +110,17 @@ The model README documents printed recognition for English and 22 Indian languag
 and handwriting recognition for English and 12 Indian languages. This is model
 documentation, not a Proofline receipt-accuracy benchmark.
 
+### Structured receipt extraction
+
+For structured receipt extraction through OpenCode Go, keep `OPENCODE_GO_API_KEY`
+in the ignored root `.env` or deployment secret store, set
+`EXTRACTION_PROVIDER=opencode_go`, and leave the key out of every client environment.
+The default model is `deepseek-v4.1-flash` at
+`https://opencode.ai/zen/go/v1/chat/completions`.
+Uploads are persisted as individual pending jobs and processed by the bounded
+in-process worker. See [`receipt-extraction.md`](./receipt-extraction.md) for the
+batch endpoint, retry flow, live smoke test and operational limitations.
+
 ### Seed demo data
 
 Demo mode must be enabled (`DEMO_MODE=true`, non-production). Then either:

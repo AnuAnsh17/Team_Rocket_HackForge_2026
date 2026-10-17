@@ -104,8 +104,32 @@ been benchmarked in this environment. Each backend process owns one OCR subproce
 until multi-process GPU memory is benchmarked on the 6 GB RTX 3050, run one backend
 worker when local GPU OCR is enabled.
 
-**OPEN.** Raw-text retention, a labelled receipt benchmark, structured field
-extraction and production hosted storage/authentication remain unresolved.
+## 6.1 OpenCode Go is the structured receipt provider; deterministic checks stay separate
+
+**Decided.** `EXTRACTION_PROVIDER=opencode_go` selects the backend-only vision adapter
+using the OpenCode Go `deepseek-v4.1-flash` chat-completions API and JSON mode. The
+server authenticates with `OPENCODE_GO_API_KEY`; no direct DeepSeek API key is used.
+`local_ocr` retains the
+existing IndicOCR adapter; it is not run alongside OpenCode Go. The adapter sends only
+the private image bytes, validates the response against versioned Pydantic fields,
+and returns no model-generated workflow state, confidence score or policy decision.
+Structured values and server-owned validation metadata are persisted to each
+`ExtractionRun`; provider message text and raw OCR Markdown remain memory-only.
+
+**Why.** IndicOCR exposes OCR page text/layout, not structured receipt values. A
+replaceable provider lets the existing local engine remain available while allowing
+structured extraction without adding a second domain model or exposing credentials
+to clients.
+
+**Cost.** External provider use sends receipt images to the configured provider and
+may incur cost. No labeled benchmark or accuracy claim is available. Jobs use a
+bounded in-process database poller; multiple API replicas multiply configured
+concurrency and need deployment coordination. Stale jobs fail rather than silently
+retrying and charging again.
+
+**OPEN.** Raw-text retention, a labeled benchmark, ISO currency membership validation,
+distributed worker coordination and production hosted storage/authentication remain
+unresolved.
 
 ## 7. Private object storage with no public URL anywhere in the interface
 
@@ -123,19 +147,19 @@ authorization check, not exposed as a general storage capability.
 Storage or S3; `Settings` refuses `RECEIPT_STORAGE_BACKEND=local` outside local
 development.
 
-## 8. Synchronous persistence
+## 8. Database persistence is synchronous; extraction jobs are persisted and asynchronous
 
 **Decided.** SQLAlchemy 2.x ORM over psycopg3, synchronous sessions, with routes
 declared as `def` so FastAPI runs them in its threadpool. Approved by the product owner
 during scaffolding.
 
-**Why.** Alembic is synchronous, `TestClient` and transactional rollback fixtures are
-straightforward, and there is no greenlet or event-loop footgun. For a team of three
-building a demo, test ergonomics beat theoretical throughput.
+**Why.** Alembic, SQLAlchemy sessions and test rollback fixtures remain synchronous.
+Extraction runs are committed before provider I/O and polled by an app-scoped worker,
+so the API never holds a transaction open while waiting on inference.
 
-**Cost.** Under high concurrency, async sessions would use the event loop better.
-**Contained to:** the session factory in `app/db/session.py` and the route function
-signatures, so a later conversion does not reach the services.
+**Cost.** The poller is process-local and synchronous work runs in a thread pool. The
+database state is durable, but this is not multi-replica queue coordination. The
+deployment should use one API process per worker until that is implemented.
 
 ## 9. Money as NUMERIC/Decimal, serialised as a decimal string
 

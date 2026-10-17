@@ -49,7 +49,8 @@ export function consoleApiOptions(
   overrides: Partial<ApiClientOptions> = {},
 ): ApiClientOptions {
   return {
-    baseUrl: API_BASE_URL,
+    // OpenAPI paths already include /api/v1, so openapi-fetch needs only the origin.
+    baseUrl: API_BASE_URL.replace(/\/api\/v1\/?$/, ""),
     getDemoActorId: readDemoActorId,
     // A token provider is wired here rather than in each page, so replacing demo mode
     // with real authentication is a change to this one function.

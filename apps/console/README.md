@@ -5,10 +5,11 @@ administration**, with role-specific navigation. It is the internal review surfa
 employee-facing experience lives in `apps/portal` and `apps/mobile`, and the two are
 deliberately separate applications.
 
-> **State: scaffold.** Routes, navigation, design tokens, shared UI and the API
-> integration layer exist. **No auditing workflow is implemented.** Every page states what
-> is missing and why, on the page itself. Checked in this commit: `next build` (12
-> routes), `tsc --noEmit`, `eslint`, and 9 tests.
+> **Receipt review is implemented; the broader auditing workflow is not.** The review
+> surface loads receipts by an authorized expense UUID, polls active extraction runs,
+> displays normalized fields and backend validation signals, and opens originals through
+> the private-content API. An expense/review queue is still absent, so the operator must
+> already know the expense ID. Extraction warnings are not policy findings or fraud claims.
 
 ## Prerequisites
 

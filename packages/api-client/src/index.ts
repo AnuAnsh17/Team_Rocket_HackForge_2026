@@ -13,9 +13,9 @@
  * ---------------------------------------------------------------------------
  * WHAT THIS EXPORTS TODAY, AND WHY THE LIST IS SHORT
  *
- * The generated schema only contains types reachable from a route the backend actually
- * serves. Today that is health, metadata, the three authenticated identity endpoints and
- * the demo routes.
+ * The generated schema only contains types reachable from routes the backend actually
+ * serves. This includes draft creation, private receipt upload/batches, authorized receipt
+ * status/content and extraction-run results, plus health, metadata, identity and demo.
  *
  * The canonical claim DTOs - Expense, Money, Finding, Receipt, DuplicateCandidate,
  * ReviewDecision, the policy types - are defined and unit-tested in the backend
@@ -243,9 +243,9 @@ export async function fetchAllPages<T>(
 
 export interface ApiClientOptions {
   /**
-   * Base URL including the version prefix, for example `http://localhost:8000/api/v1`.
+   * API origin, for example `http://localhost:8000`. Generated paths include `/api/v1`.
    *
-   * The prefix is part of the base URL because every route is versioned.
+   * The versioned prefix is part of each generated OpenAPI path.
    */
   baseUrl: string;
   /** Supplies the Authorization header, or nothing in demo mode. */

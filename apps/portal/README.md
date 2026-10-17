@@ -3,10 +3,11 @@
 The employee web experience: submit a receipt, check what was read from it, follow the
 status of a claim, and see which limits apply to you.
 
-> **State: scaffold.** Routes, layout, design tokens, shared UI and the API integration
-> layer exist. **Receipt upload, extraction and claim submission are not implemented.**
-> Every page says what is missing and what it is waiting for. Checked in this commit:
-> `next build`, `tsc --noEmit`, `eslint`, and 7 tests.
+> **Receipt upload and extraction review are implemented; claim submission is not.** The
+> upload screen creates or reuses an employee-owned draft, sends up to 20 image files per
+> batch, polls persisted extraction status, displays field-level uncertainty and opens the
+> original through the authorized private-content endpoint. DeepSeek credentials never
+> reach the browser. See [`docs/receipt-extraction.md`](../../docs/receipt-extraction.md).
 
 This is a first-class employee experience, not a mobile screen copied into the internal
 console. The internal HR/Finance/Admin console is a **separate application**

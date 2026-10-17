@@ -31,6 +31,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -126,6 +127,10 @@ class ExtractionRun(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_cached_result: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Normalized, schema-validated extraction only. Raw OCR/model content is never stored.
+    structured_result: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    validation_result: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -137,4 +142,13 @@ class ExtractionRun(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
             name="finish_after_start",
         ),
         non_negative("latency_ms"),
+        CheckConstraint("attempt_count >= 0", name="attempt_count_non_negative"),
+        CheckConstraint(
+            "structured_result IS NULL OR status IN ('success', 'partial')",
+            name="structured_result_matches_status",
+        ),
+        CheckConstraint(
+            "validation_result IS NULL OR structured_result IS NOT NULL",
+            name="validation_requires_structured_result",
+        ),
     )

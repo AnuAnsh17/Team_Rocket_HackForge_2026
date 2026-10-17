@@ -30,6 +30,7 @@ from collections.abc import Iterator
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("DEMO_MODE", "true")
 os.environ.setdefault("AUTH_PROVIDER", "demo")
+os.environ.setdefault("EXTRACTION_PROVIDER", "unavailable")
 os.environ.setdefault("RECEIPT_STORAGE_BACKEND", "local")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
 os.environ.setdefault("LOG_JSON", "false")
