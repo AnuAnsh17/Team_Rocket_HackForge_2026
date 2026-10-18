@@ -139,3 +139,63 @@ class AnalyticsSpendResponse(ApiModel):
         description="Claims matching the other filters but lacking expense_date; excluded from groups.",
     )
     results: Page[AnalyticsSpendRow]
+
+
+# The canonical bucket key for a bucket whose descriptor value is null: a membership
+# with no department or office location, or an expense with no category. The bucket is
+# real and must have a stable identity, so it is keyed explicitly instead of being
+# represented by an empty string that a client would have to special-case.
+UNASSIGNED_BUCKET_KEY = "__unassigned__"
+
+
+class AnalyticsSpendMatrixRow(AnalyticsAmount):
+    """One (primary bucket, secondary bucket, currency) cell of the spend matrix.
+
+    A heatmap needs a key per axis that survives a null descriptor value, so each row
+    carries one canonical string key per requested dimension in addition to the typed
+    descriptor fields. Descriptor fields belonging to dimensions that were not requested
+    are null; a second dimension's value is never written into the wrong field.
+    """
+
+    primary_key: str = Field(
+        ...,
+        description=(
+            "Canonical key of the primary-dimension bucket: an ISO month start for month, "
+            "otherwise the bucket's identifier or value, with null descriptors keyed as "
+            f"{UNASSIGNED_BUCKET_KEY}."
+        ),
+    )
+    secondary_key: str = Field(
+        ...,
+        description=(
+            "Canonical key of the secondary-dimension bucket, on the same rules as primary_key."
+        ),
+    )
+    bucket_start: date | None = Field(
+        default=None, description="Calendar month start when month is a requested dimension."
+    )
+    department_id: uuid.UUID | None = None
+    department_name: str | None = None
+    office_location_id: uuid.UUID | None = None
+    office_location_name: str | None = None
+    category: str | None = None
+    employee_membership_id: uuid.UUID | None = Field(
+        default=None, description="Present only when employee is a requested dimension."
+    )
+    employee_display_name: str | None = None
+    status: ExpenseStatus | None = None
+
+
+class AnalyticsSpendMatrixResponse(ApiModel):
+    """A two-dimensional spend aggregation, one row per bucket pair and currency."""
+
+    from_date: date
+    to_date: date
+    primary: AnalyticsGroupBy
+    secondary: AnalyticsGroupBy
+    claims_with_unknown_transaction_date: int = Field(
+        ...,
+        ge=0,
+        description="Claims matching the other filters but lacking expense_date; excluded from groups.",
+    )
+    results: Page[AnalyticsSpendMatrixRow]

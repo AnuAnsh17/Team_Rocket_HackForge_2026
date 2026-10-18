@@ -39,6 +39,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/spend-matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read two-dimensional spend aggregation
+         * @description Groups persisted expenses within the inclusive expense_date range by two distinct dimensions and currency: one row per (primary bucket, secondary bucket, currency). It reuses the same grouping expressions and measures as GET /analytics/spend, so summing a row set over one dimension reproduces the corresponding spend row exactly. Missing transaction dates are excluded from groups and counted separately. Empty buckets are omitted rather than emitted as zero rows, and a currency is never combined with another. Employee as either dimension requires analytics:read_org.
+         */
+        get: operations["get_spend_matrix_api_v1_analytics_spend_matrix_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/demo/import/email": {
         parameters: {
             query?: never;
@@ -598,6 +618,91 @@ export interface components {
              * Format: date
              */
             to_date: string;
+        };
+        /**
+         * AnalyticsSpendMatrixResponse
+         * @description A two-dimensional spend aggregation, one row per bucket pair and currency.
+         */
+        AnalyticsSpendMatrixResponse: {
+            /**
+             * Claims With Unknown Transaction Date
+             * @description Claims matching the other filters but lacking expense_date; excluded from groups.
+             */
+            claims_with_unknown_transaction_date: number;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            primary: components["schemas"]["AnalyticsGroupBy"];
+            results: components["schemas"]["Page_AnalyticsSpendMatrixRow_"];
+            secondary: components["schemas"]["AnalyticsGroupBy"];
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+        };
+        /**
+         * AnalyticsSpendMatrixRow
+         * @description One (primary bucket, secondary bucket, currency) cell of the spend matrix.
+         *
+         *     A heatmap needs a key per axis that survives a null descriptor value, so each row
+         *     carries one canonical string key per requested dimension in addition to the typed
+         *     descriptor fields. Descriptor fields belonging to dimensions that were not requested
+         *     are null; a second dimension's value is never written into the wrong field.
+         */
+        AnalyticsSpendMatrixRow: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /**
+             * Bucket Start
+             * @description Calendar month start when month is a requested dimension.
+             */
+            bucket_start?: string | null;
+            /** Category */
+            category?: string | null;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Department Id */
+            department_id?: string | null;
+            /** Department Name */
+            department_name?: string | null;
+            /** Employee Display Name */
+            employee_display_name?: string | null;
+            /**
+             * Employee Membership Id
+             * @description Present only when employee is a requested dimension.
+             */
+            employee_membership_id?: string | null;
+            /** Office Location Id */
+            office_location_id?: string | null;
+            /** Office Location Name */
+            office_location_name?: string | null;
+            /**
+             * Primary Key
+             * @description Canonical key of the primary-dimension bucket: an ISO month start for month, otherwise the bucket's identifier or value, with null descriptors keyed as __unassigned__.
+             */
+            primary_key: string;
+            /**
+             * Secondary Key
+             * @description Canonical key of the secondary-dimension bucket, on the same rules as primary_key.
+             */
+            secondary_key: string;
+            status?: components["schemas"]["ExpenseStatus"] | null;
         };
         /** AnalyticsSpendResponse */
         AnalyticsSpendResponse: {
@@ -1494,6 +1599,12 @@ export interface components {
              */
             total?: number | null;
         };
+        /** Page[AnalyticsSpendMatrixRow] */
+        Page_AnalyticsSpendMatrixRow_: {
+            /** Items */
+            items: components["schemas"]["AnalyticsSpendMatrixRow"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[AnalyticsSpendRow] */
         Page_AnalyticsSpendRow_: {
             /** Items */
@@ -2071,6 +2182,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnalyticsSpendResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_spend_matrix_api_v1_analytics_spend_matrix_get: {
+        parameters: {
+            query: {
+                /** @description Primary aggregation dimension (heatmap rows). */
+                primary: components["schemas"]["AnalyticsGroupBy"];
+                /** @description Secondary aggregation dimension (heatmap columns); must differ from primary. */
+                secondary: components["schemas"]["AnalyticsGroupBy"];
+                /** @description Inclusive lower transaction-date boundary (YYYY-MM-DD). */
+                from: string;
+                /** @description Inclusive upper transaction-date boundary (YYYY-MM-DD). */
+                to: string;
+                department_id?: string | null;
+                office_location_id?: string | null;
+                /** @description Organization membership UUID; requires analytics:read_org. */
+                employee_membership_id?: string | null;
+                category?: string | null;
+                currency?: string | null;
+                status?: components["schemas"]["ExpenseStatus"] | null;
+                /** @description Maximum number of items to return. */
+                limit?: number;
+                /** @description Opaque cursor from the previous page's page.next_cursor. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsSpendMatrixResponse"];
                 };
             };
             /** @description Validation Error */

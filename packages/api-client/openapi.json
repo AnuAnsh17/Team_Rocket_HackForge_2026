@@ -400,6 +400,216 @@
         "title": "AnalyticsOverviewResponse",
         "type": "object"
       },
+      "AnalyticsSpendMatrixResponse": {
+        "additionalProperties": false,
+        "description": "A two-dimensional spend aggregation, one row per bucket pair and currency.",
+        "properties": {
+          "claims_with_unknown_transaction_date": {
+            "description": "Claims matching the other filters but lacking expense_date; excluded from groups.",
+            "minimum": 0.0,
+            "title": "Claims With Unknown Transaction Date",
+            "type": "integer"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "primary": {
+            "$ref": "#/components/schemas/AnalyticsGroupBy"
+          },
+          "results": {
+            "$ref": "#/components/schemas/Page_AnalyticsSpendMatrixRow_"
+          },
+          "secondary": {
+            "$ref": "#/components/schemas/AnalyticsGroupBy"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_date",
+          "to_date",
+          "primary",
+          "secondary",
+          "claims_with_unknown_transaction_date",
+          "results"
+        ],
+        "title": "AnalyticsSpendMatrixResponse",
+        "type": "object"
+      },
+      "AnalyticsSpendMatrixRow": {
+        "additionalProperties": false,
+        "description": "One (primary bucket, secondary bucket, currency) cell of the spend matrix.\n\nA heatmap needs a key per axis that survives a null descriptor value, so each row\ncarries one canonical string key per requested dimension in addition to the typed\ndescriptor fields. Descriptor fields belonging to dimensions that were not requested\nare null; a second dimension's value is never written into the wrong field.",
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "bucket_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Calendar month start when month is a requested dimension.",
+            "title": "Bucket Start"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Id"
+          },
+          "department_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Name"
+          },
+          "employee_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Display Name"
+          },
+          "employee_membership_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present only when employee is a requested dimension.",
+            "title": "Employee Membership Id"
+          },
+          "office_location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Location Id"
+          },
+          "office_location_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Location Name"
+          },
+          "primary_key": {
+            "description": "Canonical key of the primary-dimension bucket: an ISO month start for month, otherwise the bucket's identifier or value, with null descriptors keyed as __unassigned__.",
+            "title": "Primary Key",
+            "type": "string"
+          },
+          "secondary_key": {
+            "description": "Canonical key of the secondary-dimension bucket, on the same rules as primary_key.",
+            "title": "Secondary Key",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExpenseStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count",
+          "primary_key",
+          "secondary_key"
+        ],
+        "title": "AnalyticsSpendMatrixRow",
+        "type": "object"
+      },
       "AnalyticsSpendResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2799,6 +3009,27 @@
         "title": "PageInfo",
         "type": "object"
       },
+      "Page_AnalyticsSpendMatrixRow_": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsSpendMatrixRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "title": "Page[AnalyticsSpendMatrixRow]",
+        "type": "object"
+      },
       "Page_AnalyticsSpendRow_": {
         "additionalProperties": false,
         "properties": {
@@ -4497,6 +4728,222 @@
           }
         },
         "summary": "Read filtered spend aggregation",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/v1/analytics/spend-matrix": {
+      "get": {
+        "description": "Groups persisted expenses within the inclusive expense_date range by two distinct dimensions and currency: one row per (primary bucket, secondary bucket, currency). It reuses the same grouping expressions and measures as GET /analytics/spend, so summing a row set over one dimension reproduces the corresponding spend row exactly. Missing transaction dates are excluded from groups and counted separately. Empty buckets are omitted rather than emitted as zero rows, and a currency is never combined with another. Employee as either dimension requires analytics:read_org.",
+        "operationId": "get_spend_matrix_api_v1_analytics_spend_matrix_get",
+        "parameters": [
+          {
+            "description": "Primary aggregation dimension (heatmap rows).",
+            "in": "query",
+            "name": "primary",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AnalyticsGroupBy",
+              "description": "Primary aggregation dimension (heatmap rows)."
+            }
+          },
+          {
+            "description": "Secondary aggregation dimension (heatmap columns); must differ from primary.",
+            "in": "query",
+            "name": "secondary",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AnalyticsGroupBy",
+              "description": "Secondary aggregation dimension (heatmap columns); must differ from primary."
+            }
+          },
+          {
+            "description": "Inclusive lower transaction-date boundary (YYYY-MM-DD).",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "Inclusive lower transaction-date boundary (YYYY-MM-DD).",
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive upper transaction-date boundary (YYYY-MM-DD).",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "Inclusive upper transaction-date boundary (YYYY-MM-DD).",
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "office_location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Office Location Id"
+            }
+          },
+          {
+            "description": "Organization membership UUID; requires analytics:read_org.",
+            "in": "query",
+            "name": "employee_membership_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Organization membership UUID; requires analytics:read_org.",
+              "title": "Employee Membership Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 3,
+                  "minLength": 3,
+                  "pattern": "^[A-Z]{3}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "Maximum number of items to return.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of items to return.",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from the previous page's page.next_cursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque cursor from the previous page's page.next_cursor.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsSpendMatrixResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read two-dimensional spend aggregation",
         "tags": [
           "analytics"
         ]

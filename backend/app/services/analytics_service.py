@@ -24,12 +24,15 @@ from app.models.expense import Expense, ExpenseFieldEvidence
 from app.models.identity import OrganizationMembership, User
 from app.models.organization import Department, OfficeLocation
 from app.schemas.analytics import (
+    UNASSIGNED_BUCKET_KEY,
     AnalyticsCategoryAmount,
     AnalyticsDepartmentAmount,
     AnalyticsGroupBy,
     AnalyticsLocationAmount,
     AnalyticsMonthlyAmount,
     AnalyticsOverviewResponse,
+    AnalyticsSpendMatrixResponse,
+    AnalyticsSpendMatrixRow,
     AnalyticsSpendResponse,
     AnalyticsSpendRow,
     AnalyticsStatusAmount,
@@ -432,6 +435,119 @@ def spend(
         from_date=filters.from_date,
         to_date=filters.to_date,
         group_by=group_by,
+        claims_with_unknown_transaction_date=unknown_date_count,
+        results=build_page(results, pagination, total_groups),
+    )
+
+
+# The result column, per dimension, that carries the bucket's identity. These labels
+# are produced by _spend_dimensions, so the key is derived from the very expression
+# the group was built from rather than re-read from the descriptor.
+_BUCKET_KEY_FIELDS: dict[AnalyticsGroupBy, str] = {
+    AnalyticsGroupBy.MONTH: "bucket_start",
+    AnalyticsGroupBy.DEPARTMENT: "department_id",
+    AnalyticsGroupBy.LOCATION: "office_location_id",
+    AnalyticsGroupBy.CATEGORY: "category",
+    AnalyticsGroupBy.EMPLOYEE: "employee_membership_id",
+    AnalyticsGroupBy.STATUS: "status",
+}
+
+
+def _bucket_key(group_by: AnalyticsGroupBy, row: dict[str, Any]) -> str:
+    """Canonical, always-present string key for one dimension's bucket.
+
+    A month is keyed by its ISO start date. Every other dimension is keyed by its
+    identifier or value, so a rename cannot silently merge two buckets. A null
+    descriptor keeps a stable identity instead of collapsing to an empty string.
+    """
+    value = row[_BUCKET_KEY_FIELDS[group_by]]
+    if value is None:
+        return UNASSIGNED_BUCKET_KEY
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
+
+
+def spend_matrix(
+    session: Session,
+    organization_id: uuid.UUID,
+    filters: AnalyticsFilters,
+    primary: AnalyticsGroupBy,
+    secondary: AnalyticsGroupBy,
+    pagination: Pagination,
+) -> AnalyticsSpendMatrixResponse:
+    """Two-dimensional spend grouped by (primary bucket, secondary bucket, currency).
+
+    The measures, the currency partitioning, the inclusive date range, the undated
+    count and the ordering all come from the same helpers ``spend`` uses - the same
+    ``_spend_dimensions`` group expressions, ``_amount_columns`` and ``_conditions`` -
+    so a matrix cell can only ever be a re-partition of the single-dimension totals,
+    never an independently computed number. Grouping by both dimensions and currency
+    and summing the result over one dimension reproduces the ``spend`` row exactly.
+    """
+    if primary == secondary:
+        raise ValidationFailed(
+            "The primary and secondary dimensions must differ.",
+            details=[{"field": "secondary"}],
+        )
+    _validate_filters(session, organization_id, filters)
+    primary_select, primary_group, primary_join = _spend_dimensions(primary, organization_id)
+    secondary_select, secondary_group, secondary_join = _spend_dimensions(
+        secondary, organization_id
+    )
+    claim_count, amount_claim_count, amount_total = _amount_columns()
+    statement = _expense_statement(
+        *primary_select,
+        *secondary_select,
+        Expense.currency.label("currency"),
+        claim_count,
+        amount_claim_count,
+        amount_total,
+    )
+    for extra_join in (primary_join, secondary_join):
+        if extra_join is not None:
+            model, condition = extra_join
+            statement = statement.outerjoin(model, condition)
+    grouped = [*primary_group, *secondary_group, Expense.currency]
+    # Only dated claims are grouped, exactly as in spend: an undated claim is unknown,
+    # never a zero bucket in some month.
+    statement = statement.where(
+        *_conditions(organization_id, filters, include_date_range=True)
+    ).group_by(*grouped)
+    # Chronological for a month dimension because date_trunc casts to a date; otherwise
+    # by the dimension's own key. Deterministic ordering is what makes the opaque cursor
+    # meaningful, and it matches spend's sort of the same expressions.
+    sort_columns = [column.asc().nullsfirst() for column in primary_group]
+    sort_columns.extend(column.asc().nullsfirst() for column in secondary_group)
+    sort_columns.append(Expense.currency.asc().nullsfirst())
+    total_groups = session.execute(
+        select(func.count()).select_from(statement.subquery())
+    ).scalar_one()
+    rows = session.execute(
+        statement.order_by(*sort_columns).offset(pagination.offset).limit(pagination.limit)
+    ).mappings()
+    results: list[AnalyticsSpendMatrixRow] = []
+    for row in rows:
+        values = dict(row)
+        results.append(
+            AnalyticsSpendMatrixRow(
+                primary_key=_bucket_key(primary, values),
+                secondary_key=_bucket_key(secondary, values),
+                **values,
+            )
+        )
+
+    unknown_date_count = session.execute(
+        _expense_statement(func.count(Expense.id)).where(
+            *_conditions(organization_id, filters, include_date_range=False),
+            Expense.expense_date.is_(None),
+        )
+    ).scalar_one()
+    return AnalyticsSpendMatrixResponse(
+        from_date=filters.from_date,
+        to_date=filters.to_date,
+        primary=primary,
+        secondary=secondary,
         claims_with_unknown_transaction_date=unknown_date_count,
         results=build_page(results, pagination, total_groups),
     )

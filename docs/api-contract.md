@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.6.0-analytics
+**Contract version:** 1.7.0-analytics
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -29,6 +29,7 @@ unimplemented route works.
 | 1.2.0 -> 1.3.0 | DeepSeek structured extraction contract, bounded persisted worker, batches, retry and authorized result listing | Each upload is its own job. Provider output is schema-validated, then deterministically checked; original receipt and run history remain traceable. |
 | 1.4.0 -> 1.5.0 | Read-only policy pre-flight (`POST /api/v1/policy/check`) | The route was deferred on "an approved policy document". It writes nothing - no claim, finding, status transition or audit event - so nothing about it depends on the claim lifecycle, and the local demo now supplies a plainly fictional policy to evaluate against. The narrow read routes (`GET /policy/versions/current`, `GET /policy/rules`) and finding persistence stay deferred: they would expose policy structure or store results, which needs its own scoping decision. |
 | 1.5.0 -> 1.6.0 | Organization-scoped overview and spend analytics | Queries aggregate persisted claims by inclusive transaction-date range and currency; workflow approval is not policy approval or payment. Renumbered from 1.4.0 -> 1.5.0: the policy pre-flight took 1.5.0 first, and both changes are in the base this branch now sits on. |
+| 1.6.0 -> 1.7.0 | Two-dimensional spend matrix (`GET /api/v1/analytics/spend-matrix`) | A heatmap needs a genuine two-dimensional aggregation. Deriving one client-side from single-dimension rows, or inventing risk or compliance values to fill the cells, would let a client display numbers the backend never computed. The route groups by two dimensions and currency using the same group expressions and measures as `GET /api/v1/analytics/spend`, so a cell is a re-partition of the single-dimension totals rather than a second definition of spend. It adds no table and no migration: it is a read-only aggregation over the existing schema. |
 
 ---
 
@@ -409,6 +410,7 @@ Status values:
 | `GET /api/v1/me/audit` | Audit events attributed to the caller. |
 | `GET /api/v1/analytics/overview` | Database-backed status, amount, completeness, department, location, category and monthly aggregates for a required inclusive `from`/`to` transaction-date range. Requires analytics and organization-scoped expense-read permissions. |
 | `GET /api/v1/analytics/spend` | Paginated exact spend groups for a required `from`/`to` range. Supports `group_by=month|department|location|category|employee|status` plus department, location, employee-membership, category, currency and status filters. Employee grouping/filtering requires `analytics:read_org`. |
+| `GET /api/v1/analytics/spend-matrix` | Paginated two-dimensional spend for a required `from`/`to` range and two distinct `primary`/`secondary` dimensions from the same set as `group_by`. One row per `(primary bucket, secondary bucket, currency)`, built from the same group expressions and measures as `GET /api/v1/analytics/spend`, so summing a row set over one dimension per currency reproduces the corresponding single-dimension row exactly. Empty buckets are omitted; claims with no transaction date are excluded and counted separately; employee as either dimension requires `analytics:read_org`; equal dimensions are refused. |
 | `POST /api/v1/policy/check` | Advisory, read-only policy pre-flight. Accepts an authorized `expense_id` or an inline preview evaluated against the caller's own organization and membership. Writes nothing: no claim, finding, status transition or audit event. Returns `resolved=false` with `UNKNOWN` findings when no policy resolves, so a missing policy can never look like a successful check. |
 | `POST /api/v1/demo/seed` | Load the deterministic synthetic dataset. Demo mode only. |
 | `POST /api/v1/demo/reset` | Remove only the synthetic dataset. Demo mode only. |
@@ -449,6 +451,22 @@ which is the trust boundary this design refuses.
 - `group_by=employee` and `employee_membership_id` filtering require
   `analytics:read_org`. Paginated spend rows contain one grouping key and one currency.
   Group results are ordered consistently before applying the standard opaque cursor.
+- `GET /api/v1/analytics/spend-matrix` requires two distinct `primary` and `secondary`
+  dimensions drawn from the same set as `group_by`, and groups by `(primary bucket,
+  secondary bucket, currency)` with one row per combination. It builds its groups from
+  the same expressions and the same measures as `GET /api/v1/analytics/spend`, so
+  summing the matrix over either dimension, per currency, reproduces the corresponding
+  single-dimension row exactly - including `amount_total` as an exact decimal string.
+  Each row carries a canonical `primary_key`/`secondary_key` for its two buckets, so a
+  cell is identifiable even when its descriptor is null: a missing department, office
+  location or category is keyed `__unassigned__`. Descriptor fields for dimensions that
+  were not requested are null; a second dimension's value is never written into the
+  wrong field. Ordering is chronological when `month` is one of the dimensions and
+  otherwise by bucket key, then by the second dimension, then by currency, before the
+  same opaque cursor is applied. Empty buckets are omitted, and a canonical enum value
+  no claim holds is not emitted as a zero row. Employee as either dimension, like
+  `employee_membership_id`, requires `analytics:read_org`. A request whose two
+  dimensions are equal is refused rather than answered with a degenerate matrix.
 
 ### 5.2 Definitions written, routes deferred
 
