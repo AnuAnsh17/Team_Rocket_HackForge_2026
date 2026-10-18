@@ -79,10 +79,10 @@ fails if any route claims to be implemented while it is not.
 
 ## Why the overview shows no numbers
 
-Every KPI must come from backend data, and `GET /api/v1/analytics/overview` is not
-implemented. A hard-coded figure would be indistinguishable from a real one on screen, so
-the page renders dashes and says so. `Metric` requires an explicit `basis` prop for the
-same reason: a count without a stated basis is a claim.
+Every KPI must come from backend data. `GET /api/v1/analytics/overview` is now implemented,
+but the overview page does not consume it in this milestone. The page continues to render
+dashes until its separate UI integration is completed. `Metric` requires an explicit
+`basis` prop for the same reason: a count without a stated basis is a claim.
 
 ## Architecture
 

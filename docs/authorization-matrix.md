@@ -69,6 +69,16 @@ and reviewer decisions use optimistic versions, idempotency keys and an audit ev
 in the same database transaction. Reviewer actions are workflow decisions and do not
 turn unresolved policy into a `PASS`.
 
+Analytics routes require both `expense:read_org_scoped` and either
+`analytics:read` or `analytics:read_org`, and always bind queries to the actor's
+active organization. `analytics:read` permits organization aggregate metrics only;
+`analytics:read_org` additionally permits employee-level grouping/filtering. Under
+the current role map, finance reviewers receive aggregates, and finance admins and
+auditors receive employee-level drilldown. Managers, HR reviewers, organization
+administrators, policy administrators and employees have no analytics grant and are
+denied even when another permission lets them read a narrower expense scope. This
+analytics milestone does not widen role assignments.
+
 A record the caller may not see raises the **same** error a missing record raises, so
 claim existence is not disclosed to an unauthorized caller.
 

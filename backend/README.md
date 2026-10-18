@@ -76,6 +76,8 @@ workers would each load a separate model into GPU memory.
 | `POST /api/v1/expenses/{id}/receipts` | Upload and OCR a receipt synchronously |
 | `GET /api/v1/receipts/{id}` | Read authorized receipt and extraction status |
 | `GET /api/v1/receipts/{id}/content` | Retrieve private content after authorization |
+| `GET /api/v1/analytics/overview` | Organization-scoped transaction-date dashboard aggregates |
+| `GET /api/v1/analytics/spend` | Paginated spend grouped by month, department, location, category, employee or status |
 | `POST /api/v1/demo/seed`, `POST /api/v1/demo/reset` | Seed/reset the synthetic lifecycle dataset in demo mode |
 
 ## Authentication in development
@@ -92,6 +94,13 @@ Demo mode is refused when `APP_ENV` is `staging` or `production`; the process wi
 start with that combination. Production authentication is deliberately unimplemented and
 refuses every request rather than accepting an unverified token - see
 `docs/authentication-security.md`.
+
+Analytics requires both `expense:read_org_scoped` and an analytics permission.
+Finance reviewers receive aggregate views; `analytics:read_org` also enables
+employee-level drilldown for finance administrators and auditors. Employee grouping
+and filtering is not available to other roles. See `docs/api-contract.md` for date,
+currency and missing-data semantics. The internal console overview remains a
+placeholder and does not consume these endpoints yet.
 
 ## Tests and checks
 
