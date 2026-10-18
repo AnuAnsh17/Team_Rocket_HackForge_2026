@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.4.0-claim-lifecycle
+**Contract version:** 1.5.0-policy-preflight
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -27,6 +27,7 @@ unimplemented route works.
 | 1.1 -> 1.1.1 | A policy-assignment scope carries exactly one of `scope_id` (UUID) or `scope_key` (text), decided by the dimension | Three of the ten dimensions are not UUID-valued (legal entity, jurisdiction, expense category), and a single UUID column could not express them, so assignments scoped to those dimensions never matched. Uniqueness is now over the effective selector. No route is affected today: the policy routes are declared unimplemented. |
 | 1.1.1 -> 1.2.0 | Minimal employee-owned draft creation, private receipt upload/content retrieval and IndicOCR status tracking | Reuses the existing auth, storage, receipt and extraction-run schema. OCR text is not persisted pending a retention decision. |
 | 1.2.0 -> 1.3.0 | DeepSeek structured extraction contract, bounded persisted worker, batches, retry and authorized result listing | Each upload is its own job. Provider output is schema-validated, then deterministically checked; original receipt and run history remain traceable. |
+| 1.4.0 -> 1.5.0 | Read-only policy pre-flight (`POST /api/v1/policy/check`) | The route was deferred on "an approved policy document". It writes nothing - no claim, finding, status transition or audit event - so nothing about it depends on the claim lifecycle, and the local demo now supplies a plainly fictional policy to evaluate against. The narrow read routes (`GET /policy/versions/current`, `GET /policy/rules`) and finding persistence stay deferred: they would expose policy structure or store results, which needs its own scoping decision. |
 
 ---
 
@@ -405,6 +406,7 @@ Status values:
 | `GET /api/v1/me` | The caller's own organization membership. |
 | `GET /api/v1/me/roles` | The caller's own non-revoked role grants with their scope. |
 | `GET /api/v1/me/audit` | Audit events attributed to the caller. |
+| `POST /api/v1/policy/check` | Advisory, read-only policy pre-flight. Accepts an authorized `expense_id` or an inline preview evaluated against the caller's own organization and membership. Writes nothing: no claim, finding, status transition or audit event. Returns `resolved=false` with `UNKNOWN` findings when no policy resolves, so a missing policy can never look like a successful check. |
 | `POST /api/v1/demo/seed` | Load the deterministic synthetic dataset. Demo mode only. |
 | `POST /api/v1/demo/reset` | Remove only the synthetic dataset. Demo mode only. |
 | `POST /api/v1/demo/import/email` | Present but answers `501`: no email integration exists. |
@@ -418,12 +420,23 @@ which is the trust boundary this design refuses.
 The following request and response models exist or are expected as later
 capabilities, but their routes are not wired up. They remain deferred work.
 
+`POST /api/v1/policy/check` has moved out of this table. Its blocker was "an
+approved policy document", and the local demo now supplies one - a plainly
+labelled fictional policy seeded only under the demo flags. The endpoint itself
+was never blocked on anything else: it reads, evaluates and returns, and writes
+nothing, so it can be exposed without the claim lifecycle reaching it first.
+
+The narrower read routes (`GET /policy/versions/current`, `GET /policy/rules`)
+stay deferred. They would publish policy structure to a client independently of
+any claim, which needs its own scoping decision rather than being swept in with
+the pre-flight. **Finding persistence stays deferred too**: the pre-flight
+returns findings without storing them, and nothing yet writes a finding row.
+
 | Route | Blocked on |
 |---|---|
 | `GET /api/v1/policy/versions/current` | An approved policy document. |
 | `GET /api/v1/policy/rules` | An approved policy document. |
 | `GET /api/v1/policy/rules/{rule_id}` | An approved policy document. |
-| `POST /api/v1/policy/check` | An approved policy document. |
 | `GET /api/v1/findings` | Rule evaluation producing findings. |
 | `GET /api/v1/findings/{finding_id}` | Rule evaluation. |
 | `POST /api/v1/findings/{finding_id}/resolve` | Rule evaluation. |
@@ -455,6 +468,14 @@ later:
 - Workflow status records the employee/reviewer process only. It is independent of
   policy findings: policy evaluation remains unavailable until an authoritative
   policy is supplied, and a human approval must never be represented as a policy PASS.
+- `POST /api/v1/policy/check` is the one policy route that does not depend on an
+  authoritative document, because it stores its result nowhere. It is advisory by
+  construction, and the response says so: an inline preview is evaluated against the
+  caller's own organization and membership, and an `expense_id` is subject to exactly
+  the authorization a read of that claim would face.
+- The pre-flight request model forbids extra fields. Identity, role, permission and
+  policy-version fields are rejected with a `422` rather than ignored, because a
+  silently dropped authority-bearing field is a worse contract than a refusal.
 - A correction request stores its requested information in the decision reason. The
   employee's next PATCH appends field evidence at a new claim version; it does not
   rewrite the prior evidence or decision.

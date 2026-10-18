@@ -2132,6 +2132,281 @@
         "title": "PageInfo",
         "type": "object"
       },
+      "PolicyCheckRequest": {
+        "additionalProperties": false,
+        "description": "Advisory pre-flight input. Writes nothing.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "attendee_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attendee Count"
+          },
+          "business_purpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Purpose"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "expense_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Date"
+          },
+          "expense_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional existing draft to check. When null, the inline fields below are used.",
+            "title": "Expense Id"
+          },
+          "trip_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Id"
+          }
+        },
+        "title": "PolicyCheckRequest",
+        "type": "object"
+      },
+      "PolicyCheckResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "advisory": {
+            "default": true,
+            "description": "Always true. A pre-flight result is guidance only: aggregate state and reviewer decisions can change after submission, and reimbursement is never promised here.",
+            "title": "Advisory",
+            "type": "boolean"
+          },
+          "advisory_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "States plainly that the result is advisory and that a human decides. Present so a client cannot render a demo-policy answer as a company decision.",
+            "title": "Advisory Note"
+          },
+          "findings": {
+            "description": "Same finding schema as a persisted finding, but not written to the database.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyVersionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolved": {
+            "title": "Resolved",
+            "type": "boolean"
+          },
+          "unresolved_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved Reasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "resolved"
+        ],
+        "title": "PolicyCheckResponse",
+        "type": "object"
+      },
+      "PolicyReviewState": {
+        "description": "Editorial/review state of policy artefacts. Only APPROVED governs.",
+        "enum": [
+          "draft",
+          "proposed",
+          "approved",
+          "superseded",
+          "retired"
+        ],
+        "title": "PolicyReviewState",
+        "type": "string"
+      },
+      "PolicyVersionSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "active_rule_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Active Rule Count",
+            "type": "integer"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "document_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Sha256"
+          },
+          "document_title": {
+            "title": "Document Title",
+            "type": "string"
+          },
+          "effective_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          },
+          "effective_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "review_state": {
+            "$ref": "#/components/schemas/PolicyReviewState"
+          },
+          "rule_count": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Rule Count",
+            "type": "integer"
+          },
+          "version_label": {
+            "title": "Version Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version_label",
+          "document_title",
+          "review_state"
+        ],
+        "title": "PolicyVersionSummary",
+        "type": "object"
+      },
       "ReceiptExtractionData": {
         "additionalProperties": false,
         "description": "Persisted/public extraction data with server-owned version metadata.",
@@ -3972,6 +4247,48 @@
         "summary": "Canonical enum catalogue",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/api/v1/policy/check": {
+      "post": {
+        "description": "Evaluate a draft claim or an inline preview against the governing policy. Advisory only: nothing is persisted, no status changes and no finding is recorded. An expense_id is subject to the same authorization as reading that claim; an inline preview is evaluated against the caller's own organization and membership.",
+        "operationId": "policy_check_api_v1_policy_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Advisory policy pre-flight",
+        "tags": [
+          "policy"
         ]
       }
     },

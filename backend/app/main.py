@@ -26,6 +26,7 @@ from app.core.middleware import RequestContextMiddleware
 from app.db.session import dispose_engine, get_session_factory
 from app.extraction.factory import build_receipt_extractor
 from app.extraction.worker import ExtractionJobWorker
+from app.services.meta_service import UNIMPLEMENTED_CAPABILITIES
 from app.storage.factory import build_receipt_storage
 
 logger = get_logger("proofline.app")
@@ -62,11 +63,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.warning(
         "unimplemented capabilities",
         extra={
-            "capabilities": [
-                "policy rules (registry holds zero rules)",
-                "approval task workflow and review queue configuration",
-                "production authentication",
-            ],
+            # Derived from the same tuple /api/v1/meta serves, so there is one list.
+            # A second hand-written copy is how this log came to announce "policy rules
+            # (registry holds zero rules)" long after the policy pre-flight existed and
+            # rules were no longer the missing piece - an approved policy document was.
+            # The list already told callers to consult /api/v1/meta as authoritative;
+            # now it cannot disagree with it.
+            "capabilities": list(UNIMPLEMENTED_CAPABILITIES),
             "detail": "See GET /api/v1/meta for the authoritative list.",
         },
     )

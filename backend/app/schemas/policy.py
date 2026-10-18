@@ -166,3 +166,10 @@ class PolicyCheckResponse(ApiModel):
         default_factory=list,
         description="Same finding schema as a persisted finding, but not written to the database.",
     )
+    advisory_note: str | None = Field(
+        default=None,
+        description=(
+            "States plainly that the result is advisory and that a human decides. Present so "
+            "a client cannot render a demo-policy answer as a company decision."
+        ),
+    )
