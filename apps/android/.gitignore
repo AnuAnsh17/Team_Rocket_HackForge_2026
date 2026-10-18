@@ -1,0 +1,18 @@
+# Local Gradle build caches and machine-specific configuration.
+# The repository-level .gitignore also ignores these paths; this file keeps the
+# Android module self-contained for anyone who builds it directly.
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties

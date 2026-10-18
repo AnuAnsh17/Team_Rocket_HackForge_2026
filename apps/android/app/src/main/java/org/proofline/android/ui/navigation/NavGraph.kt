@@ -21,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import org.proofline.android.core.network.NetworkConfig
 import org.proofline.android.data.repository.TravelDayRepository
 import org.proofline.android.ui.screens.*
 import org.proofline.android.ui.viewmodel.ProoflineViewModel
@@ -38,13 +39,28 @@ sealed class Screen(val route: String, val title: String) {
     }
 }
 
+/**
+ * The signed-in application: bottom navigation, claim list, detail, capture and
+ * profile.
+ *
+ * Everything here is reached only through the authenticated branch of
+ * [ProoflineNavGraph]. Data loads on entry rather than in the ViewModel
+ * constructor, so a signed-out device makes no backend call at all.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
+fun AppScaffold(
+    viewModel: ProoflineViewModel,
+    travelRepo: TravelDayRepository,
+    onSignOut: () -> Unit
+) {
     val navController = rememberNavController()
     val state by viewModel.uiState.collectAsState()
+    val detailState by viewModel.detailState.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    LaunchedEffect(Unit) { viewModel.loadData() }
 
     val bottomNavItems = listOf(
         Screen.Home,
@@ -55,13 +71,14 @@ fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
 
     Scaffold(
         topBar = {
-            if (state.useSampleData) {
+            if (NetworkConfig.demoHeaderEnabled) {
                 Surface(
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "SAMPLE DATA — NOT FROM BACKEND",
+                        text = "DEBUG BUILD — demo actor fallback enabled. X-Demo-Actor-Id is sent only " +
+                            "when there is no Supabase session, and an AUTH_PROVIDER=supabase backend ignores it.",
                         modifier = Modifier.padding(8.dp),
                         color = MaterialTheme.colorScheme.onError,
                         style = MaterialTheme.typography.labelMedium,
@@ -166,7 +183,7 @@ fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
                     onRefresh = { viewModel.loadData() },
                     onSeedDemo = { viewModel.seedDemoDataset() },
                     onSelectDemoActor = { uuid -> viewModel.setDemoActor(uuid) },
-                    onToggleSampleData = { enabled -> viewModel.toggleSampleData(enabled) }
+                    onSignOut = onSignOut
                 )
             }
             composable(
@@ -176,6 +193,8 @@ fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
                 val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
                 ExpenseDetailScreen(
                     expenseId = expenseId,
+                    state = detailState,
+                    onLoad = { viewModel.loadExpense(it) },
                     onBack = { navController.popBackStack() }
                 )
             }

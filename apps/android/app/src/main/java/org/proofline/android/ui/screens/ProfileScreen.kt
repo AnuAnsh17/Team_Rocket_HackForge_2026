@@ -10,9 +10,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.proofline.android.core.network.NetworkConfig
 import org.proofline.android.data.model.DemoActors
 import org.proofline.android.ui.viewmodel.ProoflineUiState
 
+/**
+ * Profile, session and (debug only) demo controls.
+ *
+ * What was removed here and why: a "use sample data" toggle that swapped the real
+ * backend response for a hard-coded fixture list. A fabricated claim rendered in
+ * the same card as a real one cannot be told apart by the person reading it, so
+ * the whole surface is gone rather than merely labelled.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -20,7 +29,7 @@ fun ProfileScreen(
     onRefresh: () -> Unit,
     onSeedDemo: () -> Unit,
     onSelectDemoActor: (String) -> Unit,
-    onToggleSampleData: (Boolean) -> Unit
+    onSignOut: () -> Unit
 ) {
     val displayName = state.membership?.user?.display_name ?: "Unavailable"
     val initials = displayName.split(" ")
@@ -147,7 +156,7 @@ fun ProfileScreen(
             }
         }
 
-        // 3. Session & Demo Actor Picker Card
+        // 3. Session Card. Sign-out is real: revoke server-side, clear locally.
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -158,115 +167,131 @@ fun ProfileScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Session & Demo Identity",
+                    text = "Session",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 HorizontalDivider()
-
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
-                ) {
-                    OutlinedTextField(
-                        value = DemoActors.all.find { it.uuid == state.membership?.user?.id }?.name ?: "Select Demo Actor",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Active Demo Actor") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        DemoActors.all.forEach { actor ->
-                            DropdownMenuItem(
-                                text = { Text("${actor.name} (${actor.uuid.take(8)}...)") },
-                                onClick = {
-                                    expanded = false
-                                    onSelectDemoActor(actor.uuid)
-                                }
-                            )
-                        }
-                    }
-                }
-
                 Text(
-                    text = "Switching identity resets the view to that employee's claims.",
+                    text = "Signed in with Supabase Auth. Requests carry " +
+                        "Authorization: Bearer <access token>, renewed automatically before it expires.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
                 Button(
                     onClick = onRefresh,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Refresh Identity")
                 }
+                OutlinedButton(
+                    onClick = onSignOut,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Sign out")
+                }
             }
         }
 
-        // 4. Sample Data Toggle Card (Step 3 & 4)
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        // 4. Debug-only demo actor fallback. Absent in release builds.
+        if (NetworkConfig.demoHeaderEnabled) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Text(
-                        text = "Use sample data (backend offline)",
+                        text = "DEBUG ONLY — Demo Actor Fallback",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Toggle to use local fallback sample expenses.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Sent as X-Demo-Actor-Id when there is no Supabase session. " +
+                            "A backend running AUTH_PROVIDER=supabase ignores this header entirely.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded }
+                    ) {
+                        OutlinedTextField(
+                            // Read from the configured header value, not from the
+                            // backend's /me response: this card describes what this
+                            // debug client will *send*, which is not the same thing
+                            // when a real Supabase session is in use.
+                            value = DemoActors.all.find { it.uuid == NetworkConfig.demoActorId }?.name
+                                ?: "Select Demo Actor",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Active Demo Actor") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            DemoActors.all.forEach { actor ->
+                                DropdownMenuItem(
+                                    text = { Text("${actor.name} (${actor.uuid.take(8)}...)") },
+                                    onClick = {
+                                        expanded = false
+                                        onSelectDemoActor(actor.uuid)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "Switching identity resets the view to that employee's claims.",
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
-                Switch(
-                    checked = state.useSampleData,
-                    onCheckedChange = { onToggleSampleData(it) }
-                )
             }
-        }
 
-        // 5. Danger Zone (Demo only)
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // 5. Debug-only demo seed. A real backend call (POST /demo/seed), not
+            //    client-side fabricated data.
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "Danger Zone (Demo)",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Load or reset synthetic data on the backend.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-                Button(
-                    onClick = onSeedDemo,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Load Demo Data (Seed Backend)")
+                    Text(
+                        text = "DEBUG ONLY — Demo Data",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Asks the backend to load or reset its synthetic dataset. " +
+                            "Requires DEMO_MODE and the demo router to be enabled server-side.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Button(
+                        onClick = onSeedDemo,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Load Demo Data (Seed Backend)")
+                    }
                 }
             }
         }
