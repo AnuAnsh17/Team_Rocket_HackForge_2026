@@ -733,73 +733,143 @@ def _ensure_draft_policy(session: Session, organization_id: uuid.UUID) -> Policy
     return version
 
 
+DEMO_POLICY_NATURE = "DEMO ONLY - FICTIONAL"
+DEMO_POLICY_VERSION_LABEL = "DEMO ONLY - fictional v2 (category ceilings)"
+DEMO_POLICY_DOCUMENT_TITLE = (
+    f"{DEMO_POLICY_NATURE}: fictional company expense policy (not company policy)"
+)
+
+# Fictional per-claim ceilings for the demo policy. This is DATA, not logic: it is written
+# into validated rule parameters and mirrored in docs/demo-company-expense-policy.md. No
+# amount appears anywhere under app/policy/, so the engine cannot acquire a hard-coded
+# threshold. Categories without an entry here are deliberately uncovered, and the evaluator
+# reports UNKNOWN for them rather than PASS.
+DEMO_POLICY_CLAUSES: tuple[tuple[str, str, str], ...] = (
+    ("DEMO-EXP-001", "meal", "1500.00"),
+    ("DEMO-EXP-002", "accommodation", "8000.00"),  # per claim, explicitly not per night
+    ("DEMO-EXP-003", "ground_transport", "2500.00"),
+    ("DEMO-EXP-004", "fuel", "6000.00"),
+    ("DEMO-EXP-005", "office_supplies", "10000.00"),
+    ("DEMO-EXP-006", "air_travel", "25000.00"),
+    ("DEMO-EXP-007", "rail_bus", "12000.00"),
+    ("DEMO-EXP-008", "parking", "1200.00"),
+    ("DEMO-EXP-009", "conference", "20000.00"),
+    ("DEMO-EXP-010", "telecom", "3000.00"),
+)
+
+
 def _ensure_synthetic_policy(session: Session, organization_id: uuid.UUID) -> int:
-    """Create a fictional policy rule only under the validated local demo flag."""
+    """Seed the fictional demo policy at its current version; return the active rule count.
+
+    Only reached when DEMO_SYNTHETIC_POLICY_ENABLED is true in a local environment; the
+    caller guards that. Idempotent: a repeat run creates no second document, version, rule
+    or assignment, and leaves existing rules untouched.
+
+    Lifecycle. The earlier single-clause fictional version is SUPERSEDED rather than
+    deleted, and the organization's single assignment is repointed at the current version.
+    That matters: the resolver collects every approved assignment that matches, then refuses
+    to choose between two approved versions reachable from the same scope. Leaving the old
+    assignment in place alongside a new one would therefore resolve *nothing*.
+    """
     policy_admin_id = _sid("user:policy.admin")
     document_id = _sid("synthetic-policy-document")
-    version_id = _sid("synthetic-policy-version")
+
     document = session.get(PolicyDocument, document_id)
     if document is None:
         document = PolicyDocument(
             id=document_id,
             organization_id=organization_id,
-            title="DEMO ONLY: fictional meal policy (not company policy)",
+            title=DEMO_POLICY_DOCUMENT_TITLE,
             authoritative=False,
             notes=(
-                "Synthetic fixture. Its amounts and conditions are invented only to demonstrate "
-                "the evaluator and must never be used for real reimbursement decisions."
+                f"{DEMO_POLICY_NATURE}. Every amount and condition in this document is "
+                "invented for a demonstration and must never be used for a real "
+                "reimbursement decision."
             ),
         )
         session.add(document)
         session.flush()
-    version = session.get(PolicyVersion, version_id)
+    else:
+        # Keep the label honest as the fictional policy grows, and never let this fixture
+        # present itself as authoritative.
+        if document.title != DEMO_POLICY_DOCUMENT_TITLE:
+            document.title = DEMO_POLICY_DOCUMENT_TITLE
+        if document.authoritative:
+            document.authoritative = False
+        session.flush()
+
+    # Retire the earlier fictional version so exactly one approved version is reachable.
+    legacy = session.get(PolicyVersion, _sid("synthetic-policy-version"))
+    if legacy is not None and legacy.review_state != PolicyReviewState.SUPERSEDED.value:
+        legacy.review_state = PolicyReviewState.SUPERSEDED.value
+        note = f"Superseded by the expanded {DEMO_POLICY_NATURE} policy version."
+        legacy.notes = f"{legacy.notes} {note}".strip() if legacy.notes else note
+        session.flush()
+
+    version = session.get(PolicyVersion, _sid("synthetic-policy-version:v2"))
     if version is None:
         version = PolicyVersion(
-            id=version_id,
+            id=_sid("synthetic-policy-version:v2"),
             policy_document_id=document.id,
-            version_label="DEMO ONLY - fictional v1",
+            version_label=DEMO_POLICY_VERSION_LABEL,
             effective_from=date(2020, 1, 1),
             review_state=PolicyReviewState.APPROVED.value,
             approved_by_user_id=policy_admin_id,
             approved_at=datetime(2020, 1, 1, tzinfo=UTC),
-            notes="FICTIONAL DEMO FIXTURE; NOT an authoritative reimbursement policy.",
+            notes=(
+                f"{DEMO_POLICY_NATURE}; NOT an authoritative reimbursement policy. "
+                "Ceilings are per claim and INR-only."
+            ),
         )
         session.add(version)
         session.flush()
-    rule_id = "demo_only_meal_cap"
-    rule = session.execute(
-        select(PolicyRule).where(
-            PolicyRule.policy_version_id == version.id,
-            PolicyRule.rule_id == rule_id,
+
+    for clause, category, amount in DEMO_POLICY_CLAUSES:
+        rule_id = f"demo_only_ceiling_{category}"
+        exists = session.execute(
+            select(PolicyRule).where(
+                PolicyRule.policy_version_id == version.id,
+                PolicyRule.rule_id == rule_id,
+            )
+        ).scalar_one_or_none()
+        if exists is not None:
+            continue
+        session.add(
+            PolicyRule(
+                id=_sid(f"synthetic-policy-rule:ceiling:{category}"),
+                policy_version_id=version.id,
+                rule_id=rule_id,
+                title=f"{DEMO_POLICY_NATURE}: fictional {category.replace('_', ' ')} ceiling",
+                description=(
+                    "Fictional per-claim ceiling seeded for demonstration only. Not a real "
+                    "company rule and not an authoritative clause."
+                ),
+                category=category,
+                evaluator_type="demo_only_category_ceiling_v1",
+                parameters={"category": category, "ceiling_amount": amount},
+                source_reference={
+                    "document_id": str(document.id),
+                    "clause": clause,
+                    "policy_nature": DEMO_POLICY_NATURE,
+                },
+                source_clause=clause,
+                source_excerpt=(
+                    f"{DEMO_POLICY_NATURE}: fictional per-claim ceiling of {amount} INR for "
+                    "the {category} category. Invented for this demonstration and not an "
+                    "authoritative company clause.".replace("{category}", category)
+                ),
+                review_state=PolicyReviewState.APPROVED.value,
+                is_active=True,
+                validated_by_user_id=policy_admin_id,
+                validated_at=datetime(2020, 1, 1, tzinfo=UTC),
+            )
         )
-    ).scalar_one_or_none()
-    if rule is None:
-        rule = PolicyRule(
-            id=_sid("synthetic-policy-rule:meal-cap"),
-            policy_version_id=version.id,
-            rule_id=rule_id,
-            title="DEMO ONLY: fictional meal cap",
-            description="Mechanics-only example; not a real company rule.",
-            category="meal",
-            evaluator_type="demo_only_meal_cap_v1",
-            parameters={"synthetic_cap": "1500.00"},
-            source_reference={"document_id": str(document.id), "clause": "DEMO ONLY"},
-            source_clause="DEMO ONLY - fictional fixture, not an authoritative clause",
-            source_excerpt=(
-                "Synthetic demonstration text only. The INR 1500.00 amount is invented and "
-                "must never be interpreted as company policy."
-            ),
-            review_state=PolicyReviewState.APPROVED.value,
-            is_active=True,
-            validated_by_user_id=policy_admin_id,
-            validated_at=datetime(2020, 1, 1, tzinfo=UTC),
-        )
-        session.add(rule)
         session.flush()
+
+    # One organization-scoped assignment, repointed at the current version.
     assignment = session.execute(
         select(PolicyAssignment).where(
             PolicyAssignment.organization_id == organization_id,
-            PolicyAssignment.policy_version_id == version.id,
             PolicyAssignment.scope_type == "organization",
             PolicyAssignment.scope_id == organization_id,
         )
@@ -818,8 +888,25 @@ def _ensure_synthetic_policy(session: Session, organization_id: uuid.UUID) -> in
                 effective_from=date(2020, 1, 1),
                 assigned_by_user_id=policy_admin_id,
                 assigned_at=datetime(2020, 1, 1, tzinfo=UTC),
-                notes="DEMO ONLY: fictional policy assignment.",
+                notes=f"{DEMO_POLICY_NATURE}: fictional policy assignment.",
             )
         )
         session.flush()
-    return 1
+    elif assignment.policy_version_id != version.id:
+        assignment.policy_version_id = version.id
+        assignment.notes = (
+            f"{DEMO_POLICY_NATURE}: fictional policy assignment, repointed to the expanded version."
+        )
+        session.flush()
+
+    active_rules = (
+        session.execute(
+            select(PolicyRule).where(
+                PolicyRule.policy_version_id == version.id,
+                PolicyRule.is_active.is_(True),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return len(active_rules)
