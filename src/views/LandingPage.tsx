@@ -476,20 +476,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
     animate();
 
-    const handleResize = () => {
+    // Responsive ResizeObserver for canvas
+    const resizeObserver = new ResizeObserver(() => {
       if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
+      const w = container.clientWidth || 540;
+      const h = container.clientHeight || 560;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-    };
-    window.addEventListener('resize', handleResize);
+    });
+    resizeObserver.observe(container);
 
     return () => {
       cancelAnimationFrame(animId);
+      resizeObserver.disconnect();
       window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', handleResize);
 
       paperGeometry.dispose();
       paperMaterial.dispose();

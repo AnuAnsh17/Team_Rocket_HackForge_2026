@@ -38,7 +38,7 @@ import { LandingPage } from './views/LandingPage';
 import { Check, Info, X } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('landing');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState('Lead Finance Auditor');
