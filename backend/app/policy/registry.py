@@ -19,6 +19,7 @@ behind it cannot quietly reduce coverage.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from sqlalchemy import select
@@ -33,6 +34,7 @@ from app.core.enums import (
     RecommendedAction,
 )
 from app.core.logging import get_logger
+from app.core.scope_keys import canonical_match_key
 from app.models.policy import PolicyRule as PolicyRuleRow
 from app.policy.base import FindingDraft, PolicyRule, RuleContext
 
@@ -53,6 +55,10 @@ class RegisteredRule:
     source_excerpt: str | None
     source_reference: dict[str, object] | None
     implementation: PolicyRule
+    # The single category this clause is scoped to, or None for a clause that applies to
+    # every category. Populated from the stored rule row so applicability comes from policy
+    # data rather than from a list maintained in code.
+    applicable_category: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,7 +139,162 @@ class _DemoMealCapRule:
         )
 
 
+class _DemoCategoryCeilingRule:
+    """Fictional per-claim ceiling for one expense category.
+
+    Everything this rule needs comes from the validated rule parameters: the category it
+    is scoped to and the ceiling amount. No amount is written here, which is what keeps a
+    threshold out of the source tree and in a reviewable, validated row.
+
+    The rule never decides anything. It reports PASS, FAIL or UNKNOWN and leaves the
+    reimbursement decision to a human reviewer. Only the local demo flags can cause it to
+    be loaded at all - see ``load_registry``.
+    """
+
+    rule_id = "demo_only_category_ceiling"
+    evaluator_type = "demo_only_category_ceiling_v1"
+
+    def _unknown(
+        self,
+        context: RuleContext,
+        message: str,
+        *,
+        severity: FindingSeverity = FindingSeverity.WARNING,
+        action: RecommendedAction = RecommendedAction.REVIEW,
+    ) -> FindingDraft:
+        return FindingDraft(
+            rule_id=self.rule_id,
+            finding_type=FindingType.MISSING_POLICY_CONTEXT,
+            result=FindingResult.UNKNOWN,
+            severity=severity,
+            message=message,
+            recommended_action=action,
+            evidence={
+                "demo_only": True,
+                "policy_nature": "DEMO ONLY - FICTIONAL",
+                "category": context.claim.category,
+            },
+        )
+
+    def evaluate(self, context: RuleContext) -> FindingDraft:
+        claim = context.claim
+        parameters = context.rule_parameters
+        declared_category = parameters.get("category")
+
+        # Applicability. The evaluator already filters by category, so reaching this branch
+        # means the rule was invoked outside that path; it answers UNKNOWN rather than
+        # judging a claim it does not govern.
+        if declared_category is not None and (
+            canonical_match_key(str(declared_category)) != canonical_match_key(claim.category)
+        ):
+            return self._unknown(
+                context,
+                "This fictional clause is scoped to a different expense category, so it "
+                "does not apply to this claim.",
+                severity=FindingSeverity.INFO,
+                action=RecommendedAction.NONE,
+            )
+
+        raw_ceiling = parameters.get("ceiling_amount")
+        if raw_ceiling is None:
+            return self._unknown(
+                context,
+                "The fictional demo ceiling for this category is not configured, so the "
+                "claim cannot be checked against it.",
+            )
+        try:
+            ceiling = Decimal(str(raw_ceiling))
+        except (InvalidOperation, TypeError, ValueError):
+            return self._unknown(
+                context,
+                "The fictional demo ceiling for this category is not a usable amount, so "
+                "the claim cannot be checked against it.",
+            )
+        if not ceiling.is_finite():
+            return self._unknown(
+                context,
+                "The fictional demo ceiling for this category is not a finite amount.",
+            )
+
+        # Currency: the ceilings are INR-only and no rate source is approved, so a foreign
+        # currency claim is UNKNOWN. Converting here would invent an exchange rate.
+        if claim.currency != "INR":
+            return self._unknown(
+                context,
+                "The fictional demo ceilings are defined in INR only and no exchange rate "
+                "source is configured, so this claim cannot be compared against a ceiling. "
+                "It is reported as UNKNOWN rather than converted.",
+            )
+
+        amount = claim.amount
+        if not amount.usable or amount.value_decimal is None:
+            return self._unknown(
+                context,
+                "The claim amount is missing, unreadable, or has no reviewed provenance, "
+                "so the fictional ceiling cannot be applied to it.",
+            )
+
+        observed = amount.value_decimal
+        passed = observed <= ceiling
+        clause = context.source_clause or "DEMO-EXP"
+        return FindingDraft(
+            rule_id=self.rule_id,
+            finding_type=FindingType.INDIVIDUAL_LIMIT_EXCEEDED,
+            result=FindingResult.PASS if passed else FindingResult.FAIL,
+            severity=FindingSeverity.INFO if passed else FindingSeverity.WARNING,
+            message=(
+                f"Fictional demo policy ({clause}): the claimed {observed} INR is within the "
+                f"invented ceiling of {ceiling} INR for this category. This is not a "
+                "reimbursement decision and requires human review."
+                if passed
+                else f"Fictional demo policy ({clause}): the claimed {observed} INR exceeds "
+                f"the invented ceiling of {ceiling} INR for this category. This is a review "
+                "flag, not a rejection; a finance reviewer decides."
+            ),
+            employee_message=(
+                None
+                if passed
+                else "This claim is above a policy ceiling used for this demonstration. A "
+                "reviewer will look at it."
+            ),
+            recommended_action=RecommendedAction.NONE if passed else RecommendedAction.REVIEW,
+            calculation=(
+                f"{observed} INR compared with the fictional ceiling {ceiling} INR ({clause})"
+            ),
+            expected=f"at most {ceiling} INR per claim (fictional demo clause {clause})",
+            observed=f"{observed} INR",
+            evidence={
+                "demo_only": True,
+                "policy_nature": "DEMO ONLY - FICTIONAL",
+                "clause": clause,
+                "category": claim.category,
+                "ceiling_amount": str(ceiling),
+                "observed_amount": str(observed),
+                "currency": claim.currency,
+                "amount_source": amount.source.value if amount.source else None,
+                "amount_reviewed": amount.reviewed,
+            },
+        )
+
+
 _RULE_IMPLEMENTATIONS[_DemoMealCapRule.evaluator_type] = _DemoMealCapRule()
+_RULE_IMPLEMENTATIONS[_DemoCategoryCeilingRule.evaluator_type] = _DemoCategoryCeilingRule()
+
+
+def rule_applies_to_category(rule: RegisteredRule, category: str | None) -> bool:
+    """Whether a clause is in scope for a claim's category.
+
+    A clause with no category applies to every claim. A clause with a category applies
+    only when the claim's category matches it, compared with the same canonicalisation
+    used for scope keys so the two never disagree.
+
+    This exists so a claim is evaluated against the clauses that actually govern it. The
+    alternative - running every category clause against every claim - produces a page of
+    unrelated findings, which is worse than no finding at all.
+    """
+    if rule.applicable_category is None:
+        return True
+    return canonical_match_key(rule.applicable_category) == canonical_match_key(category)
 
 
 def register_rule(implementation: PolicyRule) -> None:
@@ -145,6 +306,15 @@ def register_rule(implementation: PolicyRule) -> None:
 
 def registered_evaluator_types() -> tuple[str, ...]:
     return tuple(sorted(_RULE_IMPLEMENTATIONS))
+
+
+def get_registered_rule(evaluator_type: str) -> PolicyRule | None:
+    """The executable implementation behind an evaluator type, if any.
+
+    Public so tests exercise the implementation the registry would actually run, rather
+    than a second instance constructed for the test.
+    """
+    return _RULE_IMPLEMENTATIONS.get(evaluator_type)
 
 
 def load_registry(session: Session, *, policy_version_id: UUID) -> RegistryLoad:
@@ -200,6 +370,7 @@ def load_registry(session: Session, *, policy_version_id: UUID) -> RegistryLoad:
                 source_excerpt=row.source_excerpt,
                 source_reference=row.source_reference,
                 implementation=implementation,
+                applicable_category=row.category,
             )
         )
 

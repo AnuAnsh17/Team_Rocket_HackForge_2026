@@ -14,7 +14,7 @@ decides, and returns drafts.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import InvalidOperation
 
@@ -34,7 +34,12 @@ from app.policy.base import (
     FindingDraft,
     RuleContext,
 )
-from app.policy.registry import RegistryLoad, load_registry
+from app.policy.registry import (
+    RegisteredRule,
+    RegistryLoad,
+    load_registry,
+    rule_applies_to_category,
+)
 from app.policy.resolution import ResolvedPolicy, resolve_effective_policy
 from app.schemas.common import SourceReference
 
@@ -75,6 +80,9 @@ class EvaluationOutcome:
     findings: tuple[FindingDraft, ...]
     unresolved_reasons: tuple[str, ...] = field(default_factory=tuple)
     duplicate_signal_pairs: tuple[tuple[uuid.UUID, uuid.UUID], ...] = ()
+    # Clauses loaded for the governing version but not applicable to this claim's category.
+    # Recorded so "nothing applied" can be told apart from "nothing was loaded".
+    inapplicable_rule_ids: tuple[str, ...] = ()
 
     @property
     def has_blocking(self) -> bool:
@@ -280,9 +288,25 @@ def evaluate_expense(
         findings.extend(_structural_findings(claim))
 
     registry = RegistryLoad()
+    applicable_rules: tuple[RegisteredRule, ...] = ()
+    inapplicable_rule_ids: tuple[str, ...] = ()
     if resolved.resolved and resolved.policy_version_id is not None:
         registry = load_registry(session, policy_version_id=resolved.policy_version_id)
-        for registered in registry.rules:
+        # Applicability first: a claim is only evaluated against the clauses that govern its
+        # category. Running every category clause against every claim would bury the real
+        # finding under unrelated ones, and would let an unrelated clause's UNKNOWN look like
+        # a statement about this claim.
+        applicable_rules = tuple(
+            registered
+            for registered in registry.rules
+            if rule_applies_to_category(registered, scope.category)
+        )
+        inapplicable_rule_ids = tuple(
+            registered.rule_id
+            for registered in registry.rules
+            if not rule_applies_to_category(registered, scope.category)
+        )
+        for registered in applicable_rules:
             context = RuleContext(
                 claim=claim,
                 scope=scope,
@@ -314,14 +338,16 @@ def evaluate_expense(
                     evidence={"error_type": type(exc).__name__},
                 )
             if draft.source_reference is None and registered.source_clause:
-                draft = FindingDraft(
-                    **{
-                        **draft.__dict__,
-                        "source_reference": SourceReference(
-                            clause=registered.source_clause,
-                            text_excerpt=registered.source_excerpt,
-                        ),
-                    }
+                # dataclasses.replace, not draft.__dict__: FindingDraft is frozen *and*
+                # slotted, so it has no __dict__ at all. This path only runs once a rule
+                # returns a draft without its own source reference, which is why it went
+                # unnoticed until the pre-flight endpoint consumed the evaluator.
+                draft = replace(
+                    draft,
+                    source_reference=SourceReference(
+                        clause=registered.source_clause,
+                        text_excerpt=registered.source_excerpt,
+                    ),
                 )
             findings.append(draft)
 
@@ -355,6 +381,34 @@ def evaluate_expense(
                 )
             )
 
+    if not registry.is_empty and not applicable_rules:
+        findings.append(
+            FindingDraft(
+                rule_id="policy_category_coverage",
+                finding_type=FindingType.MISSING_POLICY_CONTEXT,
+                result=FindingResult.UNKNOWN,
+                severity=FindingSeverity.INFO,
+                message=(
+                    "The governing policy version contains no clause for the "
+                    f"{scope.category!r} expense category, so no rule could be evaluated for "
+                    "this claim. It is reported as UNKNOWN rather than PASS: the policy is "
+                    "silent on this category, which is not the same as permitting it."
+                ),
+                employee_message=(
+                    "There is no policy clause covering this expense type yet, so a finance "
+                    "reviewer will look at it."
+                ),
+                recommended_action=RecommendedAction.REVIEW,
+                evidence={
+                    "category": scope.category,
+                    "policy_version_id": str(resolved.policy_version_id)
+                    if resolved.policy_version_id
+                    else None,
+                    "loaded_rule_ids": [rule.rule_id for rule in registry.rules],
+                },
+            )
+        )
+
     # Step 7 is aggregate rules (none active) plus duplicate candidate generation,
     # delegated to app/duplicates. Candidate generation is a write, so it is
     # performed by the service inside the same transaction.
@@ -380,4 +434,5 @@ def evaluate_expense(
         registry=registry,
         findings=tuple(findings),
         unresolved_reasons=unresolved,
+        inapplicable_rule_ids=inapplicable_rule_ids,
     )
