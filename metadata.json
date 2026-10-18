@@ -1,0 +1,6 @@
+{
+  "name": "Proofline — AI Expense Auditing Platform",
+  "description": "Evidence-First AI Expense Auditing and Policy Compliance Platform with automated OCR extraction, cumulative cap verification, duplicate detection, and policy governance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
