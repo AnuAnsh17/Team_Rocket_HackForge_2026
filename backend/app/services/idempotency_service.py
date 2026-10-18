@@ -25,6 +25,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core.errors import IdempotencyConflict, ValidationFailed
@@ -46,6 +47,16 @@ def normalise_request_hash(payload: Any) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _find_existing(session: Session, actor_user_id: uuid.UUID, key: str) -> IdempotencyKey | None:
+    """The stored record for this actor and key, if one has been committed."""
+    return session.execute(
+        select(IdempotencyKey).where(
+            IdempotencyKey.actor_user_id == actor_user_id,
+            IdempotencyKey.idempotency_key == key,
+        )
+    ).scalar_one_or_none()
+
+
 def begin(
     session: Session,
     *,
@@ -59,7 +70,7 @@ def begin(
     """Claim an idempotency key, or replay the stored response.
 
     Returns ``None`` when the request should proceed and no key was supplied. The
-    caller inspects ``response_status`` on the returned record: when it is set, the
+    caller inspects ``response_body`` on the returned record: when it is set, the
     request has already been completed and the stored response must be replayed
     instead of re-executing.
     """
@@ -73,25 +84,51 @@ def begin(
         return None
 
     request_hash = normalise_request_hash(payload)
-    existing = session.execute(
-        select(IdempotencyKey).where(
-            IdempotencyKey.actor_user_id == actor_user_id,
-            IdempotencyKey.idempotency_key == key,
-        )
-    ).scalar_one_or_none()
+    existing = _find_existing(session, actor_user_id, key)
 
     if existing is None:
-        record = IdempotencyKey(
-            actor_user_id=actor_user_id,
-            idempotency_key=key,
-            request_method=method,
-            request_path=path,
-            request_hash=request_hash,
-            expires_at=datetime.now(UTC) + DEFAULT_TTL,
-        )
-        session.add(record)
-        session.flush()
-        return record
+        record_id = uuid.uuid4()
+        inserted_id = session.execute(
+            pg_insert(IdempotencyKey)
+            .values(
+                id=record_id,
+                actor_user_id=actor_user_id,
+                idempotency_key=key,
+                request_method=method,
+                request_path=path,
+                request_hash=request_hash,
+                expires_at=datetime.now(UTC) + DEFAULT_TTL,
+                created_at=datetime.now(UTC),
+            )
+            .on_conflict_do_nothing(index_elements=["actor_user_id", "idempotency_key"])
+            .returning(IdempotencyKey.id)
+        ).scalar_one_or_none()
+
+        if inserted_id is not None:
+            claim = session.get(IdempotencyKey, record_id)
+            if claim is None:  # pragma: no cover - we just inserted this row
+                raise RuntimeError("The idempotency key row vanished within its own transaction.")
+            return claim
+
+        # The insert did nothing, so a concurrent request with the same key committed
+        # between our lookup and this statement. This is a fast client retry, not a
+        # caller error: the generating dependency in app/api/deps.py commits after the
+        # response has been sent, so a retry that arrives promptly can run this lookup
+        # before the original request's transaction has committed and therefore miss
+        # it.
+        #
+        # The winner is authoritative, so replay its stored response - which is what
+        # the key was supplied for. Failing the retry with a 500 would be the worst
+        # outcome, because the original effect did happen and the client would have no
+        # way to learn that.
+        #
+        # ON CONFLICT DO NOTHING is used rather than catching the unique violation so
+        # that no failed statement is left in the transaction: a caught IntegrityError
+        # leaves the session unusable until it is rolled back, which would discard the
+        # rest of the request.
+        existing = _find_existing(session, actor_user_id, key)
+        if existing is None:  # pragma: no cover - the index guarantees otherwise
+            raise RuntimeError("An idempotency key conflict could not be resolved.")
 
     if (
         existing.request_hash != request_hash
