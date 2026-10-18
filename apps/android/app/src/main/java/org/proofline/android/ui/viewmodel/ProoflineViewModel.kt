@@ -113,4 +113,19 @@ class ProoflineViewModel private constructor(
             loadData()
         }
     }
+
+    /**
+     * Drop everything this process is holding about the signed-out user.
+     *
+     * The ViewModels are activity-scoped (`viewModel()` at the activity level),
+     * so signing out pops the app graph but does *not* clear them: the previous
+     * user's membership and claim list would stay in memory, and the next person
+     * to sign in would see the previous user's name and claims rendered from the
+     * cached [ProoflineUiState] until the first backend call returned. Sign-out
+     * therefore has to clear this state explicitly.
+     */
+    fun clearSessionState() {
+        _uiState.value = ProoflineUiState()
+        _detailState.value = ExpenseDetailState()
+    }
 }

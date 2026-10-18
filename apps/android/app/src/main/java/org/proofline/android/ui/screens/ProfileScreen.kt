@@ -223,7 +223,11 @@ fun ProfileScreen(
                         onExpandedChange = { expanded = !expanded }
                     ) {
                         OutlinedTextField(
-                            value = DemoActors.all.find { it.uuid == state.membership?.user?.id }?.name
+                            // Read from the configured header value, not from the
+                            // backend's /me response: this card describes what this
+                            // debug client will *send*, which is not the same thing
+                            // when a real Supabase session is in use.
+                            value = DemoActors.all.find { it.uuid == NetworkConfig.demoActorId }?.name
                                 ?: "Select Demo Actor",
                             onValueChange = {},
                             readOnly = true,

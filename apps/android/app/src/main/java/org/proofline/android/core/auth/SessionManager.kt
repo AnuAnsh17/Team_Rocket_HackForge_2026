@@ -53,19 +53,26 @@ class SessionManager(
     }
 
     /**
-     * Sign out: revoke server-side (best effort) and destroy local state.
+     * Sign out: destroy local state, then revoke server-side (best effort).
      *
      * Local state is cleared first and unconditionally, so a failed revocation
-     * cannot leave a usable session on the device.
+     * cannot leave a usable session on the device. The revocation itself runs
+     * *outside* the lock deliberately: it is a blocking network call with a 30s
+     * read timeout, and holding [lock] across it would stall every concurrent
+     * [accessTokenForRequest] on the OkHttp thread for as long as the provider
+     * takes to answer. Nothing that happens afterwards can resurrect the local
+     * session - it was already deleted before the call was made.
      */
-    fun signOut() = synchronized(lock) {
-        val session = store.load()
-        store.clear()
-        onSessionChanged(null)
-        if (session != null) {
-            authApi.signOut(session.accessToken)
+    fun signOut() {
+        val revokeToken = synchronized(lock) {
+            val session = store.load()
+            store.clear()
+            onSessionChanged(null)
+            session?.accessToken
         }
-        Unit
+        if (revokeToken != null) {
+            authApi.signOut(revokeToken)
+        }
     }
 
     /**

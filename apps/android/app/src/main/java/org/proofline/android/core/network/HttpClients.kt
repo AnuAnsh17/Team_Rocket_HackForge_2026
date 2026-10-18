@@ -11,7 +11,8 @@ import java.util.concurrent.TimeUnit
  * The only place OkHttp clients are constructed.
  *
  * Centralising it is what makes the two security properties checkable: the
- * logging interceptor is installed only in debug builds and always redacts, and
+ * logging interceptor always redacts and is only ever *enabled* in a debug build
+ * (every caller defaults its `debugLogging` flag to `BuildConfig.DEBUG`), and
  * the auth interceptor is installed on the backend client but never on the auth
  * client (an interceptor that renews a token by calling the auth endpoint must
  * not be able to recurse into itself).

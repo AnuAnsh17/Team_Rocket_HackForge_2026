@@ -69,28 +69,71 @@ The anon key is publishable by design (it only identifies the project to GoTrue)
 the **service-role key must never** be put in this app, in `BuildConfig`, or in
 this repository - it would grant full database access to anyone who unzips the APK.
 
+There is deliberately **no default** for `SUPABASE_URL` or `SUPABASE_ANON_KEY`: both
+fall back to the empty string, so a build that is not given them still compiles,
+still installs, and reports "this build has no Supabase project configured" at
+login instead of pointing at somebody else's project. Nothing under `apps/android/`
+contains a real project URL, key or JWT: the committed `gradle.properties` holds no
+credentials, and `local.properties` is git-ignored. The service-role key has no path
+into this app at all - it is not a build property, not a `BuildConfig` field, and
+nothing in the module reads it. The anon key, once you do supply it, *will* be baked
+into the APK, which is correct and intended: it is a publishable key.
+
 `DEMO_ACTOR_FALLBACK` only has an effect in debug builds; see §4.
 
-### 2.3 Backend
+### 2.3 Backend base URL (emulator vs. physical device)
 
-`API_BASE_URL` defaults to `http://10.0.2.2:8000/api/v1/` (the emulator's route to
-a backend running on the host). Plain HTTP is permitted **only in the debug
-build** - see §5.
+There is exactly one runtime base URL - `NetworkConfig.baseUrl`, populated from
+`BuildConfig.API_BASE_URL`. No call site hard-codes a host:
+`data/repository/ProoflineRepository.kt` takes it as a defaulted parameter from
+`NetworkConfig.baseUrl`, and `core/network/ProoflineApiClient.kt` reads it through a
+`baseUrlProvider` that defaults to the same value. The only literal in the module is
+the build-time default in `app/build.gradle.kts`.
+
+| Where the app runs | Set `API_BASE_URL` to |
+|---|---|
+| Android emulator, backend on the same machine | `http://10.0.2.2:8000/api/v1/` - the **default**. `10.0.2.2` is the emulator's alias for the host's loopback interface |
+| Physical device on the same LAN as your machine | `http://<your-machine-LAN-IP>:8000/api/v1/`, e.g. `http://192.168.1.20:8000/api/v1/`. The backend must bind `0.0.0.0`, not only `127.0.0.1` |
+| A deployed backend | `https://your-backend.example.com/api/v1/` |
+
+Override it in `apps/android/local.properties`, in `gradle.properties`, or per build
+with `-PAPI_BASE_URL=...`; see §2.2 for the same mechanism.
+
+The `10.0.2.2` default is a deliberate choice for the emulator, not an accident of a
+call site. Both plain-HTTP cases above work **only in the debug build**: cleartext is
+permitted by `src/debug/AndroidManifest.xml` and by nothing else, so a release build
+pointed at a `http://` backend fails at the socket rather than quietly sending
+credentials in the clear (see §5).
 
 ## 3. Build and test commands
 
-Run these from `apps/android`:
+Run these from `apps/android`. The toolchain must be reachable: if `ANDROID_HOME` is
+not exported, `local.properties` supplies `sdk.dir`; `JAVA_HOME` must point at JDK 17.
 
 ```bash
-./gradlew :app:testDebugUnitTest        # JVM unit tests - no device needed
-./gradlew :app:assembleDebug            # debug APK: app/build/outputs/apk/debug/
+./gradlew :app:testDebugUnitTest        # JVM unit tests - no device, no emulator
+./gradlew :app:assembleDebug            # debug APK
 ./gradlew :app:assembleRelease          # release APK (cleartext HTTP disabled)
 ./gradlew :app:lintDebug                # Android lint
 ```
 
-The unit test HTML/XML report is written to
-`app/build/reports/tests/testDebugUnitTest/` and
-`app/build/test-results/testDebugUnitTest/`.
+| Task | Output |
+|---|---|
+| `:app:testDebugUnitTest` | XML in `app/build/test-results/testDebugUnitTest/`, HTML in `app/build/reports/tests/testDebugUnitTest/` |
+| `:app:assembleDebug` | `app/build/outputs/apk/debug/app-debug.apk` |
+| `:app:assembleRelease` | `app/build/outputs/apk/release/app-release-unsigned.apk` (unsigned - see §7) |
+
+The debug and release build types differ in exactly the two ways this module asserts:
+`BuildConfig.DEBUG`, and therefore whether `HttpClients` enables the logging
+interceptor and whether `NetworkConfig.demoHeaderEnabled` can be true (§5); and the
+`src/debug/AndroidManifest.xml` overlay, which is the only place
+`android:usesCleartextTraffic` is set (§5).
+
+To force a real test run when Gradle reports `testDebugUnitTest UP-TO-DATE`:
+
+```bash
+./gradlew :app:cleanTestDebugUnitTest :app:testDebugUnitTest
+```
 
 ## 4. How authentication works
 
@@ -141,21 +184,58 @@ running `AUTH_PROVIDER=supabase` ignores the header entirely, so a debug build
 with no session gets a 401 from such a backend - which is the correct behaviour and
 is labelled on screen.
 
+### Why this module talks to GoTrue over REST instead of using the Supabase Kotlin SDK
+
+Adding the documented Supabase Kotlin SDK (`io.github.jan-tennert.supabase`, the
+`auth-kt` artefact) was attempted and **does not fit this project's toolchain**. The
+evidence below was produced by adding the dependency to `app/build.gradle.kts` next to
+a throwaway source file that calls the SDK's sign-in API, running
+`:app:compileDebugKotlin`, and then restoring the build file byte-for-byte.
+
+| Coordinates tried | Result |
+|---|---|
+| `auth-kt:3.8.0` + `io.ktor:ktor-client-android:3.5.1` | **Fails twice.** (a) `:app:checkDebugAarMetadata` - `androidx.browser:browser:1.10.0`, pulled in transitively by `auth-kt-android`, "requires libraries and applications that depend on it to compile against version 36 or later of the Android APIs" and "requires Android Gradle plugin 8.9.1 or higher"; this build is AGP 8.5.0 / compileSdk 35. (b) It also bumps `androidx.compose.*` 1.6.6 → 1.9.0 and `androidx.lifecycle` → 2.10.0, which "requires Android Gradle plugin 8.6.0 or higher". |
+| `auth-kt:3.0.0` + `ktor-client-android:3.0.0-rc-1` | **Fails.** No AAR-metadata complaint, but it forces `kotlinx-serialization` 1.6.3 → 1.7.2, and the compiler then rejects this app's own `@Serializable` classes: `Your current Kotlin version is 1.9.24, while kotlinx.serialization core runtime 1.7.2 requires at least Kotlin 2.0.0-RC1.` |
+| any `auth-kt` 3.1.x-3.8.0 | **Fails.** Built with Kotlin 2.1.10 or newer, so the compiler reports `Class 'io.github.jan.supabase.auth.Auth' was compiled with an incompatible version of Kotlin. The actual metadata version is 2.4.0, but the compiler version 1.9.0 can read versions up to 2.0.0.` |
+| `gotrue-kt:2.6.1` + `ktor-client-android:2.3.12` | **Resolves and compiles.** `:app:compileDebugKotlin` succeeds, because Kotlin 2.0.10 metadata is inside the range a 1.9.24 compiler reads. |
+
+`gotrue-kt` 2.x is the *superseded* name of the same SDK - it was renamed to `auth-kt`
+at 3.0.0 - and 2.6.1 is the last release of that line. Adopting it would mean adding a
+second HTTP stack (Ktor 2.x) beside OkHttp, a second session store (the SDK's own
+`multiplatform-settings`-backed one) beside `SharedPreferencesSessionStore`, and a
+Kermit-backed logger, in exchange for wrapping three documented REST calls that this
+module already implements and tests. On a change that cannot be verified end-to-end
+(there is no Supabase project to test against - see §7), that is a net loss, so the
+hand-written GoTrue client is kept.
+
+**No Supabase SDK dependency is present in the build, and no half-added dependency was
+left behind.** `app/build.gradle.kts` is unchanged from the previous commit.
+
 ## 5. Security properties this module asserts
 
 | Property | Where |
 |---|---|
-| No cleartext HTTP in release | `src/main/AndroidManifest.xml` does **not** set `usesCleartextTraffic`; `src/debug/AndroidManifest.xml` sets it to `true` for the debug build only |
-| No HTTP bodies logged, ever | `core/network/DebugHttpLogger.kt` logs request/response lines and header names only |
+| No cleartext HTTP in release | `src/main/AndroidManifest.xml` does **not** set `usesCleartextTraffic`; `src/debug/AndroidManifest.xml` sets it to `true` for the debug build only. Checked in the *merged* manifests: the release one has no `usesCleartextTraffic` attribute at all (so the Android default - cleartext refused - applies), the debug one carries `"true"` |
+| No HTTP bodies logged, ever | `core/network/DebugHttpLogger.kt` logs the request/response line and header names only, in any build |
 | Credential headers redacted | `HttpLogRedactor` redacts `Authorization`, `apikey`, `Cookie`/`Set-Cookie`, `refresh_token`, `X-Demo-Actor-Id`; the query string is dropped from the logged URL |
-| Logging is debug-only | `HttpClients` installs `DebugHttpLoggerInterceptor(enabled = BuildConfig.DEBUG)`; in release the interceptor is disabled |
+| Logging is debug-only | Every caller in `HttpClients` defaults `debugLogging` to `BuildConfig.DEBUG`, so in release the interceptor is constructed `enabled = false` and emits nothing |
+| No demo identity in release | `NetworkConfig.demoHeaderEnabled` requires `BuildConfig.DEBUG`, so a release build cannot send `X-Demo-Actor-Id` whatever the build properties say |
+| No secret can reach the APK | `SUPABASE_URL` / `SUPABASE_ANON_KEY` come from build properties and **default to the empty string**; the service-role key is not a build property, is never read, and appears nowhere in the module. Checked: the generated `BuildConfig` for **both** build types has `SUPABASE_URL = ""` and `SUPABASE_ANON_KEY = ""` |
+| TLS validation untouched | No `TrustManager`, `HostnameVerifier`, `sslSocketFactory` or `networkSecurityConfig` anywhere in the module - platform defaults apply |
+| No bearer header on the auth calls themselves | The GoTrue client is built by `HttpClients.auth()`, which carries no `AuthInterceptor`, so a token-renewal call cannot recurse. The one direct `Authorization` header is on `POST /auth/v1/logout`, which is what GoTrue requires |
 | No fabricated claim data | `data/sample/` was deleted; the detail screen renders fetched fields or the message "could not be loaded" |
-| No real project value in git | Supabase URL/key come from build properties with empty defaults |
+| No silent sample-data substitution | The only synthetic-data path is the debug-only "Seed Backend" button, which calls the real `POST /demo/seed`; no load path falls back to fixtures when a request fails |
+| No real project value in git | Supabase URL/key come from build properties with empty defaults; `gradle.properties` is committed and holds no credentials |
 
 ## 6. Tests
 
-`./gradlew :app:testDebugUnitTest` runs JVM tests only - **no emulator, no device,
-no live project**. They cover:
+```bash
+./gradlew :app:cleanTestDebugUnitTest :app:testDebugUnitTest
+```
+
+Observed on the commit that last touched this file: **76 tests, 0 failures,
+0 errors, 0 skipped**, across 12 classes, from a `clean` build. Run JVM tests only -
+**no emulator, no device, no live project**. They cover:
 
 - session persistence round-trip and the "torn write is not a session" cases
   (`core/auth/SessionPersistenceTest`)
@@ -178,7 +258,20 @@ no live project**. They cover:
 
 ## 7. Honest limits (what a green test run does **not** prove)
 
-These are the things that are **not** verified by this repository's test suite:
+### 7.1 What *has* been verified
+
+- `./gradlew clean :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease`
+  completes with `BUILD SUCCESSFUL` from a clean tree, with 76/76 JVM tests passing.
+- Both APKs are produced: `app/build/outputs/apk/debug/app-debug.apk` and
+  `app/build/outputs/apk/release/app-release-unsigned.apk`.
+- The **merged release manifest** contains no `usesCleartextTraffic` attribute, and the
+  merged debug manifest contains `usesCleartextTraffic="true"`.
+- The generated `BuildConfig` for both build types has `SUPABASE_URL = ""` and
+  `SUPABASE_ANON_KEY = ""`, and `DEBUG = false` in release.
+- The module contains no `TrustManager` / `HostnameVerifier` / `sslSocketFactory` /
+  `networkSecurityConfig` code, and no service-role key, JWT or database URL.
+
+### 7.2 What is **not** verified
 
 1. **A passing JVM unit test suite is not proof that a live Supabase session
    works.** The tests exercise this client against a synthesised HTTP layer. They
@@ -219,10 +312,36 @@ These are the things that are **not** verified by this repository's test suite:
 8. **No certificate pinning**, no `android:networkSecurityConfig`, and the debug
    build permits cleartext HTTP to any host.
 9. **Instrumented tests are not part of this change**; the two
-   `androidTestImplementation` dependencies are unused scaffolding.
+   `androidTestImplementation` dependencies are unused scaffolding. The
+   sign-out state clearing in `ProoflineViewModel.clearSessionState()` is therefore
+   **not** covered by any test - it needs a device or an instrumented test.
 10. **The ported full-lifecycle client (`core/network/ProoflineApiClient.kt`) is
     compiled but not wired into any screen.** Only the Retrofit list/detail path is
     used by the UI.
+11. **The refresh decision compares wall-clock time to wall-clock time.** The
+    provider's expiry is an absolute instant, so this is the correct comparison, but
+    `System.currentTimeMillis()` is not monotonic: if the device clock is moved
+    *backwards* by more than the remaining token lifetime, an expired access token
+    will look fresh and be sent once. The impact is bounded - the backend validates
+    `exp` and answers `401`, and a failed renewal clears the session - but there is
+    no monotonic-time guard.
+12. **A revoked refresh token does not send the user back to the login screen within
+    the same process.** On launch, a stored session counts as restorable if both
+    tokens are present; if the refresh token has since been revoked server-side, the
+    app opens on the app shell and the first request fails, and the session is
+    cleared at that point. The way out is the "Sign out" button on the Profile tab
+    (or relaunching, since the store is cleared by then). Nothing is fabricated in
+    the meantime - the screens show the load error - but the transition is not
+    automatic.
+13. **`assembleRelease` produces an unsigned APK** (`app-release-unsigned.apk`)
+    because no signing config is configured. It is enough to verify the release
+    manifest and resource packaging; it is not installable as-is, and no
+    minification is applied (`isMinifyEnabled = false`), so R8 shrinking and
+    obfuscation of this code are unverified.
+14. **`DEMO_ACTOR_FALLBACK` is literally `true` in the release `BuildConfig`** when
+    the property is unset, because that property has a default. It has no effect: the
+    only consumer, `NetworkConfig.demoHeaderEnabled`, additionally requires
+    `BuildConfig.DEBUG`, which is `false` in release.
 
 ## 8. Provenance
 

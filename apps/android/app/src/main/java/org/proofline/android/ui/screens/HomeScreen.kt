@@ -43,8 +43,9 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Debug build: no Supabase session, so X-Demo-Actor-Id is being sent. " +
-                            "A backend running AUTH_PROVIDER=supabase ignores that header.",
+                        text = "Debug build: demo actor fallback is enabled. X-Demo-Actor-Id is sent " +
+                            "only when there is no Supabase session; a backend running " +
+                            "AUTH_PROVIDER=supabase ignores that header.",
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,

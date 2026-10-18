@@ -71,6 +71,11 @@ fun ProoflineNavGraph(
                 onSignOut = {
                     scope.launch {
                         sessionManager.signOutAsync()
+                        // The ViewModels outlive this composable (they are
+                        // activity-scoped), so the signed-out user's membership
+                        // and claims have to be dropped explicitly or they would
+                        // still be rendered after the next sign-in.
+                        viewModel.clearSessionState()
                         navController.navigate(RootRoutes.LOGIN) {
                             popUpTo(RootRoutes.APP) { inclusive = true }
                             launchSingleTop = true

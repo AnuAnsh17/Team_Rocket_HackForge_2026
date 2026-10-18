@@ -75,10 +75,12 @@ object HttpLogRedactor {
 /**
  * Debug-only HTTP logger.
  *
- * Two independent switches must both be on before a single line is emitted:
- * the build must be a debug build (the caller passes `BuildConfig.DEBUG`) and
- * the interceptor must have been constructed with `enabled = true`. In a release
- * build this interceptor is not even installed.
+ * Two independent switches must both be on before a single line is emitted: the
+ * interceptor must have been constructed with `enabled = true`, and the callers
+ * in [HttpClients] pass the build's `BuildConfig.DEBUG` for that flag. In a
+ * release build the interceptor is still installed but is constructed with
+ * `enabled = false`, so the branch below is never taken - it is a pass-through,
+ * not a logger. Redaction is unconditional either way.
  */
 class DebugHttpLoggerInterceptor(
     private val enabled: Boolean,

@@ -77,7 +77,8 @@ fun AppScaffold(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "DEBUG BUILD — no Supabase session; sending X-Demo-Actor-Id (ignored by an AUTH_PROVIDER=supabase backend)",
+                        text = "DEBUG BUILD — demo actor fallback enabled. X-Demo-Actor-Id is sent only " +
+                            "when there is no Supabase session, and an AUTH_PROVIDER=supabase backend ignores it.",
                         modifier = Modifier.padding(8.dp),
                         color = MaterialTheme.colorScheme.onError,
                         style = MaterialTheme.typography.labelMedium,
