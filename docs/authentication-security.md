@@ -1,9 +1,11 @@
 # Authentication and Security Design
 
-**Status:** the boundaries, interfaces and guards are implemented and tested. The
-production identity provider is **not implemented** - see "Deliberate stubs" below.
-Nothing in this document should be read as a claim that this system is production
-ready or security certified.
+**Status:** the boundaries, interfaces and guards are implemented and tested. Supabase
+access-token verification is **implemented** and covered by a security suite
+(`tests/security/test_supabase_jwt.py`) that signs real tokens with a locally generated
+RSA key pair; it has not been exercised against a live Supabase project, which is the one
+step this repository cannot perform without project credentials. Nothing in this document
+should be read as a claim that this system is production ready or security certified.
 
 ## Identity is verified, then authority is loaded from the database
 
@@ -49,25 +51,28 @@ organization is exactly what a cross-tenant leak looks like.
 
 | Component | Behaviour today | Why that is the right kind of failure |
 |---|---|---|
-| `SupabaseAuthProvider` | raises `NotImplementedYet` for every request | A permissive stub is the single most likely way an authentication gap reaches production unnoticed. Refusing is visible; accepting an unverified token is not. |
+| `SupabaseAuthProvider` | verifies the token against the project JWKS, then the actor resolver loads authority from the database | The failure mode that matters is now the *other* one: a valid token for an unprovisioned subject is `401` and a valid token with no active membership is `403`, so a successful sign-in still grants nothing by itself. |
 | `NoAuthProvider` | refuses every request | The fail-closed default. |
 | Supabase/S3 receipt storage | constructor raises | Prevents the application believing it stores receipts when it does not. |
 | Extraction provider | returns `ExtractionStatus.UNAVAILABLE` with no fields | No plausible-looking receipt data can be fabricated. |
 
-## Production authentication: what must be implemented
+## Production authentication: implemented behaviour
 
-Supabase Auth is the chosen initial identity provider. The implementation must:
+Supabase Auth is the chosen initial identity provider. `app/core/security.py` implements
+all six of the requirements this section used to list as outstanding:
 
-1. Read the bearer token from `Authorization`.
-2. Fetch and cache the project JWKS from `SUPABASE_JWKS_URL`.
+1. Read the bearer token from `Authorization`. ✓
+2. Fetch and cache the project JWKS from `SUPABASE_JWKS_URL`. ✓
 3. Verify the **signature**, and validate `iss` against `SUPABASE_JWT_ISSUER`, `aud`
-   against `SUPABASE_JWT_AUDIENCE`, and `exp`/`nbf` with a small bounded clock skew.
-4. Reject `alg: none` and any algorithm not in the project's expected set.
-5. Map `sub` to `users.external_subject` / `users.auth_provider`.
-6. Load memberships, roles and permissions from the Proofline database.
+   against `SUPABASE_JWT_AUDIENCE`, and `exp`/`nbf` with a small bounded clock skew
+   (`SUPABASE_JWT_LEEWAY_SECONDS`, default 30s). ✓
+4. Reject `alg: none` and any algorithm not in `SUPABASE_JWT_ALGORITHMS` (asymmetric
+   only; configuration refuses an HMAC or empty allowlist at startup). ✓
+5. Map `sub` to `users.external_subject` / `users.auth_provider`. ✓
+6. Load memberships, roles and permissions from the Proofline database. ✓
 
-**It must not be implemented by decoding the token without verifying the signature.**
-The interface is deliberately narrow (`resolve_identity(request) -> Identity`) so a
+**It must not be implemented by decoding the token without verifying the signature.** The
+interface is deliberately narrow (`resolve_identity(request) -> Identity`) so a
 different provider can be introduced without touching the expense or policy services.
 
 ## Authorization

@@ -390,7 +390,7 @@ Sixteen requirement areas, counted **unweighted** and **once each**.
 | Status reached | Count | Requirements |
 |---|---|---|
 | `TESTED` | 0 | none |
-| `IMPLEMENTED` (not tested end to end) | 1 | R12, authorization half only (production authentication is stubbed) |
+| `IMPLEMENTED` (not tested end to end) | 1 | R12, authorization half only (production authentication is now implemented and locally security-tested, but no live identity provider has been exercised) |
 | `SCAFFOLDED` | 14 | R1, R2, R3, R4, R5, R6, R7, R8, R9, R11, R13, R14, R15, R16 |
 | `DOCUMENTED` only | 1 | R10 |
 | `NOT ADDRESSED` | 0 | none |
@@ -413,7 +413,12 @@ figure that describes what the software can do today.
   read as "6% of the work is done".
 - **Numerator:** areas where working code is reachable through a real path and covered by
   tests that would fail if the behaviour broke. That is R12, and only its authorization
-  half; production authentication refuses every request rather than working.
+  half. Production authentication is no longer a stub - Supabase access tokens are
+  verified against the project key set and the verified subject is joined to a
+  pre-provisioned user - and a security suite signs real tokens to prove it. That suite
+  generates its own key pair, though, so a session issued by a live Supabase project has
+  not been demonstrated, and the area is not counted as `TESTED` on the strength of a
+  local key set.
 - **Unchanged by the scope-resolution follow-up, deliberately.** That fix made the
   policy-assignment matcher correct and tested for all ten dimensions, which is real work
   and 77 new tests - but it does not let a single claim reach a reimbursement decision, so

@@ -8,7 +8,11 @@ client displays what it returns.
 > create, correct and submit claims, upload private receipts, and record scoped human
 > review decisions with audit history. Configured IndicOCR can process receipts; OCR
 > text is not retained and no structured expense fields or policy outcomes are inferred.
-> Policy evaluation and production authentication remain **unimplemented**. See
+> Claim-level policy outcomes remain **unimplemented**: the registry holds a fictional
+> demo policy for the read-only pre-flight, and nothing evaluates a real claim against an
+> approved policy. Production authentication is **implemented** - Supabase access tokens
+> are verified against the project JWKS and the verified subject is joined to a
+> pre-provisioned user and membership. See
 > `GET /api/v1/meta` for the current capability list.
 
 ## Prerequisites
