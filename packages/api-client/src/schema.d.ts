@@ -310,6 +310,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/policy/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Advisory policy pre-flight
+         * @description Evaluate a draft claim or an inline preview against the governing policy. Advisory only: nothing is persisted, no status changes and no finding is recorded. An expense_id is subject to the same authorization as reading that claim; an inline preview is evaluated against the caller's own organization and membership.
+         */
+        post: operations["policy_check_api_v1_policy_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/receipts/{receipt_id}": {
         parameters: {
             query?: never;
@@ -1172,6 +1192,96 @@ export interface components {
              * @description Total matching rows, or null when the count is intentionally omitted.
              */
             total?: number | null;
+        };
+        /**
+         * PolicyCheckRequest
+         * @description Advisory pre-flight input. Writes nothing.
+         */
+        PolicyCheckRequest: {
+            /** Amount */
+            amount?: string | null;
+            /** Attendee Count */
+            attendee_count?: number | null;
+            /** Business Purpose */
+            business_purpose?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Client Name */
+            client_name?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Expense Date */
+            expense_date?: string | null;
+            /**
+             * Expense Id
+             * @description Optional existing draft to check. When null, the inline fields below are used.
+             */
+            expense_id?: string | null;
+            /** Trip Id */
+            trip_id?: string | null;
+        };
+        /** PolicyCheckResponse */
+        PolicyCheckResponse: {
+            /**
+             * Advisory
+             * @description Always true. A pre-flight result is guidance only: aggregate state and reviewer decisions can change after submission, and reimbursement is never promised here.
+             * @default true
+             */
+            advisory: boolean;
+            /**
+             * Advisory Note
+             * @description States plainly that the result is advisory and that a human decides. Present so a client cannot render a demo-policy answer as a company decision.
+             */
+            advisory_note?: string | null;
+            /**
+             * Findings
+             * @description Same finding schema as a persisted finding, but not written to the database.
+             */
+            findings?: {
+                [key: string]: unknown;
+            }[];
+            policy_version?: components["schemas"]["PolicyVersionSummary"] | null;
+            /** Resolved */
+            resolved: boolean;
+            /** Unresolved Reasons */
+            unresolved_reasons?: string[];
+        };
+        /**
+         * PolicyReviewState
+         * @description Editorial/review state of policy artefacts. Only APPROVED governs.
+         * @enum {string}
+         */
+        PolicyReviewState: "draft" | "proposed" | "approved" | "superseded" | "retired";
+        /** PolicyVersionSummary */
+        PolicyVersionSummary: {
+            /**
+             * Active Rule Count
+             * @default 0
+             */
+            active_rule_count: number;
+            /** Approved At */
+            approved_at?: string | null;
+            /** Document Sha256 */
+            document_sha256?: string | null;
+            /** Document Title */
+            document_title: string;
+            /** Effective From */
+            effective_from?: string | null;
+            /** Effective To */
+            effective_to?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            review_state: components["schemas"]["PolicyReviewState"];
+            /**
+             * Rule Count
+             * @default 0
+             */
+            rule_count: number;
+            /** Version Label */
+            version_label: string;
         };
         /**
          * ReceiptExtractionData
@@ -2124,6 +2234,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EnumCatalogueResponse"];
+                };
+            };
+        };
+    };
+    policy_check_api_v1_policy_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyCheckResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
