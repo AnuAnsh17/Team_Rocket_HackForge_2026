@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.4.0-claim-lifecycle
+**Contract version:** 1.5.0-policy-preflight
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -27,6 +27,7 @@ unimplemented route works.
 | 1.1 -> 1.1.1 | A policy-assignment scope carries exactly one of `scope_id` (UUID) or `scope_key` (text), decided by the dimension | Three of the ten dimensions are not UUID-valued (legal entity, jurisdiction, expense category), and a single UUID column could not express them, so assignments scoped to those dimensions never matched. Uniqueness is now over the effective selector. No route is affected today: the policy routes are declared unimplemented. |
 | 1.1.1 -> 1.2.0 | Minimal employee-owned draft creation, private receipt upload/content retrieval and IndicOCR status tracking | Reuses the existing auth, storage, receipt and extraction-run schema. OCR text is not persisted pending a retention decision. |
 | 1.2.0 -> 1.3.0 | DeepSeek structured extraction contract, bounded persisted worker, batches, retry and authorized result listing | Each upload is its own job. Provider output is schema-validated, then deterministically checked; original receipt and run history remain traceable. |
+| 1.4.0 -> 1.5.0 | Read-only policy pre-flight (`POST /api/v1/policy/check`) | The route was deferred on "an approved policy document". It writes nothing - no claim, finding, status transition or audit event - so nothing about it depends on the claim lifecycle, and the local demo now supplies a plainly fictional policy to evaluate against. The narrow read routes (`GET /policy/versions/current`, `GET /policy/rules`) and finding persistence stay deferred: they would expose policy structure or store results, which needs its own scoping decision. |
 
 ---
 
