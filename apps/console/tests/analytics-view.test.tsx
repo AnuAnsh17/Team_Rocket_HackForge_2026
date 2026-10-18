@@ -62,6 +62,11 @@ function spendState(overrides: Partial<ViewProps["spend"]> = {}): ViewProps["spe
     loadingMore: false,
     loadMoreError: null,
     pagesLoaded: 1,
+    // The spend section only shows rows while the selection they were requested under is
+    // still the selection on screen, so the default state is a loaded month-grouped result
+    // for the fixture range. A test that changes the grouping must say so here too, which
+    // is the point of the guard.
+    loadedQuery: { from: RANGE.from, to: RANGE.to, group_by: "month", limit: 200 },
     ...overrides,
   };
 }
@@ -662,6 +667,7 @@ describe("layout and accessibility", () => {
       spend: spendState({
         rows: [spendRow({ status: "approved", amount_total: "10.00" })],
         page: pageInfo({ total: 1 }),
+        loadedQuery: { from: RANGE.from, to: RANGE.to, group_by: "status", limit: 200 },
       }),
     });
     expect(html).toContain('aria-label="Spend grouping dimension"');

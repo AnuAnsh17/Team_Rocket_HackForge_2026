@@ -257,13 +257,37 @@ export default function AnalyticsDashboard() {
     const token = spendGate.current.begin();
     const controller = new AbortController();
     const query = buildSpendQuery(range, filters, groupBy, null);
-    setSpend((current) => ({
-      ...current,
-      error: null,
-      loadMoreError: null,
-      loading: current.rows.length === 0,
-      refreshing: current.rows.length > 0,
-    }));
+    setSpend((current) => {
+      if (!sameSelection(current.loadedQuery, query)) {
+        // A different selection invalidates the rows *and* the pagination cursor. The
+        // cursor addresses the next page of the previous selection's result set, so
+        // keeping it would offer "load more" while the rows for the new selection are
+        // still unresolved and would send the new filters with the old cursor, silently
+        // skipping groups. The retained figures are dropped rather than relabelled, and a
+        // genuine loading state takes their place.
+        return {
+          rows: [],
+          page: null,
+          unknownDateCount: 0,
+          error: null,
+          loading: true,
+          refreshing: false,
+          loadingMore: false,
+          loadMoreError: null,
+          pagesLoaded: 0,
+          loadedQuery: current.loadedQuery,
+        };
+      }
+      // Same selection (an explicit refresh): the rows on screen are still the answer to
+      // the request being repeated, so they stay until the new response arrives.
+      return {
+        ...current,
+        error: null,
+        loadMoreError: null,
+        loading: current.rows.length === 0,
+        refreshing: current.rows.length > 0,
+      };
+    });
 
     loadSpendPage(consoleApi, query, controller.signal)
       .then((page) => {
@@ -298,6 +322,13 @@ export default function AnalyticsDashboard() {
   const loadMore = useCallback(() => {
     const cursor = spend.page?.next_cursor;
     if (!cursor) return;
+    // The cursor addresses the page after the result set the rows on screen came from. It
+    // may only be followed while that result set is still the one the controls describe,
+    // and while no request for it is outstanding: appending a page fetched with the new
+    // filters to rows fetched with the old ones mixes two selections into one list.
+    const loadedQuery = buildSpendQuery(range, filters, groupBy, null);
+    if (!sameSelection(spend.loadedQuery, loadedQuery)) return;
+    if (spend.loading || spend.refreshing || spend.loadingMore) return;
     const token = loadMoreGate.current.begin();
     setSpend((current) => ({ ...current, loadingMore: true, loadMoreError: null }));
     loadSpendPage(consoleApi, buildSpendQuery(range, filters, groupBy, cursor))
@@ -321,7 +352,16 @@ export default function AnalyticsDashboard() {
           loadMoreError: describeError(error),
         }));
       });
-  }, [filters, groupBy, range, spend.page]);
+  }, [
+    filters,
+    groupBy,
+    range,
+    spend.page,
+    spend.loadedQuery,
+    spend.loading,
+    spend.refreshing,
+    spend.loadingMore,
+  ]);
 
   const updateFilter = useCallback(
     <K extends keyof AnalyticsFilters>(key: K, value: AnalyticsFilters[K]) => {
@@ -407,6 +447,11 @@ export function AnalyticsView({
 }) {
   const busy = overview.loading || overview.refreshing || spend.loading || spend.refreshing;
 
+  // Built once per render and passed down, so every section compares the response it holds
+  // against the same description of what the controls now request.
+  const overviewQuery = buildOverviewQuery(range, filters);
+  const spendQuery = buildSpendQuery(range, filters, groupBy);
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -438,7 +483,7 @@ export function AnalyticsView({
         </div>
       </header>
 
-      <PeriodSummary range={range} overview={overview.data} />
+      <PeriodSummary overview={overview} range={range} currentQuery={overviewQuery} />
 
       <FilterPanel
         range={range}
@@ -464,7 +509,8 @@ export function AnalyticsView({
           </p>
           <p className="mt-1 max-w-prose text-xs text-[var(--color-text-muted)]">
             {validationError} No request was sent, so the figures below remain those of the last
-            valid selection.
+            valid selection, and each section states which selection that is. Correct the period
+            or the filters, or reset both.
           </p>
         </div>
       )}
@@ -482,14 +528,16 @@ export function AnalyticsView({
       <OverviewSection
         overview={overview}
         range={range}
-        currentQuery={buildOverviewQuery(range, filters)}
+        currentQuery={overviewQuery}
+        selectionError={validationError}
       />
 
       <SpendSection
         spend={spend}
         groupBy={groupBy}
         range={range}
-        currentQuery={buildSpendQuery(range, filters, groupBy)}
+        currentQuery={spendQuery}
+        selectionError={validationError}
         onGroupByChange={onGroupByChange}
         onLoadMore={onLoadMore}
       />
@@ -533,18 +581,45 @@ export function formatMonthLabel(value: string | null | undefined): string {
   );
 }
 
+/**
+ * The period the response on screen actually belongs to.
+ *
+ * The controls and the request that produced the visible figures are not the same thing
+ * while a refresh is in flight, so every period caption is derived from the response's own
+ * `loadedQuery` and falls back to the control `range` only when nothing is displayed.
+ */
+function displayedRange(
+  loadedQuery: { from: string; to: string } | null | undefined,
+  range: DateRange,
+  hasData: boolean,
+): DateRange {
+  if (hasData && loadedQuery) return { from: loadedQuery.from, to: loadedQuery.to };
+  return range;
+}
+
 function PeriodSummary({
-  range,
   overview,
+  range,
+  currentQuery,
 }: {
+  overview: ResourceState<AnalyticsOverview>;
   range: DateRange;
-  overview: AnalyticsOverview | null;
+  currentQuery: OverviewQuery;
 }) {
+  const data = overview.data;
+  const loadedQuery = overview.loadedQuery ?? null;
+  const periodRange = displayedRange(loadedQuery, range, data !== null);
+  // Only a response that was actually asked for by the current controls is "the current
+  // selection"; a retained one that answers something else has to say so, because the
+  // paragraph below quotes the API's own confirmation of *its* period.
+  const isCurrentSelection =
+    loadedQuery === null ? true : sameSelection(loadedQuery, currentQuery);
+
   return (
     <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <p className="text-sm font-medium text-[var(--color-text)]">
-          Period: <span className="tabular-nums">{formatPeriodLabel(range)}</span>
+          Period: <span className="tabular-nums">{formatPeriodLabel(periodRange)}</span>
         </p>
         <p className="text-xs text-[var(--color-text-muted)]">
           Inclusive of both dates, by transaction date only
@@ -553,10 +628,20 @@ function PeriodSummary({
       <p className="mt-1 max-w-prose text-xs text-[var(--color-text-muted)]">
         The two boundary dates are included. Only the claim&apos;s transaction date is used: a claim
         created or decided inside the period but transacted outside it is not counted here.
-        {overview
-          ? ` The API confirmed this period as ${overview.from_date} to ${overview.to_date}.`
+        {data
+          ? ` The API confirmed this period as ${data.from_date} to ${data.to_date}.`
           : ""}
       </p>
+      {data && loadedQuery && !isCurrentSelection && (
+        <p
+          role="status"
+          className="mt-2 max-w-prose text-xs text-[var(--color-severity-warning)]"
+        >
+          That confirmation is for {describeSelection(loadedQuery)}, which is the response on
+          screen. The controls now request a different selection, and these figures stay until
+          that response arrives.
+        </p>
+      )}
     </div>
   );
 }
@@ -792,10 +877,13 @@ function OverviewSection({
   overview,
   range,
   currentQuery,
+  selectionError,
 }: {
   overview: ResourceState<AnalyticsOverview>;
   range: DateRange;
   currentQuery: OverviewQuery;
+  /** Set when the controls describe a request the API would refuse, so none was sent. */
+  selectionError: string | null;
 }) {
   if (overview.loading && !overview.data) {
     return <OverviewSkeleton />;
@@ -806,20 +894,41 @@ function OverviewSection({
   }
 
   const data = overview.data;
-  if (!data) return <OverviewSkeleton />;
+  if (!data) {
+    if (selectionError) {
+      return (
+        <p
+          role="status"
+          className="rounded border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)]"
+        >
+          {selectionError} No request was sent, and no earlier response is available to show, so
+          there are no figures for this screen yet.
+        </p>
+      );
+    }
+    return <OverviewSkeleton />;
+  }
+
+  const loadedQuery = overview.loadedQuery ?? null;
+  // Every caption below describes the response on screen. Taking the period from the live
+  // controls instead would caption one period's figures with another period's dates the
+  // moment a refresh starts, and would caption an unrequestable selection's figures as if
+  // the API had answered it.
+  const periodRange = displayedRange(loadedQuery, range, true);
+  const isCurrentSelection =
+    loadedQuery === null ? true : sameSelection(loadedQuery, currentQuery);
+  const loadedSelection = loadedQuery ? describeSelection(loadedQuery) : null;
 
   // A failure after the controls changed must not leave the previous selection's figures
   // under the new controls: they would read as the answer to a question that was never
   // answered. The error is shown instead, naming what the retained figures were for.
-  if (overview.error && !sameSelection(overview.loadedQuery, currentQuery)) {
+  if (overview.error && !isCurrentSelection) {
     return (
       <div className="space-y-3">
         <ErrorState title={overview.error.title} message={overview.error.message} />
         <p className="max-w-prose text-xs text-[var(--color-text-muted)]">
           An earlier selection did load successfully
-          {overview.loadedQuery
-            ? ` (${describeSelection(overview.loadedQuery)})`
-            : ""}
+          {loadedSelection ? ` (${loadedSelection})` : ""}
           , but it is not what the controls now request, so it is not shown here. Set the filters
           back or retry to see figures for the current selection.
         </p>
@@ -832,10 +941,8 @@ function OverviewSection({
       {overview.error && (
         <StaleNotice
           message={`The latest overview request failed (${overview.error.title}): ${overview.error.message}`}
-          loadedSelection={
-            overview.loadedQuery ? describeSelection(overview.loadedQuery) : null
-          }
-          isCurrentSelection={sameSelection(overview.loadedQuery, currentQuery)}
+          loadedSelection={loadedSelection}
+          isCurrentSelection={isCurrentSelection}
           requestId={overview.error.requestId}
         />
       )}
@@ -845,13 +952,24 @@ function OverviewSection({
           response until the new one arrives.
         </p>
       )}
+      {loadedSelection && !isCurrentSelection && !overview.error && (
+        <p
+          role="status"
+          className="rounded border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)]"
+        >
+          These figures are the last completed response, for {loadedSelection}.
+          {selectionError
+            ? " No request was sent for the selection now in the controls, so nothing has replaced them."
+            : " The controls now request a different selection; these figures stay until that response arrives."}
+        </p>
+      )}
 
       <MetricGrid overview={data} />
 
       {data.claim_count === 0 ? (
         <EmptyState
           title="No dated claims in this period"
-          description={`Nothing was transacted between ${range.from} and ${range.to} for this selection, so there are no charts to draw. ${formatCount(
+          description={`Nothing was transacted between ${periodRange.from} and ${periodRange.to} for this selection, so there are no charts to draw. ${formatCount(
             data.claims_with_unknown_transaction_date,
           )} claims match the filters but have no transaction date and cannot be placed in any period.`}
         />
@@ -863,7 +981,7 @@ function OverviewSection({
             <ChartCard
               title="Monthly spending"
               dimension="Transaction month"
-              period={formatPeriodLabel(range)}
+              period={formatPeriodLabel(periodRange)}
               footnote="Calendar months with no dated claims are omitted by the API; an absent month is zero dated claims, not missing data."
             >
               <AmountBars
@@ -880,7 +998,7 @@ function OverviewSection({
             <ChartCard
               title="Department spending"
               dimension="Department"
-              period={formatPeriodLabel(range)}
+              period={formatPeriodLabel(periodRange)}
               footnote="Each membership's current persisted department. Expenses do not store a historical snapshot, so a transfer can change this attribution."
             >
               <AmountBars
@@ -897,7 +1015,7 @@ function OverviewSection({
             <ChartCard
               title="Office location spending"
               dimension="Office location"
-              period={formatPeriodLabel(range)}
+              period={formatPeriodLabel(periodRange)}
               footnote="Each membership's current persisted office location, with the same historical caveat as departments."
             >
               <AmountBars
@@ -914,7 +1032,7 @@ function OverviewSection({
             <ChartCard
               title="Expense categories"
               dimension="Category"
-              period={formatPeriodLabel(range)}
+              period={formatPeriodLabel(periodRange)}
               footnote="Categories are the persisted strings employees and reviewers recorded. No policy classification is inferred."
             >
               <AmountBars
@@ -1120,6 +1238,7 @@ function SpendSection({
   groupBy,
   range,
   currentQuery,
+  selectionError,
   onGroupByChange,
   onLoadMore,
 }: {
@@ -1127,17 +1246,29 @@ function SpendSection({
   groupBy: AnalyticsGroupBy;
   range: DateRange;
   currentQuery: SpendQuery;
+  /** Set when the controls describe a request the API would refuse, so none was sent. */
+  selectionError: string | null;
   onGroupByChange: (groupBy: AnalyticsGroupBy) => void;
   onLoadMore: () => void;
 }) {
   const total = spend.page?.total ?? null;
   const loaded = spend.rows.length;
-  const hasMore = Boolean(spend.page?.next_cursor);
   const employeeScope = requiresOrganizationAnalytics(groupBy);
   const refusedForScope = spend.error?.kind === "forbidden" && employeeScope;
-  // Rows that belong to a different selection are never relabelled under the current one.
+  // A row's label is derived from the grouping dimension, so rows may only be shown while
+  // the whole selection they were requested under - period, filters, dimension and page
+  // size - is still the selection the controls describe. A no-error in-flight refresh is
+  // still a different selection, and rendering the previous grouping's rows under the new
+  // grouping is how a month bucket ends up captioned "Employee name not recorded".
   const rowsAreCurrent = sameSelection(spend.loadedQuery, currentQuery);
-  const showRows = loaded > 0 && (spend.error === null || rowsAreCurrent);
+  const showRows = loaded > 0 && rowsAreCurrent && !spend.loading;
+  // The cursor addresses the page after the result set those rows came from, so it is only
+  // offered while that result set is still the current one.
+  const hasMore = rowsAreCurrent && Boolean(spend.page?.next_cursor);
+  const rowsBelongToOtherSelection = loaded > 0 && !rowsAreCurrent;
+  const loadedSelection = spend.loadedQuery
+    ? describeSelection(spend.loadedQuery, spend.loadedQuery.group_by)
+    : "an earlier selection";
 
   return (
     <Card
@@ -1200,6 +1331,17 @@ function SpendSection({
         </div>
       )}
 
+      {!spend.error && rowsBelongToOtherSelection && (
+        <p
+          role="status"
+          className="rounded border border-[var(--color-border)] px-3 py-2 text-xs text-[var(--color-text-muted)]"
+        >
+          {selectionError
+            ? `No request was sent for the selection now in the controls, so the groups already loaded are not replaced. They are for ${loadedSelection}, and they are not shown under the current controls.`
+            : `The groups already loaded are for ${loadedSelection}. The controls now request a different selection, so those groups are not relabelled as the current grouping.`}
+        </p>
+      )}
+
       {showRows && (
         <div className="space-y-4" aria-live="polite">
           {spend.error && (
@@ -1226,7 +1368,7 @@ function SpendSection({
               ? `${formatCount(loaded)} groups returned on the first page; the API did not report a total`
               : `showing ${formatCount(loaded)} of ${formatCount(total)} matching groups`}
             {spend.pagesLoaded > 1 ? ` across ${formatCount(spend.pagesLoaded)} pages` : ""} ·{" "}
-            {formatPeriodLabel(range)}
+            {formatPeriodLabel(displayedRange(spend.loadedQuery, range, true))}
           </p>
 
           <AmountBars
@@ -1246,7 +1388,7 @@ function SpendSection({
               <button
                 type="button"
                 onClick={onLoadMore}
-                disabled={spend.loadingMore}
+                disabled={spend.loadingMore || spend.refreshing || spend.loading}
                 className="rounded-md border border-[var(--color-border-strong)] px-3 py-2 text-sm font-medium hover:bg-[var(--color-surface-muted)] disabled:cursor-wait disabled:opacity-60"
               >
                 {spend.loadingMore ? "Loading more groups…" : "Load more groups"}
@@ -1279,14 +1421,21 @@ function SpendSection({
       )}
 
       {!spend.loading && !spend.error && loaded === 0 && (
-        <EmptyState
-          title="No groups match this selection"
-          description={
-            spend.unknownDateCount > 0
-              ? `${formatCount(spend.unknownDateCount)} claims match the filters but have no transaction date, so no group can be formed for them.`
-              : "The API returned no groups for this period, filters and dimension."
-          }
-        />
+        selectionError ? (
+          <EmptyState
+            title="This selection cannot be requested"
+            description={`${selectionError} No request was sent, so there are no groups to show. Correct the period or filters, or reset them.`}
+          />
+        ) : (
+          <EmptyState
+            title="No groups match this selection"
+            description={
+              spend.unknownDateCount > 0
+                ? `${formatCount(spend.unknownDateCount)} claims match the filters but have no transaction date, so no group can be formed for them.`
+                : "The API returned no groups for this period, filters and dimension."
+            }
+          />
+        )
       )}
     </Card>
   );
