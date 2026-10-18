@@ -4,19 +4,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.proofline.android.data.model.DemoActors
 import org.proofline.android.ui.viewmodel.ProoflineUiState
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     state: ProoflineUiState,
     onRefresh: () -> Unit,
-    onSeedDemo: () -> Unit
+    onSeedDemo: () -> Unit,
+    onSelectDemoActor: (String) -> Unit
 ) {
     val displayName = state.membership?.user?.display_name ?: "Unavailable"
     val initials = displayName.split(" ")
@@ -25,6 +28,8 @@ fun ProfileScreen(
         .joinToString("")
         .uppercase()
         .ifEmpty { "U" }
+
+    var expanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -101,7 +106,7 @@ fun ProfileScreen(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Divider()
+                HorizontalDivider()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -141,7 +146,7 @@ fun ProfileScreen(
             }
         }
 
-        // 3. Session Card
+        // 3. Session & Demo Actor Picker Card
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -149,17 +154,51 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Session & Environment",
+                    text = "Session & Demo Identity",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Divider()
-                Text("Backend URL: http://10.0.2.2:8000/api/v1/", style = MaterialTheme.typography.bodySmall)
-                Text("Environment: Demo Environment (Simulated)", style = MaterialTheme.typography.bodySmall)
-                Spacer(modifier = Modifier.height(4.dp))
+                HorizontalDivider()
+
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = DemoActors.all.find { it.uuid == state.membership?.user?.id }?.name ?: "Select Demo Actor",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Active Demo Actor") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        DemoActors.all.forEach { actor ->
+                            DropdownMenuItem(
+                                text = { Text("${actor.name} (${actor.uuid.take(8)}...)") },
+                                onClick = {
+                                    expanded = false
+                                    onSelectDemoActor(actor.uuid)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = "Switching identity resets the view to that employee's claims.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
                 Button(
                     onClick = onRefresh,
                     modifier = Modifier.fillMaxWidth()

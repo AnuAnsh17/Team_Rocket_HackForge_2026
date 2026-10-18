@@ -5,11 +5,7 @@ import com.google.gson.GsonBuilder
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.proofline.android.data.api.ProoflineApi
-import org.proofline.android.data.model.ApiErrorEnvelope
-import org.proofline.android.data.model.ExpenseListResponse
-import org.proofline.android.data.model.MembershipSummary
-import org.proofline.android.data.model.Money
-import org.proofline.android.data.model.MoneyDeserializer
+import org.proofline.android.data.model.*
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
@@ -36,7 +32,9 @@ class ProoflineRepository(
         .build()
         .create(ProoflineApi::class.java)
 
-    var currentDemoActor: String? = "00000000-0000-0000-0000-000000000001"
+    // Real seeded UUID from backend/app/services/demo_service.py (employee.asha)
+    var currentDemoActor: String = DemoActors.default
+    private val gson = Gson()
 
     suspend fun getMe(): Result<MembershipSummary> {
         return try {
@@ -69,7 +67,7 @@ class ProoflineRepository(
     }
 
     suspend fun seedDemo(): Result<Unit> = runCatching {
-        api.seedDemo()
+        api.seedDemo(currentDemoActor)
         Unit
     }
 

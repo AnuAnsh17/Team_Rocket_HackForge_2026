@@ -50,6 +50,11 @@ class ProoflineViewModel : ViewModel() {
         }
     }
 
+    fun setDemoActor(uuid: String) {
+        repository.currentDemoActor = uuid
+        loadData()
+    }
+
     fun seedDemoDataset() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }

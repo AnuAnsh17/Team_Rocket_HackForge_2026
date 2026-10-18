@@ -12,16 +12,18 @@ import retrofit2.http.Query
 interface ProoflineApi {
     @GET("me")
     suspend fun getMe(
-        @Header("X-Demo-Actor") demoActor: String? = null
+        @Header("X-Demo-Actor-Id") demoActorId: String? = null
     ): Response<MembershipSummary>
 
     @GET("expenses")
     suspend fun getExpenses(
-        @Header("X-Demo-Actor") demoActor: String? = null,
+        @Header("X-Demo-Actor-Id") demoActorId: String? = null,
         @Query("limit") limit: Int = 20,
         @Query("status") status: String? = null
     ): Response<ExpenseListResponse>
 
     @POST("demo/seed")
-    suspend fun seedDemo(): Response<DemoSeedResponse>
+    suspend fun seedDemo(
+        @Header("X-Demo-Actor-Id") demoActorId: String? = null
+    ): Response<DemoSeedResponse>
 }
