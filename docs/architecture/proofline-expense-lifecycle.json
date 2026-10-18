@@ -1,0 +1,363 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Proofline Expense Claim Lifecycle",
+    "locale": "en",
+    "output": "docs/architecture/proofline-expense-lifecycle.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/AnuAnsh17/Team_Rocket_HackForge_2026",
+      "provider": "github",
+      "revision": "a779782f3fa093c31eb84aabdad11ee7e937ccb3"
+    },
+    "legend": { "mode": "auto" }
+  },
+  "mainPath": ["draft", "submitted", "approved"],
+  "states": [
+    {
+      "id": "draft",
+      "type": "start",
+      "label": "Draft",
+      "sublabel": "employee-owned",
+      "tag": "start",
+      "step": "01",
+      "sources": [
+        { "path": "backend/app/core/enums.py", "line": 53, "end_line": 69, "label": "ExpenseStatus" },
+        {
+          "path": "backend/app/services/expense_workflow_service.py",
+          "line": 48,
+          "end_line": 55,
+          "label": "created as draft"
+        },
+        {
+          "path": "backend/app/api/v1/routes/expenses.py",
+          "line": 21,
+          "end_line": 37,
+          "label": "POST /expenses"
+        }
+      ]
+    },
+    {
+      "id": "submitted",
+      "type": "waiting",
+      "label": "Submitted",
+      "sublabel": "queued for a reviewer",
+      "tag": "queue",
+      "step": "02",
+      "sources": [
+        {
+          "path": "backend/app/services/expense_workflow_service.py",
+          "line": 122,
+          "end_line": 146,
+          "label": "submit guards"
+        },
+        {
+          "path": "backend/app/api/v1/routes/expense_lifecycle.py",
+          "line": 487,
+          "end_line": 510,
+          "label": "submit route"
+        },
+        {
+          "path": "backend/tests/integration/test_expense_lifecycle_api.py",
+          "line": 79,
+          "end_line": 88,
+          "label": "draft → submitted test"
+        }
+      ]
+    },
+    {
+      "id": "approved",
+      "type": "success",
+      "label": "Approved",
+      "sublabel": "decision · no payment",
+      "tag": "terminal",
+      "step": "03",
+      "sources": [
+        {
+          "path": "backend/app/services/expense_workflow_service.py",
+          "line": 171,
+          "end_line": 183,
+          "label": "approve → approved"
+        },
+        {
+          "path": "backend/app/api/v1/routes/analytics.py",
+          "line": 70,
+          "end_line": 74,
+          "label": "not a payment record"
+        },
+        {
+          "path": "backend/app/services/corporate_demo_service.py",
+          "line": 1186,
+          "end_line": 1190,
+          "label": "approve executed"
+        }
+      ]
+    },
+    {
+      "id": "in_review",
+      "type": "decision",
+      "label": "In review",
+      "sublabel": "escalated to a human",
+      "tag": "review",
+      "sources": [
+        {
+          "path": "backend/app/services/expense_workflow_service.py",
+          "line": 168,
+          "end_line": 179,
+          "label": "escalate → in_review"
+        },
+        {
+          "path": "backend/app/api/v1/routes/expense_lifecycle.py",
+          "line": 513,
+          "end_line": 530,
+          "label": "decide route"
+        },
+        {
+          "path": "backend/app/services/corporate_demo_service.py",
+          "line": 1203,
+          "end_line": 1208,
+          "label": "escalate exercised"
+        }
+      ]
+    },
+    {
+      "id": "needs_info",
+      "type": "waiting",
+      "label": "Needs information",
+      "sublabel": "correction requested",
+      "tag": "waiting",
+      "sources": [
+        {
+          "path": "backend/app/services/expense_workflow_service.py",
+          "line": 171,
+          "end_line": 176,
+          "label": "request_correction → needs_info"
+        },
+        {
+          "path": "backend/app/api/v1/routes/expense_lifecycle.py",
+          "line": 410,
+          "end_line": 421,
+          "label": "corrections limited to draft / needs_info"
+        },
+        {
+          "path": "backend/tests/integration/test_expense_lifecycle_api.py",
+          "line": 138,
+          "end_line": 157,
+          "label": "correction adds evidence"
+        }
+      ]
+    },
+    {
+      "id": "rejected",
+      "type": "failure",
+      "label": "Rejected",
+      "sublabel": "human reason required",
+      "tag": "terminal",
+      "sources": [
+        {
+          "path": "backend/app/services/expense_workflow_service.py",
+          "line": 171,
+          "end_line": 183,
+          "label": "reject → rejected"
+        },
+        {
+          "path": "backend/app/models/review.py",
+          "line": 217,
+          "end_line": 222,
+          "label": "reason CHECK"
+        },
+        {
+          "path": "backend/tests/integration/test_expense_lifecycle_api.py",
+          "line": 175,
+          "end_line": 180,
+          "label": "reject without reason 422"
+        }
+      ]
+    },
+    {
+      "id": "withdrawn",
+      "type": "neutral",
+      "label": "Withdrawn",
+      "sublabel": "reserved · unreachable",
+      "tag": "reserved",
+      "sources": [
+        { "path": "backend/app/core/enums.py", "line": 54, "end_line": 61, "label": "reserved value" },
+        { "path": "docs/api-contract.md", "line": 99, "end_line": 99, "label": "no endpoint produces it" },
+        {
+          "path": "PROOFLINE_BUILD_PLAN.md",
+          "line": 214,
+          "end_line": 214,
+          "label": "only if implemented"
+        }
+      ]
+    },
+    {
+      "id": "preflight",
+      "type": "decision",
+      "label": "Policy pre-flight",
+      "sublabel": "advisory · writes nothing",
+      "tag": "advisory",
+      "sources": [
+        {
+          "path": "backend/app/api/v1/routes/policy.py",
+          "line": 30,
+          "end_line": 46,
+          "label": "POST /policy/check"
+        },
+        {
+          "path": "backend/app/services/policy_check_service.py",
+          "line": 1,
+          "end_line": 16,
+          "label": "reads only"
+        },
+        {
+          "path": "backend/app/policy/evaluator.py",
+          "line": 384,
+          "end_line": 401,
+          "label": "UNKNOWN → review"
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "draft-submitted",
+      "from": "draft",
+      "to": "submitted",
+      "label": "submit",
+      "note": "fields + receipt",
+      "variant": "emphasis"
+    },
+    {
+      "id": "submitted-approved",
+      "from": "submitted",
+      "to": "approved",
+      "label": "approve",
+      "note": "human decision",
+      "variant": "emphasis"
+    },
+    {
+      "id": "submitted-needs-info",
+      "from": "submitted",
+      "to": "needs_info",
+      "label": "correction",
+      "note": "reason required"
+    },
+    {
+      "id": "submitted-rejected",
+      "from": "submitted",
+      "to": "rejected",
+      "label": "reject",
+      "note": "reason required"
+    },
+    {
+      "id": "submitted-in-review",
+      "from": "submitted",
+      "to": "in_review",
+      "label": "escalate",
+      "note": "second 409"
+    },
+    {
+      "id": "in-review-approved",
+      "from": "in_review",
+      "to": "approved",
+      "label": "approve",
+      "note": "scoped reviewer"
+    },
+    {
+      "id": "in-review-rejected",
+      "from": "in_review",
+      "to": "rejected",
+      "label": "reject",
+      "note": "reason required"
+    },
+    {
+      "id": "in-review-needs-info",
+      "from": "in_review",
+      "to": "needs_info",
+      "label": "correction"
+    },
+    {
+      "id": "needs-info-submitted",
+      "from": "needs_info",
+      "to": "submitted",
+      "label": "resubmit"
+    },
+    {
+      "id": "draft-receipt",
+      "from": "draft",
+      "to": "draft",
+      "label": "attach receipt",
+      "note": "required"
+    },
+    {
+      "id": "draft-preflight",
+      "from": "draft",
+      "to": "preflight",
+      "label": "pre-flight",
+      "note": "writes nothing",
+      "variant": "dashed"
+    },
+    {
+      "id": "preflight-draft",
+      "from": "preflight",
+      "to": "draft",
+      "label": "PASS / FAIL",
+      "note": "no status change",
+      "variant": "dashed"
+    },
+    {
+      "id": "preflight-in-review",
+      "from": "preflight",
+      "to": "in_review",
+      "label": "UNKNOWN",
+      "note": "never a pass",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Four Different Things",
+      "items": [
+        "Submitting is a status change on the claim row",
+        "A policy check result is advisory: it writes nothing",
+        "Approving, rejecting and escalating are human ReviewAction decisions",
+        "No payment, payout or reimbursement execution exists in this build"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Submit Gate (real conditions)",
+      "items": [
+        "Merchant, expense date, amount and currency on the persisted row",
+        "At least one receipt attached; receipts only in draft or needs_info",
+        "expected_version must match the row version, else 409 StaleVersion",
+        "Own claim plus expense:submit_own, else 404 / 403",
+        "Claim and receipt mutations require an Idempotency-Key header"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Human Decisions and Their Limits",
+      "items": [
+        "Only submitted or in_review claims accept a decision, else 409",
+        "Reject and request_correction need a human reason: 422 then DB CHECK",
+        "A reviewer may not decide their own claim (403)",
+        "in_review is the deferral target; escalated claims decide from there"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Honest Boundaries",
+      "items": [
+        "Many findings, one status: a finding is never the claim's status",
+        "UNKNOWN is never a pass and routes to review, never to approved",
+        "Policy pre-flight UNKNOWN does not move the claim's status",
+        "Withdrawn is reserved; finding and duplicate persistence stays deferred"
+      ]
+    }
+  ]
+}

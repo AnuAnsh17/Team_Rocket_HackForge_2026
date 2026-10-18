@@ -1,0 +1,586 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Proofline System Architecture",
+    "subtitle": "Three clients, one API, and the boundaries a request crosses",
+    "locale": "en",
+    "output": "docs/architecture/proofline-system-architecture.html",
+    "quality_profile": "showcase",
+    "visual_preset": "signal-flow",
+    "repository": {
+      "url": "https://github.com/AnuAnsh17/Team_Rocket_HackForge_2026",
+      "provider": "github",
+      "revision": "a779782f3fa093c31eb84aabdad11ee7e937ccb3"
+    },
+    "views": [
+      {
+        "id": "request_path",
+        "label": "Main request path",
+        "focus": [
+          "employee",
+          "portal",
+          "api",
+          "authorize",
+          "workflow",
+          "postgres"
+        ],
+        "note": "An employee's request: client, API, authorization, claim service, database."
+      },
+      {
+        "id": "receipt_path",
+        "label": "Receipt path",
+        "focus": [
+          "portal",
+          "api",
+          "exproutes",
+          "storage",
+          "extract"
+        ],
+        "note": "Upload goes to private object storage as bytes; extraction is a run and no provider is enabled."
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 40,
+    "gapY": 30
+  },
+  "components": [
+    {
+      "id": "employee",
+      "type": "external",
+      "label": "Employee",
+      "sublabel": "Expense owner",
+      "pos": [
+        30,
+        60
+      ],
+      "size": [
+        150,
+        58
+      ],
+      "icon": "person"
+    },
+    {
+      "id": "reviewer",
+      "type": "external",
+      "label": "Finance reviewer",
+      "sublabel": "Human decision maker",
+      "pos": [
+        30,
+        236
+      ],
+      "size": [
+        150,
+        58
+      ],
+      "icon": "person"
+    },
+    {
+      "id": "mobile",
+      "type": "frontend",
+      "label": "Android app",
+      "sublabel": "Expo / React Native",
+      "pos": [
+        210,
+        60
+      ],
+      "size": [
+        160,
+        58
+      ]
+    },
+    {
+      "id": "portal",
+      "type": "frontend",
+      "label": "Employee portal",
+      "sublabel": "Next.js \u00b7 self-service",
+      "pos": [
+        210,
+        148
+      ],
+      "size": [
+        160,
+        58
+      ]
+    },
+    {
+      "id": "console",
+      "type": "frontend",
+      "label": "Internal console",
+      "sublabel": "Next.js \u00b7 review & analytics",
+      "pos": [
+        210,
+        236
+      ],
+      "size": [
+        160,
+        58
+      ]
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "Supabase Auth",
+      "sublabel": "Access token \u00b7 JWKS verified",
+      "tag": "RS256 / ES256",
+      "pos": [
+        390,
+        60
+      ],
+      "size": [
+        160,
+        58
+      ],
+      "icon": "security",
+      "sources": [
+        {
+          "path": "backend/app/core/security.py",
+          "line": 253,
+          "end_line": 290,
+          "label": "Supabase provider"
+        },
+        {
+          "path": "backend/app/core/config.py",
+          "line": 61,
+          "end_line": 78,
+          "label": "auth settings"
+        }
+      ]
+    },
+    {
+      "id": "authorize",
+      "type": "security",
+      "label": "Authorization & scope",
+      "sublabel": "Permissions \u00b7 organization scope",
+      "pos": [
+        390,
+        236
+      ],
+      "size": [
+        160,
+        58
+      ],
+      "icon": "security",
+      "sources": [
+        {
+          "path": "backend/app/services/scope_service.py",
+          "line": 103,
+          "end_line": 142,
+          "label": "require_expense_read"
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI API",
+      "sublabel": "/api/v1 \u00b7 8 routers",
+      "pos": [
+        580,
+        148
+      ],
+      "size": [
+        160,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/api/v1/router.py",
+          "line": 40,
+          "end_line": 47,
+          "label": "8 registered routers"
+        }
+      ]
+    },
+    {
+      "id": "workflow",
+      "type": "backend",
+      "label": "Expense workflow",
+      "sublabel": "Claim lifecycle + decisions",
+      "pos": [
+        780,
+        60
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/services/expense_workflow_service.py",
+          "line": 1,
+          "label": "draft, submit, decide"
+        }
+      ]
+    },
+    {
+      "id": "exproutes",
+      "type": "backend",
+      "label": "Expense & receipt routes",
+      "sublabel": "Upload, content, retry",
+      "pos": [
+        780,
+        148
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/api/v1/routes/receipts.py",
+          "line": 83,
+          "end_line": 95,
+          "label": "_read_receipt_for_actor"
+        }
+      ]
+    },
+    {
+      "id": "policy",
+      "type": "backend",
+      "label": "Policy engine",
+      "sublabel": "registry \u00b7 evaluator \u00b7 resolver",
+      "pos": [
+        780,
+        236
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/policy/evaluator.py",
+          "line": 1,
+          "label": "deterministic tri-state"
+        }
+      ]
+    },
+    {
+      "id": "preflight",
+      "type": "backend",
+      "label": "Policy pre-flight",
+      "sublabel": "Advisory \u00b7 writes nothing",
+      "pos": [
+        780,
+        324
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/services/policy_check_service.py",
+          "line": 189,
+          "label": "zero session writes"
+        }
+      ]
+    },
+    {
+      "id": "analytics",
+      "type": "backend",
+      "label": "Analytics service",
+      "sublabel": "overview \u00b7 spend \u00b7 matrix",
+      "pos": [
+        780,
+        412
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/api/v1/routes/analytics.py",
+          "line": 66,
+          "end_line": 90,
+          "label": "3 GET endpoints"
+        }
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "backend",
+      "label": "Audit service",
+      "sublabel": "Append-only events",
+      "pos": [
+        780,
+        500
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/services/audit_service.py",
+          "line": 1,
+          "label": "record_audit_event"
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "28 tables \u00b7 4 migrations",
+      "pos": [
+        990,
+        60
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1837,
+          "end_line": 1855,
+          "label": "append-only trigger"
+        }
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "Receipt object storage",
+      "sublabel": "private \u00b7 local | Supabase | S3",
+      "pos": [
+        990,
+        236
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/storage/factory.py",
+          "line": 12,
+          "end_line": 22,
+          "label": "backend selected by config"
+        }
+      ]
+    },
+    {
+      "id": "extract",
+      "type": "backend",
+      "label": "Extraction worker",
+      "sublabel": "Run persisted \u00b7 no provider enabled",
+      "tag": "not verified",
+      "pos": [
+        990,
+        412
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/app/extraction/factory.py",
+          "line": 17,
+          "end_line": 20,
+          "label": "fails closed"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Application clients",
+      "wraps": [
+        "mobile",
+        "portal",
+        "console"
+      ],
+      "pad": 24
+    },
+    {
+      "kind": "security-group",
+      "label": "Identity & authorization",
+      "wraps": [
+        "auth",
+        "authorize"
+      ],
+      "pad": 24
+    },
+    {
+      "kind": "region",
+      "label": "Proofline backend services",
+      "wraps": [
+        "api",
+        "workflow",
+        "exproutes",
+        "policy",
+        "preflight",
+        "analytics",
+        "audit"
+      ],
+      "pad": 28
+    },
+    {
+      "kind": "region",
+      "label": "Data stores",
+      "wraps": [
+        "postgres",
+        "storage",
+        "extract"
+      ],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "e-mobile",
+      "from": "employee",
+      "to": "mobile",
+      "label": "submits a claim",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-portal",
+      "from": "employee",
+      "to": "portal",
+      "label": "or the web portal"
+    },
+    {
+      "id": "r-console",
+      "from": "reviewer",
+      "to": "console",
+      "label": "reviews claims",
+      "variant": "emphasis"
+    },
+    {
+      "id": "mobile-api",
+      "from": "mobile",
+      "to": "api",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "portal-api",
+      "from": "portal",
+      "to": "api",
+      "label": "HTTPS /api/v1",
+      "variant": "emphasis"
+    },
+    {
+      "id": "console-api",
+      "from": "console",
+      "to": "api",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "auth-api",
+      "from": "auth",
+      "to": "api",
+      "label": "verifies access token",
+      "variant": "security"
+    },
+    {
+      "id": "api-authorize",
+      "from": "api",
+      "to": "authorize",
+      "label": "permission + org scope",
+      "variant": "security"
+    },
+    {
+      "id": "api-workflow",
+      "from": "api",
+      "to": "workflow",
+      "label": "claim lifecycle"
+    },
+    {
+      "id": "api-exproutes",
+      "from": "api",
+      "to": "exproutes",
+      "label": "receipts"
+    },
+    {
+      "id": "api-preflight",
+      "from": "api",
+      "to": "preflight",
+      "label": "advisory check"
+    },
+    {
+      "id": "api-analytics",
+      "from": "api",
+      "to": "analytics",
+      "label": "reads"
+    },
+    {
+      "id": "policy-preflight",
+      "from": "policy",
+      "to": "preflight",
+      "label": "evaluates"
+    },
+    {
+      "id": "workflow-pg",
+      "from": "workflow",
+      "to": "postgres",
+      "label": "SQL"
+    },
+    {
+      "id": "exproutes-storage",
+      "from": "exproutes",
+      "to": "storage",
+      "label": "private objects"
+    },
+    {
+      "id": "storage-extract",
+      "from": "storage",
+      "to": "extract",
+      "label": "queues run",
+      "variant": "dashed"
+    },
+    {
+      "id": "audit-pg",
+      "from": "audit",
+      "to": "postgres",
+      "label": "append-only events"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One contract, three clients",
+      "items": [
+        "The console, the employee portal and the Android app all consume the same generated API client over /api/v1.",
+        "Router registration: backend/app/api/v1/router.py:40-47. The demo router is added only when demo mode is on."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Authentication is pluggable; authorization is enforced server-side",
+      "items": [
+        "auth_provider defaults to `demo` (an X-Demo-Actor-Id header) for local work; `supabase` is the production provider, verifying a token against the project JWKS with an explicit issuer, audience and algorithm allow-list.",
+        "The client is never trusted to state who it is: permission checks and organization scoping happen in the service layer."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "What is deliberately not claimed here",
+      "items": [
+        "Extraction is drawn with a dashed edge: EXTRACTION_PROVIDER defaults to `unavailable` and the other providers fail closed, so no text is proven to be extracted.",
+        "The policy pre-flight is advisory and writes nothing - verified: zero session.add / session.commit calls.",
+        "No payment or reimbursement execution exists anywhere in this codebase."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Data stores",
+      "items": [
+        "PostgreSQL holds 28 application tables across four migrations.",
+        "audit_events is append-only via the trg_audit_events_append_only trigger (migration 0001:1837-1855). That is database integrity, not cryptographic immutability and not WORM storage.",
+        "Receipt bytes are private objects, served only through an authorization-checked endpoint, never a public URL."
+      ]
+    }
+  ]
+}

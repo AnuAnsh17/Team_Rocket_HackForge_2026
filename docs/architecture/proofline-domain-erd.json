@@ -1,0 +1,3184 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "Proofline relational model",
+    "locale": "en",
+    "output": "docs/architecture/proofline-domain-erd.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "standard",
+    "repository": {
+      "url": "https://github.com/AnuAnsh17/Team_Rocket_HackForge_2026",
+      "provider": "github",
+      "revision": "a779782f3fa093c31eb84aabdad11ee7e937ccb3"
+    },
+    "legend": {
+      "mode": "auto"
+    },
+    "views": [
+      {
+        "id": "db_identity",
+        "label": "Identity and access",
+        "focus": [
+          "organizations",
+          "users",
+          "organization_memberships",
+          "role_assignments"
+        ],
+        "note": "A role never grants anything by itself: it is granted inside a scope."
+      },
+      {
+        "id": "db_claim",
+        "label": "Claim and evidence",
+        "focus": [
+          "expenses",
+          "expense_field_evidence",
+          "line_items",
+          "trips"
+        ],
+        "note": "expenses holds the current field values; expense_field_evidence holds provenance."
+      },
+      {
+        "id": "db_receipts",
+        "label": "Receipts and extraction",
+        "focus": [
+          "receipts",
+          "extraction_runs",
+          "expense_field_evidence"
+        ],
+        "note": "Every provider attempt is a row; raw extracted text is never a column."
+      },
+      {
+        "id": "db_policy",
+        "label": "Policy and allowances",
+        "focus": [
+          "policy_documents",
+          "policy_versions",
+          "policy_rules",
+          "policy_assignments",
+          "allowance_profiles"
+        ],
+        "note": "A rule needs a source clause and a named validator before it can be active."
+      },
+      {
+        "id": "db_review",
+        "label": "Review and audit",
+        "focus": [
+          "findings",
+          "duplicate_candidates",
+          "review_decisions",
+          "approval_tasks",
+          "audit_events"
+        ],
+        "note": "audit_events draws no foreign key; its append-only rule is a trigger."
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 70,
+    "gapY": 34
+  },
+  "entities": [
+    {
+      "id": "organizations",
+      "label": "organizations",
+      "tag": "identity",
+      "row": 0,
+      "col": 0,
+      "width": 256,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "slug",
+          "type": "varchar(80)",
+          "key": "uk"
+        },
+        {
+          "name": "legal_entity_name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "jurisdiction_code",
+          "type": "varchar(16)"
+        },
+        {
+          "name": "timezone",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "reporting_currency",
+          "type": "varchar(3)"
+        },
+        {
+          "name": "is_demo",
+          "type": "boolean"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/organization.py",
+          "line": 47,
+          "end_line": 60,
+          "label": "Organization model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 64,
+          "end_line": 89,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "users",
+      "label": "users",
+      "tag": "identity",
+      "row": 1,
+      "col": 0,
+      "width": 250,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "display_name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "email",
+          "type": "varchar(320)",
+          "key": "uk"
+        },
+        {
+          "name": "external_subject",
+          "type": "varchar(200)",
+          "key": "uk"
+        },
+        {
+          "name": "auth_provider",
+          "type": "varchar(40)",
+          "key": "uk"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "deactivated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "primary_organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/identity.py",
+          "line": 60,
+          "end_line": 86,
+          "label": "User model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 259,
+          "end_line": 298,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "organization_memberships",
+      "label": "organization_memberships",
+      "tag": "identity",
+      "row": 2,
+      "col": 0,
+      "width": 305,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organizations.id"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "users.id"
+        },
+        {
+          "name": "employee_code",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "job_grade_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "job_grades.id"
+        },
+        {
+          "name": "department_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "departments.id"
+        },
+        {
+          "name": "cost_center_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "cost_centers.id"
+        },
+        {
+          "name": "office_location_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "office_locations.id"
+        },
+        {
+          "name": "primary_manager_membership_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organization_memberships.id"
+        },
+        {
+          "name": "joined_on",
+          "type": "date"
+        },
+        {
+          "name": "ended_on",
+          "type": "date"
+        },
+        {
+          "name": "is_primary",
+          "type": "boolean"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/identity.py",
+          "line": 89,
+          "end_line": 142,
+          "label": "OrganizationMembership model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 340,
+          "end_line": 430,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "reporting_relationships",
+      "label": "reporting_relationships",
+      "tag": "identity",
+      "row": 3,
+      "col": 0,
+      "width": 250,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "employee_membership_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organization_memberships.id"
+        },
+        {
+          "name": "manager_membership_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organization_memberships.id"
+        },
+        {
+          "name": "relationship_type",
+          "type": "varchar(16)"
+        },
+        {
+          "name": "effective_from",
+          "type": "date"
+        },
+        {
+          "name": "effective_to",
+          "type": "date"
+        },
+        {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/identity.py",
+          "line": 145,
+          "end_line": 183,
+          "label": "ReportingRelationship model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 628,
+          "end_line": 687,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "role_assignments",
+      "label": "role_assignments",
+      "tag": "identity",
+      "row": 4,
+      "col": 0,
+      "width": 233,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "membership_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organization_memberships.id"
+        },
+        {
+          "name": "role",
+          "type": "varchar(32)",
+          "key": "uk"
+        },
+        {
+          "name": "scope_type",
+          "type": "varchar(32)",
+          "key": "uk"
+        },
+        {
+          "name": "scope_id",
+          "type": "uuid",
+          "key": "uk"
+        },
+        {
+          "name": "granted_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "granted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "reason",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/identity.py",
+          "line": 186,
+          "end_line": 222,
+          "label": "RoleAssignment model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 688,
+          "end_line": 750,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "departments",
+      "label": "departments",
+      "tag": "org structure",
+      "row": 0,
+      "col": 6,
+      "width": 246,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organizations.id"
+        },
+        {
+          "name": "parent_department_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "departments.id"
+        },
+        {
+          "name": "code",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/organization.py",
+          "line": 63,
+          "end_line": 76,
+          "label": "Department model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 121,
+          "end_line": 157,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "cost_centers",
+      "label": "cost_centers",
+      "tag": "org structure",
+      "row": 1,
+      "col": 6,
+      "width": 224,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organizations.id"
+        },
+        {
+          "name": "code",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/organization.py",
+          "line": 79,
+          "end_line": 89,
+          "label": "CostCenter model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 90,
+          "end_line": 120,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "job_grades",
+      "label": "job_grades",
+      "tag": "org structure",
+      "row": 2,
+      "col": 6,
+      "width": 224,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organizations.id"
+        },
+        {
+          "name": "code",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "sort_order",
+          "type": "integer"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/organization.py",
+          "line": 111,
+          "end_line": 130,
+          "label": "JobGrade model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 158,
+          "end_line": 188,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "office_locations",
+      "label": "office_locations",
+      "tag": "org structure",
+      "row": 3,
+      "col": 6,
+      "width": 231,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organizations.id"
+        },
+        {
+          "name": "code",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "city",
+          "type": "varchar(120)"
+        },
+        {
+          "name": "region",
+          "type": "varchar(120)"
+        },
+        {
+          "name": "country_code",
+          "type": "varchar(2)"
+        },
+        {
+          "name": "timezone",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/organization.py",
+          "line": 92,
+          "end_line": 108,
+          "label": "OfficeLocation model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 189,
+          "end_line": 222,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "policy_documents",
+      "label": "policy_documents",
+      "tag": "policy",
+      "row": 0,
+      "col": 2,
+      "width": 277,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organizations.id"
+        },
+        {
+          "name": "title",
+          "type": "varchar(300)",
+          "key": "uk"
+        },
+        {
+          "name": "source_file_name",
+          "type": "varchar(300)"
+        },
+        {
+          "name": "source_file_sha256",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "authoritative",
+          "type": "boolean"
+        },
+        {
+          "name": "retrieved_on",
+          "type": "date"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 55,
+          "end_line": 74,
+          "label": "PolicyDocument model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 223,
+          "end_line": 258,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "policy_versions",
+      "label": "policy_versions",
+      "tag": "policy",
+      "row": 1,
+      "col": 2,
+      "width": 290,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "policy_document_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "policy_documents.id"
+        },
+        {
+          "name": "version_label",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "effective_from",
+          "type": "date"
+        },
+        {
+          "name": "effective_to",
+          "type": "date"
+        },
+        {
+          "name": "review_state",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "source_document_hash",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "approved_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "approved_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 77,
+          "end_line": 108,
+          "label": "PolicyVersion model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 431,
+          "end_line": 485,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "policy_rules",
+      "label": "policy_rules",
+      "tag": "policy",
+      "row": 2,
+      "col": 2,
+      "width": 250,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "policy_versions.id"
+        },
+        {
+          "name": "rule_id",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "title",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "category",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "evaluator_type",
+          "type": "varchar(80)"
+        },
+        {
+          "name": "parameters",
+          "type": "jsonb"
+        },
+        {
+          "name": "source_reference",
+          "type": "jsonb"
+        },
+        {
+          "name": "source_clause",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "source_excerpt",
+          "type": "text"
+        },
+        {
+          "name": "review_state",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean"
+        },
+        {
+          "name": "validated_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "validated_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 111,
+          "end_line": 154,
+          "label": "PolicyRule model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 574,
+          "end_line": 627,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "policy_assignments",
+      "label": "policy_assignments",
+      "tag": "policy",
+      "row": 3,
+      "col": 2,
+      "width": 250,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organizations.id"
+        },
+        {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "policy_versions.id"
+        },
+        {
+          "name": "allowance_profile_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "allowance_profiles.id"
+        },
+        {
+          "name": "scope_type",
+          "type": "varchar(32)",
+          "key": "uk"
+        },
+        {
+          "name": "scope_id",
+          "type": "uuid"
+        },
+        {
+          "name": "scope_key",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "priority",
+          "type": "integer"
+        },
+        {
+          "name": "approval_state",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "effective_from",
+          "type": "date"
+        },
+        {
+          "name": "effective_to",
+          "type": "date"
+        },
+        {
+          "name": "assigned_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "assigned_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 157,
+          "end_line": 269,
+          "label": "PolicyAssignment model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 934,
+          "end_line": 1007,
+          "label": "create_table"
+        },
+        {
+          "path": "backend/migrations/versions/0002_scope_selector.py",
+          "line": 88,
+          "end_line": 108,
+          "label": "scope_key + scope_id nullable"
+        }
+      ]
+    },
+    {
+      "id": "policy_exceptions",
+      "label": "policy_exceptions",
+      "tag": "policy",
+      "row": 4,
+      "col": 2,
+      "width": 259,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "exception_type",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "subject_type",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "subject_id",
+          "type": "uuid"
+        },
+        {
+          "name": "policy_rule_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "policy_rules.id"
+        },
+        {
+          "name": "allowance_profile_item_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "allowance_profile_items.id"
+        },
+        {
+          "name": "value_amount",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "currency",
+          "type": "varchar(3)"
+        },
+        {
+          "name": "reason",
+          "type": "text"
+        },
+        {
+          "name": "granted_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "approval_state",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "effective_from",
+          "type": "date"
+        },
+        {
+          "name": "effective_to",
+          "type": "date"
+        },
+        {
+          "name": "source_clause",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 272,
+          "end_line": 321,
+          "label": "PolicyException model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1246,
+          "end_line": 1324,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "allowance_profiles",
+      "label": "allowance_profiles",
+      "tag": "policy",
+      "row": 5,
+      "col": 2,
+      "width": 239,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "organizations.id"
+        },
+        {
+          "name": "code",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "currency",
+          "type": "varchar(3)"
+        },
+        {
+          "name": "effective_from",
+          "type": "date"
+        },
+        {
+          "name": "effective_to",
+          "type": "date"
+        },
+        {
+          "name": "review_state",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "policy_versions.id"
+        },
+        {
+          "name": "approved_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "approved_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/organization.py",
+          "line": 133,
+          "end_line": 163,
+          "label": "AllowanceProfile model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 486,
+          "end_line": 538,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "allowance_profile_items",
+      "label": "allowance_profile_items",
+      "tag": "policy",
+      "row": 6,
+      "col": 2,
+      "width": 230,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "allowance_profile_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "allowance_profiles.id"
+        },
+        {
+          "name": "category",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "period_type",
+          "type": "varchar(16)"
+        },
+        {
+          "name": "limit_amount",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "currency",
+          "type": "varchar(3)"
+        },
+        {
+          "name": "policy_rule_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "policy_rules.id"
+        },
+        {
+          "name": "source_clause",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/organization.py",
+          "line": 166,
+          "end_line": 200,
+          "label": "AllowanceProfileItem model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 803,
+          "end_line": 844,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "trips",
+      "label": "trips",
+      "tag": "expense",
+      "row": 0,
+      "col": 4,
+      "width": 290,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "membership_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organization_memberships.id"
+        },
+        {
+          "name": "purpose",
+          "type": "text"
+        },
+        {
+          "name": "destination_city",
+          "type": "varchar(120)"
+        },
+        {
+          "name": "destination_country_code",
+          "type": "varchar(2)"
+        },
+        {
+          "name": "start_date",
+          "type": "date"
+        },
+        {
+          "name": "end_date",
+          "type": "date"
+        },
+        {
+          "name": "status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/expense.py",
+          "line": 58,
+          "end_line": 92,
+          "label": "Trip model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 751,
+          "end_line": 802,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "expenses",
+      "label": "expenses",
+      "tag": "expense",
+      "row": 1,
+      "col": 4,
+      "width": 283,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "membership_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organization_memberships.id"
+        },
+        {
+          "name": "trip_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "trips.id"
+        },
+        {
+          "name": "channel",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "version",
+          "type": "integer"
+        },
+        {
+          "name": "merchant",
+          "type": "varchar(300)"
+        },
+        {
+          "name": "expense_date",
+          "type": "date"
+        },
+        {
+          "name": "amount",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "currency",
+          "type": "varchar(3)"
+        },
+        {
+          "name": "receipt_number",
+          "type": "varchar(120)"
+        },
+        {
+          "name": "category",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "business_purpose",
+          "type": "text"
+        },
+        {
+          "name": "client_name",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "attendee_count",
+          "type": "integer"
+        },
+        {
+          "name": "amount_reporting",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "reporting_currency",
+          "type": "varchar(3)"
+        },
+        {
+          "name": "reporting_rate",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "reporting_rate_date",
+          "type": "date"
+        },
+        {
+          "name": "reporting_rate_source",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "evaluated_policy_version_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "policy_versions.id"
+        },
+        {
+          "name": "submitted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "decided_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/expense.py",
+          "line": 95,
+          "end_line": 165,
+          "label": "Expense model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 845,
+          "end_line": 933,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "expense_field_evidence",
+      "label": "expense_field_evidence",
+      "tag": "expense",
+      "row": 2,
+      "col": 4,
+      "width": 256,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "expenses.id"
+        },
+        {
+          "name": "expense_version",
+          "type": "integer",
+          "key": "uk"
+        },
+        {
+          "name": "field_name",
+          "type": "varchar(32)",
+          "key": "uk"
+        },
+        {
+          "name": "source",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "is_current",
+          "type": "boolean"
+        },
+        {
+          "name": "value_text",
+          "type": "text"
+        },
+        {
+          "name": "value_decimal",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "value_date",
+          "type": "date"
+        },
+        {
+          "name": "value_integer",
+          "type": "integer"
+        },
+        {
+          "name": "currency",
+          "type": "varchar(3)"
+        },
+        {
+          "name": "reviewed",
+          "type": "boolean"
+        },
+        {
+          "name": "reviewed_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "confidence",
+          "type": "double precision"
+        },
+        {
+          "name": "uncertainty_reason",
+          "type": "text"
+        },
+        {
+          "name": "receipt_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "receipts.id"
+        },
+        {
+          "name": "page",
+          "type": "integer"
+        },
+        {
+          "name": "region",
+          "type": "jsonb"
+        },
+        {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/expense.py",
+          "line": 168,
+          "end_line": 233,
+          "label": "ExpenseFieldEvidence model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1404,
+          "end_line": 1485,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "line_items",
+      "label": "line_items",
+      "tag": "expense",
+      "row": 3,
+      "col": 4,
+      "width": 269,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "expenses.id"
+        },
+        {
+          "name": "extraction_run_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "extraction_runs.id"
+        },
+        {
+          "name": "line_number",
+          "type": "integer",
+          "key": "uk"
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "quantity",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "unit_amount",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "amount",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "currency",
+          "type": "varchar(3)"
+        },
+        {
+          "name": "tax_amount",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "discount_amount",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "eligibility",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "ineligibility_reason",
+          "type": "text"
+        },
+        {
+          "name": "policy_rule_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "policy_rules.id"
+        },
+        {
+          "name": "category",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/expense.py",
+          "line": 236,
+          "end_line": 277,
+          "label": "LineItem model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1599,
+          "end_line": 1663,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "receipts",
+      "label": "receipts",
+      "tag": "receipts",
+      "row": 4,
+      "col": 6,
+      "width": 269,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "expenses.id"
+        },
+        {
+          "name": "storage_backend",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "object_key",
+          "type": "varchar(400)",
+          "key": "uk"
+        },
+        {
+          "name": "original_filename",
+          "type": "varchar(300)"
+        },
+        {
+          "name": "detected_mime_type",
+          "type": "varchar(120)"
+        },
+        {
+          "name": "declared_mime_type",
+          "type": "varchar(120)"
+        },
+        {
+          "name": "byte_size",
+          "type": "integer"
+        },
+        {
+          "name": "sha256",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "perceptual_hash",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "image_width",
+          "type": "integer"
+        },
+        {
+          "name": "image_height",
+          "type": "integer"
+        },
+        {
+          "name": "page_count",
+          "type": "integer"
+        },
+        {
+          "name": "derivation_type",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "parent_receipt_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "receipts.id"
+        },
+        {
+          "name": "extraction_status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "overall_confidence",
+          "type": "numeric(20,4)"
+        },
+        {
+          "name": "uploaded_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/receipt.py",
+          "line": 51,
+          "end_line": 100,
+          "label": "Receipt model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1325,
+          "end_line": 1403,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "extraction_runs",
+      "label": "extraction_runs",
+      "tag": "receipts",
+      "row": 5,
+      "col": 6,
+      "width": 257,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "receipt_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "receipts.id"
+        },
+        {
+          "name": "provider",
+          "type": "varchar(80)"
+        },
+        {
+          "name": "model",
+          "type": "varchar(120)"
+        },
+        {
+          "name": "prompt_version",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "started_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "finished_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "latency_ms",
+          "type": "integer"
+        },
+        {
+          "name": "raw_text_sha256",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "raw_payload_sha256",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "error_code",
+          "type": "varchar(80)"
+        },
+        {
+          "name": "error_message",
+          "type": "text"
+        },
+        {
+          "name": "is_cached_result",
+          "type": "boolean"
+        },
+        {
+          "name": "structured_result",
+          "type": "jsonb"
+        },
+        {
+          "name": "validation_result",
+          "type": "jsonb"
+        },
+        {
+          "name": "attempt_count",
+          "type": "integer"
+        },
+        {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/receipt.py",
+          "line": 103,
+          "end_line": 154,
+          "label": "ExtractionRun model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1486,
+          "end_line": 1533,
+          "label": "create_table"
+        },
+        {
+          "path": "backend/migrations/versions/0004_receipt_extraction_results.py",
+          "line": 20,
+          "end_line": 46,
+          "label": "results + attempt_count"
+        }
+      ]
+    },
+    {
+      "id": "findings",
+      "label": "findings",
+      "tag": "review",
+      "row": 4,
+      "col": 4,
+      "width": 277,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "expenses.id"
+        },
+        {
+          "name": "rule_id",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "policy_versions.id"
+        },
+        {
+          "name": "finding_type",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "result",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "severity",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "message",
+          "type": "text"
+        },
+        {
+          "name": "employee_message",
+          "type": "text"
+        },
+        {
+          "name": "source_reference",
+          "type": "jsonb"
+        },
+        {
+          "name": "evidence",
+          "type": "jsonb"
+        },
+        {
+          "name": "calculation",
+          "type": "text"
+        },
+        {
+          "name": "expected_value",
+          "type": "text"
+        },
+        {
+          "name": "observed_value",
+          "type": "text"
+        },
+        {
+          "name": "recommended_action",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "expense_version",
+          "type": "integer",
+          "key": "uk"
+        },
+        {
+          "name": "scope_fingerprint",
+          "type": "varchar(64)",
+          "key": "uk"
+        },
+        {
+          "name": "resolved_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "resolved_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "resolution_reason",
+          "type": "text"
+        },
+        {
+          "name": "superseded_by_finding_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "findings.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/review.py",
+          "line": 62,
+          "end_line": 128,
+          "label": "Finding model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1148,
+          "end_line": 1245,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "duplicate_candidates",
+      "label": "duplicate_candidates",
+      "tag": "review",
+      "row": 5,
+      "col": 4,
+      "width": 255,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "expense_a_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "expenses.id"
+        },
+        {
+          "name": "expense_b_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "expenses.id"
+        },
+        {
+          "name": "algorithm_version",
+          "type": "varchar(40)",
+          "key": "uk"
+        },
+        {
+          "name": "status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "signals",
+          "type": "jsonb"
+        },
+        {
+          "name": "ranking_score",
+          "type": "double precision"
+        },
+        {
+          "name": "cross_channel",
+          "type": "boolean"
+        },
+        {
+          "name": "reviewed_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "resolved_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "resolution_reason",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/review.py",
+          "line": 131,
+          "end_line": 174,
+          "label": "DuplicateCandidate model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1081,
+          "end_line": 1147,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "review_decisions",
+      "label": "review_decisions",
+      "tag": "review",
+      "row": 6,
+      "col": 4,
+      "width": 250,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "expenses.id"
+        },
+        {
+          "name": "actor_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "delegation_basis",
+          "type": "varchar(120)"
+        },
+        {
+          "name": "action",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "reason_code",
+          "type": "varchar(80)"
+        },
+        {
+          "name": "reason",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "type": "text"
+        },
+        {
+          "name": "previous_status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "new_status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "expense_version",
+          "type": "integer"
+        },
+        {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "policy_versions.id"
+        },
+        {
+          "name": "approval_task_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "approval_tasks.id"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/review.py",
+          "line": 177,
+          "end_line": 223,
+          "label": "ReviewDecision model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1534,
+          "end_line": 1598,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "approval_tasks",
+      "label": "approval_tasks",
+      "tag": "review",
+      "row": 7,
+      "col": 4,
+      "width": 259,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "expense_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "expenses.id"
+        },
+        {
+          "name": "stage",
+          "type": "varchar(40)",
+          "key": "uk"
+        },
+        {
+          "name": "sequence",
+          "type": "integer",
+          "key": "uk"
+        },
+        {
+          "name": "required_role",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "assignee_membership_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organization_memberships.id"
+        },
+        {
+          "name": "status",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "is_required",
+          "type": "boolean"
+        },
+        {
+          "name": "requirement_basis",
+          "type": "text"
+        },
+        {
+          "name": "due_at",
+          "type": "date"
+        },
+        {
+          "name": "decided_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "decided_by_user_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "users.id"
+        },
+        {
+          "name": "decision_reason",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/review.py",
+          "line": 226,
+          "end_line": 280,
+          "label": "ApprovalTask model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1008,
+          "end_line": 1080,
+          "label": "create_table"
+        }
+      ]
+    },
+    {
+      "id": "audit_events",
+      "label": "audit_events",
+      "tag": "audit",
+      "row": 6,
+      "col": 6,
+      "width": 237,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid"
+        },
+        {
+          "name": "actor_user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "actor_type",
+          "type": "varchar(32)"
+        },
+        {
+          "name": "actor_label",
+          "type": "varchar(200)"
+        },
+        {
+          "name": "action",
+          "type": "varchar(80)"
+        },
+        {
+          "name": "entity_type",
+          "type": "varchar(60)"
+        },
+        {
+          "name": "entity_id",
+          "type": "uuid"
+        },
+        {
+          "name": "before",
+          "type": "jsonb"
+        },
+        {
+          "name": "after",
+          "type": "jsonb"
+        },
+        {
+          "name": "policy_version_id",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "text"
+        },
+        {
+          "name": "correlation_id",
+          "type": "varchar(128)"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/audit.py",
+          "line": 46,
+          "end_line": 100,
+          "label": "AuditEvent model: no FKs by design"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 539,
+          "end_line": 573,
+          "label": "create_table"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1850,
+          "end_line": 1857,
+          "label": "append-only trigger"
+        }
+      ]
+    },
+    {
+      "id": "idempotency_keys",
+      "label": "idempotency_keys",
+      "tag": "audit",
+      "row": 7,
+      "col": 6,
+      "width": 263,
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "organization_id",
+          "type": "uuid",
+          "key": "fk",
+          "references": "organizations.id"
+        },
+        {
+          "name": "actor_user_id",
+          "type": "uuid",
+          "key": [
+            "fk",
+            "uk"
+          ],
+          "references": "users.id"
+        },
+        {
+          "name": "idempotency_key",
+          "type": "varchar(200)",
+          "key": "uk"
+        },
+        {
+          "name": "request_method",
+          "type": "varchar(10)"
+        },
+        {
+          "name": "request_path",
+          "type": "varchar(400)"
+        },
+        {
+          "name": "request_hash",
+          "type": "varchar(64)"
+        },
+        {
+          "name": "response_status",
+          "type": "integer"
+        },
+        {
+          "name": "response_body",
+          "type": "jsonb"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/app/models/audit.py",
+          "line": 103,
+          "end_line": 128,
+          "label": "IdempotencyKey model"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 299,
+          "end_line": 339,
+          "label": "create_table"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "users_primary_organization_id",
+      "from": "users",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "organization_memberships_organization_id",
+      "from": "organization_memberships",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "organization_memberships_user_id",
+      "from": "organization_memberships",
+      "to": "users",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "organization_memberships_job_grade_id",
+      "from": "organization_memberships",
+      "to": "job_grades",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "organization_memberships_department_id",
+      "from": "organization_memberships",
+      "to": "departments",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "organization_memberships_cost_center_id",
+      "from": "organization_memberships",
+      "to": "cost_centers",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "organization_memberships_office_location_id",
+      "from": "organization_memberships",
+      "to": "office_locations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "reporting_relationships_organization_id",
+      "from": "reporting_relationships",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "reporting_relationships_employee_membership_id",
+      "from": "reporting_relationships",
+      "to": "organization_memberships",
+      "label": "employee",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "reporting_relationships_manager_membership_id",
+      "from": "reporting_relationships",
+      "to": "organization_memberships",
+      "label": "manager",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "role_assignments_organization_id",
+      "from": "role_assignments",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "role_assignments_membership_id",
+      "from": "role_assignments",
+      "to": "organization_memberships",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "departments_organization_id",
+      "from": "departments",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "cost_centers_organization_id",
+      "from": "cost_centers",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "job_grades_organization_id",
+      "from": "job_grades",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "office_locations_organization_id",
+      "from": "office_locations",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "policy_documents_organization_id",
+      "from": "policy_documents",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "policy_versions_policy_document_id",
+      "from": "policy_versions",
+      "to": "policy_documents",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "policy_rules_policy_version_id",
+      "from": "policy_rules",
+      "to": "policy_versions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "policy_assignments_organization_id",
+      "from": "policy_assignments",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "policy_assignments_policy_version_id",
+      "from": "policy_assignments",
+      "to": "policy_versions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "policy_assignments_allowance_profile_id",
+      "from": "policy_assignments",
+      "to": "allowance_profiles",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "policy_exceptions_organization_id",
+      "from": "policy_exceptions",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "policy_exceptions_policy_rule_id",
+      "from": "policy_exceptions",
+      "to": "policy_rules",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "policy_exceptions_allowance_profile_item_id",
+      "from": "policy_exceptions",
+      "to": "allowance_profile_items",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "allowance_profiles_organization_id",
+      "from": "allowance_profiles",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "allowance_profiles_policy_version_id",
+      "from": "allowance_profiles",
+      "to": "policy_versions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "allowance_profile_items_allowance_profile_id",
+      "from": "allowance_profile_items",
+      "to": "allowance_profiles",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "allowance_profile_items_policy_rule_id",
+      "from": "allowance_profile_items",
+      "to": "policy_rules",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "trips_organization_id",
+      "from": "trips",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "trips_membership_id",
+      "from": "trips",
+      "to": "organization_memberships",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "expenses_organization_id",
+      "from": "expenses",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "expenses_membership_id",
+      "from": "expenses",
+      "to": "organization_memberships",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "expenses_trip_id",
+      "from": "expenses",
+      "to": "trips",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "expenses_evaluated_policy_version_id",
+      "from": "expenses",
+      "to": "policy_versions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "expense_field_evidence_expense_id",
+      "from": "expense_field_evidence",
+      "to": "expenses",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "expense_field_evidence_receipt_id",
+      "from": "expense_field_evidence",
+      "to": "receipts",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "line_items_expense_id",
+      "from": "line_items",
+      "to": "expenses",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "line_items_extraction_run_id",
+      "from": "line_items",
+      "to": "extraction_runs",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "line_items_policy_rule_id",
+      "from": "line_items",
+      "to": "policy_rules",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "receipts_organization_id",
+      "from": "receipts",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "receipts_expense_id",
+      "from": "receipts",
+      "to": "expenses",
+      "label": "scanned for",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "extraction_runs_receipt_id",
+      "from": "extraction_runs",
+      "to": "receipts",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "findings_organization_id",
+      "from": "findings",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "findings_expense_id",
+      "from": "findings",
+      "to": "expenses",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "findings_policy_version_id",
+      "from": "findings",
+      "to": "policy_versions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "duplicate_candidates_organization_id",
+      "from": "duplicate_candidates",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "duplicate_candidates_expense_a_id",
+      "from": "duplicate_candidates",
+      "to": "expenses",
+      "label": "candidate A",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "duplicate_candidates_expense_b_id",
+      "from": "duplicate_candidates",
+      "to": "expenses",
+      "label": "candidate B",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "review_decisions_organization_id",
+      "from": "review_decisions",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "review_decisions_expense_id",
+      "from": "review_decisions",
+      "to": "expenses",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "review_decisions_actor_user_id",
+      "from": "review_decisions",
+      "to": "users",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "review_decisions_policy_version_id",
+      "from": "review_decisions",
+      "to": "policy_versions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "review_decisions_approval_task_id",
+      "from": "review_decisions",
+      "to": "approval_tasks",
+      "label": "closes",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    },
+    {
+      "id": "approval_tasks_organization_id",
+      "from": "approval_tasks",
+      "to": "organizations",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "approval_tasks_expense_id",
+      "from": "approval_tasks",
+      "to": "expenses",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": false
+    },
+    {
+      "id": "approval_tasks_assignee_membership_id",
+      "from": "approval_tasks",
+      "to": "organization_memberships",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "identifying": false
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "How to read a row",
+      "items": [
+        "id is a uuid primary key on all 28 tables; Python generates it (app/db/base.py:71-77), so no database extension is required and public ids are non-enumerable.",
+        "Every enum column is varchar(32) plus an explicit CHECK listing its values, never a native PostgreSQL enum: adding a value is an ordinary migration (app/db/base.py:8-11, 101-107).",
+        "Money is NUMERIC(20,4) (app/db/base.py:43) and serialises as a decimal string. No money column is floating point; ranking_score and confidence are the only floats.",
+        "A fk badge names its target as entity.attribute in the same row, and that target is checked against the declared tables. A column carrying two roles shows both badges (fk bullets uk).",
+        "Solid line = NOT NULL foreign key, so the child cannot exist without the parent. Dashed line with a circle = nullable foreign key, an optional reference."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Enforced vs logical links",
+      "items": [
+        "Every edge drawn is a foreign key the database enforces. Where a link is logical but unenforced, it is named here instead of drawn.",
+        "audit_events has no foreign keys on purpose (app/models/audit.py:49-72): organization_id, actor_user_id, entity_id and policy_version_id stay plain uuids so the event outlives the row it refers to.",
+        "policy_exceptions.subject_id is polymorphic over membership, user, expense, trip and expense_category, fixed by a CHECK, not a foreign key.",
+        "findings.rule_id is a stable string, not a foreign key, so a finding stays readable after its rule row is retired.",
+        "role_assignments.scope_id is a plain uuid indexed by scope_type: it addresses a dimension, not one table.",
+        "Four foreign keys point back at their own table and are stated here because no self-loop is drawn: departments.parent_department_id, organization_memberships.primary_manager_membership_id, receipts.parent_receipt_id and findings.superseded_by_finding_id.",
+        "The actor columns created_by_user_id, uploaded_by_user_id, granted_by_user_id, assigned_by_user_id, decided_by_user_id, validated_by_user_id, approved_by_user_id, reviewed_by_user_id and resolved_by_user_id each reference users.id. They are drawn on the column; drawing all sixteen would put sixteen ends on one side of users.",
+        "organization_id appears on 20 tables and is drawn from each of them; the hub edges bundle onto the trunk beside organizations."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Integrity guards the database holds",
+      "items": [
+        "policy_rules.source_requires_validation: is_active = true requires source_clause, validated_by_user_id, validated_at and evaluator_type (policy.py:145-153), so an invented rule cannot be activated.",
+        "allowance_profile_items.limit_requires_source: a limit_amount cannot be stored without a source_clause and a currency (organization.py:193-199).",
+        "expense_field_evidence.extraction_requires_receipt: a row claiming receipt_extraction must name the receipt. The partial unique index uq_expense_field_evidence_current allows one current row per (expense, field, is_current).",
+        "uq_duplicate_candidates_pair makes (A,B) and (B,A) one candidate; uq_findings_identity stops a re-run multiplying findings for one claim version and scope.",
+        "policy_assignments.stack: scope_selector_consistent forces exactly the selector the dimension needs, scope_key_canonical stores the canonical key, and uniqueness is over the coalesced selector.",
+        "resolution_requires_state, rejection_requires_reason and decision_requires_actor refuse a resolved finding, a rejection or an approved task without the actor and the reason."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Append-only, and what is not claimed",
+      "items": [
+        "audit_events append-only is enforced by the trigger trg_audit_events_append_only, which raises on UPDATE or DELETE before the row is touched (0001_initial_schema.py:1850-1857).",
+        "That is database-enforced behaviour, not cryptographic immutability, not WORM storage and not a legal-admissibility claim.",
+        "idempotency_keys makes a retry safe: UNIQUE(actor_user_id, idempotency_key) plus a request_hash, so the same key with a different body is refused rather than applied twice.",
+        "receipts stores only raw_text_sha256 and raw_payload_sha256; extracted text is not a column, because retention rules are unanswered (receipt.py:13-15).",
+        "Policy and rule tables ship empty, and the demo company policy is fictional, seeded only under local demo flags. No threshold here is authored policy.",
+        "extraction_runs records every attempt with provider and prompt_version; a stored run is not proof that text was extracted."
+      ]
+    }
+  ]
+}

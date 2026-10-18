@@ -1,0 +1,504 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Proofline Authentication & Authorization",
+    "locale": "en",
+    "output": "docs/architecture/proofline-auth-sequence.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/AnuAnsh17/Team_Rocket_HackForge_2026",
+      "provider": "github",
+      "revision": "a779782f3fa093c31eb84aabdad11ee7e937ccb3"
+    },
+    "legend": {
+      "mode": "auto"
+    }
+  },
+  "participants": [
+    {
+      "id": "console",
+      "type": "frontend",
+      "label": "Internal console",
+      "sublabel": "Supabase session cookie",
+      "sources": [
+        {
+          "path": "apps/console/src/lib/api.ts",
+          "line": 11,
+          "end_line": 27,
+          "label": "two identity paths"
+        },
+        {
+          "path": "apps/console/src/lib/supabase/client.ts",
+          "line": 47,
+          "end_line": 52,
+          "label": "access token read per request"
+        },
+        {
+          "path": "apps/console/src/lib/analytics.ts",
+          "line": 221,
+          "end_line": 227,
+          "label": "calls analytics/overview"
+        }
+      ]
+    },
+    {
+      "id": "portal",
+      "type": "frontend",
+      "label": "Employee portal",
+      "sublabel": "Next.js · self-service",
+      "sources": [
+        {
+          "path": "apps/portal/app/upload/page.tsx",
+          "line": 91,
+          "end_line": 99,
+          "label": "POST /expenses + Idempotency-Key"
+        },
+        {
+          "path": "apps/portal/src/lib/api.ts",
+          "line": 46,
+          "end_line": 57,
+          "label": "getToken: () => null"
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI API",
+      "sublabel": "/api/v1 · 8 routers",
+      "sources": [
+        {
+          "path": "backend/app/api/v1/router.py",
+          "line": 39,
+          "end_line": 47,
+          "label": "analytics + expenses mounted"
+        },
+        {
+          "path": "backend/app/api/deps.py",
+          "line": 101,
+          "end_line": 137,
+          "label": "identity, actor, permission gate"
+        }
+      ]
+    },
+    {
+      "id": "jwks",
+      "type": "security",
+      "label": "JWKS verification",
+      "sublabel": "Cached project keys",
+      "sources": [
+        {
+          "path": "backend/app/core/security.py",
+          "line": 157,
+          "end_line": 199,
+          "label": "JwksCache"
+        },
+        {
+          "path": "backend/app/core/security.py",
+          "line": 291,
+          "end_line": 337,
+          "label": "verify iss, aud, alg, exp"
+        },
+        {
+          "path": "backend/app/core/config.py",
+          "line": 61,
+          "end_line": 78,
+          "label": "auth_provider + JWT settings"
+        }
+      ]
+    },
+    {
+      "id": "analytics",
+      "type": "backend",
+      "label": "Analytics service",
+      "sublabel": "overview · spend",
+      "sources": [
+        {
+          "path": "backend/app/services/analytics_service.py",
+          "line": 55,
+          "end_line": 66,
+          "label": "permission + org gate"
+        },
+        {
+          "path": "backend/app/api/v1/routes/analytics.py",
+          "line": 66,
+          "end_line": 85,
+          "label": "GET /analytics/overview"
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "28 tables · 4 migrations",
+      "sources": [
+        {
+          "path": "backend/app/models/identity.py",
+          "line": 60,
+          "end_line": 97,
+          "label": "users + memberships"
+        },
+        {
+          "path": "backend/app/models/identity.py",
+          "line": 186,
+          "end_line": 195,
+          "label": "role_assignments"
+        },
+        {
+          "path": "backend/app/services/actor_service.py",
+          "line": 51,
+          "end_line": 74,
+          "label": "membership + role queries"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 412,
+      "label": "Authenticate & resolve identity"
+    },
+    {
+      "from": 422,
+      "to": 526,
+      "label": "Authorize"
+    },
+    {
+      "from": 536,
+      "to": 700,
+      "label": "Read & respond"
+    },
+    {
+      "from": 710,
+      "to": 972,
+      "label": "Refusals for this request"
+    },
+    {
+      "from": 982,
+      "to": 1283,
+      "label": "Write path · sibling request POST /expenses"
+    }
+  ],
+  "messages": [
+    {
+      "id": "overview-request",
+      "from": "console",
+      "to": "api",
+      "y": 178,
+      "label": "GET /api/v1/analytics/overview",
+      "variant": "emphasis",
+      "note": "token read per request"
+    },
+    {
+      "id": "verify-token",
+      "from": "api",
+      "to": "jwks",
+      "y": 230,
+      "label": "verify signature: RS256/ES256, iss, aud",
+      "variant": "security",
+      "note": "auth_provider=supabase; demo is the default"
+    },
+    {
+      "id": "jwk-returned",
+      "from": "jwks",
+      "to": "api",
+      "y": 293,
+      "label": "JWK for the token's kid",
+      "variant": "return"
+    },
+    {
+      "id": "load-actor",
+      "from": "api",
+      "to": "postgres",
+      "y": 323,
+      "label": "sub → users.external_subject",
+      "variant": "default",
+      "note": "membership + role grants; no membership is created"
+    },
+    {
+      "id": "actor-rows",
+      "from": "postgres",
+      "to": "api",
+      "y": 386,
+      "label": "user, memberships, roles",
+      "variant": "return"
+    },
+    {
+      "id": "analytics-gate",
+      "from": "api",
+      "to": "analytics",
+      "y": 448,
+      "label": "require_analytics_access(actor)",
+      "variant": "security",
+      "note": "permission + org scope"
+    },
+    {
+      "id": "gate-result",
+      "from": "analytics",
+      "to": "api",
+      "y": 500,
+      "label": "organization_id, not a client claim",
+      "variant": "return"
+    },
+    {
+      "id": "overview-query",
+      "from": "analytics",
+      "to": "postgres",
+      "y": 562,
+      "label": "counts + totals, org-scoped",
+      "variant": "emphasis",
+      "note": "no audit append on a read"
+    },
+    {
+      "id": "overview-rows",
+      "from": "postgres",
+      "to": "analytics",
+      "y": 614,
+      "label": "aggregate rows",
+      "variant": "return"
+    },
+    {
+      "id": "overview-response",
+      "from": "analytics",
+      "to": "api",
+      "y": 644,
+      "label": "AnalyticsOverviewResponse",
+      "variant": "return"
+    },
+    {
+      "id": "overview-200",
+      "from": "api",
+      "to": "console",
+      "y": 674,
+      "label": "200 JSON · envelope on failure",
+      "variant": "return"
+    },
+    {
+      "id": "err-401-token",
+      "from": "api",
+      "to": "console",
+      "y": 736,
+      "label": "401 UNAUTHENTICATED: absent or unverifiable token",
+      "variant": "return"
+    },
+    {
+      "id": "err-401-user",
+      "from": "api",
+      "to": "console",
+      "y": 766,
+      "label": "401: token verified, no linked active user",
+      "variant": "return"
+    },
+    {
+      "id": "err-403-membership",
+      "from": "api",
+      "to": "console",
+      "y": 796,
+      "label": "403: no active organization membership",
+      "variant": "return"
+    },
+    {
+      "id": "err-403-org",
+      "from": "api",
+      "to": "console",
+      "y": 826,
+      "label": "403: requested organization not held",
+      "variant": "return"
+    },
+    {
+      "id": "err-403-permission",
+      "from": "api",
+      "to": "console",
+      "y": 856,
+      "label": "403: permission missing for this actor",
+      "variant": "return"
+    },
+    {
+      "id": "err-422",
+      "from": "api",
+      "to": "console",
+      "y": 886,
+      "label": "422: reversed range or filter outside the org",
+      "variant": "return"
+    },
+    {
+      "id": "err-404",
+      "from": "api",
+      "to": "console",
+      "y": 916,
+      "label": "404: unknown route; hidden record reads",
+      "variant": "return"
+    },
+    {
+      "id": "err-500",
+      "from": "api",
+      "to": "console",
+      "y": 946,
+      "label": "500 INTERNAL_ERROR: transaction rolled back",
+      "variant": "return"
+    },
+    {
+      "id": "draft-request",
+      "from": "portal",
+      "to": "api",
+      "y": 1008,
+      "label": "POST /expenses + Idempotency-Key",
+      "variant": "emphasis",
+      "note": "demo header, not a token"
+    },
+    {
+      "id": "draft-write",
+      "from": "api",
+      "to": "postgres",
+      "y": 1060,
+      "label": "claim key; insert draft + evidence",
+      "variant": "default"
+    },
+    {
+      "id": "audit-append",
+      "from": "api",
+      "to": "postgres",
+      "y": 1090,
+      "label": "append audit_events row, same transaction",
+      "variant": "default",
+      "note": "audit_for_actor → record_audit_event(session)"
+    },
+    {
+      "id": "draft-committed",
+      "from": "postgres",
+      "to": "api",
+      "y": 1153,
+      "label": "draft v1 + audit event",
+      "variant": "return"
+    },
+    {
+      "id": "draft-201",
+      "from": "api",
+      "to": "portal",
+      "y": 1183,
+      "label": "201 draft, version 1",
+      "variant": "return"
+    },
+    {
+      "id": "err-409-idempotency",
+      "from": "api",
+      "to": "portal",
+      "y": 1213,
+      "label": "409 IDEMPOTENCY_CONFLICT: key, other body",
+      "variant": "return"
+    },
+    {
+      "id": "err-409-stale",
+      "from": "api",
+      "to": "portal",
+      "y": 1243,
+      "label": "409 STALE_VERSION: expected_version mismatch",
+      "variant": "return",
+      "note": "asserted by submit/decide, not by this read"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "console",
+      "from": 172,
+      "to": 680,
+      "type": "frontend"
+    },
+    {
+      "participant": "api",
+      "from": 172,
+      "to": 680,
+      "type": "backend"
+    },
+    {
+      "participant": "jwks",
+      "from": 224,
+      "to": 299,
+      "type": "security"
+    },
+    {
+      "participant": "analytics",
+      "from": 442,
+      "to": 650,
+      "type": "backend"
+    },
+    {
+      "participant": "postgres",
+      "from": 317,
+      "to": 392,
+      "type": "database"
+    },
+    {
+      "participant": "postgres",
+      "from": 556,
+      "to": 620,
+      "type": "database"
+    },
+    {
+      "participant": "portal",
+      "from": 1002,
+      "to": 1249,
+      "type": "frontend"
+    },
+    {
+      "participant": "api",
+      "from": 1002,
+      "to": 1249,
+      "type": "backend"
+    },
+    {
+      "participant": "postgres",
+      "from": 1054,
+      "to": 1159,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Two Identity Paths, Only One Is Production",
+      "items": [
+        "auth_provider defaults to demo: identity comes from the X-Demo-Actor-Id header, which is active only when DEMO_MODE is true and APP_ENV is not production, and fails closed when the header is missing (backend/app/core/config.py:61, backend/app/core/security.py:10-18, 123-154).",
+        "Supabase is the production provider. The console reads its @supabase/ssr session cookie and sends Authorization: Bearer on every request (apps/console/src/lib/api.ts:11-27, apps/console/src/lib/supabase/client.ts:47-52).",
+        "The employee portal and the Android app set getToken: () => null, so they are never shown as Supabase-authenticated; they identify with the demo header only (apps/portal/src/lib/api.ts:52-54, apps/mobile/src/api.ts:58).",
+        "A verified token grants nothing by itself: the subject is joined to a pre-provisioned users.external_subject row, and memberships, roles and permissions are read from the database (backend/app/core/security.py:253-269, 339-349).",
+        "Every path on this timeline is reachable in the current source at revision a779782f; nothing is drawn dashed and no step is simulated or inferred."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Token Verification Is Bounded And Fail-Closed",
+      "items": [
+        "Only asymmetric algorithms on the configured allow-list (RS256, ES256 by default) are accepted, so alg: none and HMAC-signed tokens are refused before any key is considered (backend/app/core/security.py:358-378, backend/app/core/config.py:73-78).",
+        "iss, aud, exp, iat, nbf and sub are required and verified against the project issuer and audience with a 30s clock leeway; the token itself is never retained, only an allow-listed claim set (backend/app/core/security.py:46-48, 307-324, backend/app/core/config.py:63-78).",
+        "The project JWKS is fetched over HTTP and cached for 300s process-wide; an unknown kid refreshes it at most once, and a JWKS fetch or key-set failure is a 401 rather than a bypass (backend/app/core/security.py:157-231, 234-250).",
+        "When DEMO_MODE is off the demo router is not registered at all, so its paths answer 404 without disclosing that a disabled surface exists (backend/app/api/v1/router.py:33-54)."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Every Refusal Is A Real Path",
+      "items": [
+        "401 (UNAUTHENTICATED) covers an absent, expired, wrongly-issued or unverifiable token; 401 also covers a verified subject with no provisioned active user (backend/app/core/errors.py:76-79, backend/app/services/actor_service.py:44-49).",
+        "403 (FORBIDDEN) is returned for no active membership, for an organization the actor does not hold, and for a permission the actor lacks - the coarse gate in Actor.require is necessary but not sufficient, and resource scope is checked separately (backend/app/services/actor_service.py:61-65, 130-138, backend/app/core/security.py:87-100, backend/app/services/scope_service.py:43-51).",
+        "422 (VALIDATION_ERROR) covers a reversed date range and any filter id that is not part of the active organization; 404 (NOT_FOUND) covers an unknown route, and a hidden record is answered exactly like a missing one (backend/app/api/v1/routes/analytics.py:50-53, backend/app/services/analytics_service.py:69-90, backend/app/services/scope_service.py:103-142).",
+        "500 (INTERNAL_ERROR) is deliberately generic - no stack trace, SQL fragment or provider payload reaches a client - and the request's transaction is rolled back (backend/app/core/errors.py:223-233, backend/app/api/deps.py:85-98)."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Where The Audit Event Really Comes From",
+      "items": [
+        "This analytics read writes nothing: there is no audit append on GET /api/v1/analytics/overview, so none is drawn (backend/app/api/v1/routes/analytics.py:77-85, backend/app/services/analytics_service.py:279-340).",
+        "The audit event belongs to the write path: POST /api/v1/expenses is called by the employee portal and the Android app, and create_draft_claim appends expense.draft_created through audit_for_actor on the same session (apps/portal/app/upload/page.tsx:91-99, backend/app/services/expense_workflow_service.py:23-119).",
+        "One transaction per request: get_session commits on a clean return and rolls back everything on any exception, audit event included (backend/app/api/deps.py:60-98).",
+        "A retried create replays the stored response and a reused key with a different body is refused with IDEMPOTENCY_CONFLICT; STALE_VERSION (409) belongs to the version-asserting submit and decision transitions, not to draft creation (backend/app/services/idempotency_service.py:1-17, 60-111, backend/app/services/expense_workflow_service.py:122-126, 166-167).",
+        "audit_events is append-only through the trg_audit_events_append_only trigger - a database guarantee, not cryptographic immutability and not WORM storage (backend/migrations/versions/0001_initial_schema.py:1843-1852)."
+      ]
+    }
+  ]
+}

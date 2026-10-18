@@ -1,0 +1,376 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Proofline Expense & Receipt Data Flow",
+    "locale": "en",
+    "output": "docs/architecture/proofline-expense-dataflow.html",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/AnuAnsh17/Team_Rocket_HackForge_2026",
+      "provider": "github",
+      "revision": "a779782f3fa093c31eb84aabdad11ee7e937ccb3"
+    },
+    "legend": {
+      "mode": "auto"
+    }
+  },
+  "stages": [
+    { "label": "Client input" },
+    { "label": "Intake & draft" },
+    { "label": "Private persist" },
+    { "label": "Extraction & policy" },
+    { "label": "Review & reporting" }
+  ],
+  "nodes": [
+    {
+      "id": "portal",
+      "type": "frontend",
+      "label": "Employee portal",
+      "sublabel": "Next.js · self-service",
+      "tag": "channel: web",
+      "stage": 0,
+      "row": 0,
+      "sources": [
+        { "path": "apps/portal/src/lib/api.ts", "line": 25, "end_line": 25, "label": "API client" },
+        { "path": "apps/portal/package.json", "line": 5, "end_line": 5, "label": "employee web portal" }
+      ]
+    },
+    {
+      "id": "employee",
+      "type": "external",
+      "label": "Employee",
+      "sublabel": "Expense owner",
+      "tag": "human actor",
+      "stage": 0,
+      "row": 2,
+      "sources": [
+        { "path": "backend/app/core/permissions.py", "line": 31, "end_line": 31, "label": "expense:create_own" },
+        { "path": "backend/app/services/scope_service.py", "line": 54, "end_line": 55, "label": "own-claim check" }
+      ]
+    },
+    {
+      "id": "mobile",
+      "type": "frontend",
+      "label": "Android app",
+      "sublabel": "Expo / React Native",
+      "tag": "channel: android",
+      "stage": 0,
+      "row": 4,
+      "sources": [
+        { "path": "apps/mobile/app.json", "line": 2, "end_line": 13, "label": "Expo app · CAMERA" },
+        { "path": "apps/mobile/src/api.ts", "line": 29, "end_line": 29, "label": "API client" }
+      ]
+    },
+    {
+      "id": "draftroute",
+      "type": "backend",
+      "label": "Expense routes",
+      "sublabel": "POST /expenses",
+      "tag": "Idempotency-Key",
+      "stage": 1,
+      "row": 0,
+      "sources": [
+        { "path": "backend/app/api/v1/routes/expenses.py", "line": 21, "end_line": 37, "label": "draft endpoint" }
+      ]
+    },
+    {
+      "id": "workflow",
+      "type": "backend",
+      "label": "Expense workflow",
+      "sublabel": "create_draft_claim",
+      "tag": "v1 draft + evidence",
+      "stage": 1,
+      "row": 2,
+      "sources": [
+        { "path": "backend/app/services/expense_workflow_service.py", "line": 23, "end_line": 30, "label": "create_draft_claim" },
+        { "path": "backend/app/services/expense_workflow_service.py", "line": 122, "end_line": 146, "label": "submit_claim" }
+      ]
+    },
+    {
+      "id": "lifecycle",
+      "type": "backend",
+      "label": "Lifecycle routes",
+      "sublabel": "PATCH · submit",
+      "tag": "expenses/{id}",
+      "stage": 1,
+      "row": 3,
+      "sources": [
+        { "path": "backend/app/api/v1/routes/expense_lifecycle.py", "line": 387, "end_line": 397, "label": "PATCH correct" },
+        { "path": "backend/app/api/v1/routes/expense_lifecycle.py", "line": 487, "end_line": 500, "label": "POST submit" },
+        { "path": "backend/app/api/v1/routes/expense_lifecycle.py", "line": 513, "end_line": 530, "label": "POST decisions" }
+      ]
+    },
+    {
+      "id": "uploadroute",
+      "type": "backend",
+      "label": "Receipt routes",
+      "sublabel": "POST /expenses/{id}/receipts",
+      "tag": "multipart · ≤20",
+      "stage": 1,
+      "row": 4,
+      "sources": [
+        { "path": "backend/app/api/v1/routes/receipts.py", "line": 223, "end_line": 245, "label": "upload endpoint" },
+        { "path": "backend/app/api/v1/routes/receipts.py", "line": 261, "end_line": 276, "label": "size + signature" }
+      ]
+    },
+    {
+      "id": "expenses",
+      "type": "database",
+      "label": "expenses rows",
+      "sublabel": "status + version",
+      "tag": "operational",
+      "stage": 2,
+      "row": 0,
+      "sources": [
+        { "path": "backend/app/models/expense.py", "line": 108, "end_line": 123, "label": "expenses table" },
+        { "path": "backend/app/services/expense_workflow_service.py", "line": 48, "end_line": 67, "label": "draft row write" }
+      ]
+    },
+    {
+      "id": "findings",
+      "type": "database",
+      "label": "Persisted findings",
+      "sublabel": "no writer in API",
+      "tag": "not from pre-flight",
+      "stage": 2,
+      "row": 1,
+      "sources": [
+        { "path": "backend/app/models/review.py", "line": 62, "end_line": 69, "label": "findings table" },
+        { "path": "backend/app/policy/evaluator.py", "line": 412, "end_line": 415, "label": "step 7 delegated" },
+        { "path": "backend/app/services/policy_check_service.py", "line": 192, "end_line": 192, "label": "writes nothing" }
+      ]
+    },
+    {
+      "id": "evidence",
+      "type": "database",
+      "label": "Field evidence",
+      "sublabel": "expense_field_evidence",
+      "tag": "user-entered",
+      "stage": 2,
+      "row": 2,
+      "sources": [
+        { "path": "backend/app/models/expense.py", "line": 168, "end_line": 188, "label": "evidence table" },
+        { "path": "backend/app/models/expense.py", "line": 225, "end_line": 228, "label": "extraction needs receipt" },
+        { "path": "backend/app/api/v1/routes/expense_lifecycle.py", "line": 449, "end_line": 458, "label": "correction row" }
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "Receipt storage",
+      "sublabel": "private · local | supabase",
+      "tag": "binary content",
+      "stage": 2,
+      "row": 3,
+      "sources": [
+        { "path": "backend/app/storage/base.py", "line": 79, "end_line": 99, "label": "no public URL" },
+        { "path": "backend/app/storage/factory.py", "line": 22, "end_line": 27, "label": "local | supabase" }
+      ]
+    },
+    {
+      "id": "receipts_rows",
+      "type": "database",
+      "label": "receipts rows",
+      "sublabel": "metadata · sha256",
+      "tag": "PostgreSQL",
+      "stage": 2,
+      "row": 4,
+      "sources": [
+        { "path": "backend/app/models/receipt.py", "line": 51, "end_line": 71, "label": "receipts table" },
+        { "path": "backend/app/api/v1/routes/receipts.py", "line": 154, "end_line": 171, "label": "row written" }
+      ]
+    },
+    {
+      "id": "preflight",
+      "type": "backend",
+      "label": "Policy pre-flight",
+      "sublabel": "advisory, writes nothing",
+      "tag": "POST /policy/check",
+      "stage": 3,
+      "row": 1,
+      "sources": [
+        { "path": "backend/app/api/v1/routes/policy.py", "line": 30, "end_line": 46, "label": "pre-flight route" },
+        { "path": "backend/app/services/policy_check_service.py", "line": 189, "end_line": 203, "label": "check_policy" }
+      ]
+    },
+    {
+      "id": "result",
+      "type": "database",
+      "label": "Extraction result",
+      "sublabel": "structured_result",
+      "tag": "needs a provider",
+      "stage": 3,
+      "row": 2,
+      "sources": [
+        { "path": "backend/app/models/receipt.py", "line": 130, "end_line": 132, "label": "structured_result" },
+        { "path": "backend/app/models/receipt.py", "line": 146, "end_line": 149, "label": "success/partial only" },
+        { "path": "backend/app/extraction/unavailable.py", "line": 34, "end_line": 47, "label": "returns no fields" }
+      ]
+    },
+    {
+      "id": "extract",
+      "type": "backend",
+      "label": "Extraction worker",
+      "sublabel": "provider-dependent",
+      "tag": "async poll",
+      "stage": 3,
+      "row": 3,
+      "sources": [
+        { "path": "backend/app/extraction/worker.py", "line": 104, "end_line": 112, "label": "claim pending run" },
+        { "path": "backend/app/extraction/worker.py", "line": 130, "end_line": 138, "label": "read bytes + extract" },
+        { "path": "backend/app/extraction/factory.py", "line": 20, "end_line": 21, "label": "unavailable default" }
+      ]
+    },
+    {
+      "id": "runs",
+      "type": "database",
+      "label": "extraction_runs",
+      "sublabel": "one row per attempt",
+      "tag": "PENDING at upload",
+      "stage": 3,
+      "row": 4,
+      "sources": [
+        { "path": "backend/app/models/receipt.py", "line": 103, "end_line": 112, "label": "runs table" },
+        { "path": "backend/app/api/v1/routes/receipts.py", "line": 179, "end_line": 189, "label": "pending run created" }
+      ]
+    },
+    {
+      "id": "analytics",
+      "type": "backend",
+      "label": "Analytics service",
+      "sublabel": "overview · spend · matrix",
+      "tag": "read-only projections",
+      "stage": 4,
+      "row": 0,
+      "sources": [
+        { "path": "backend/app/services/analytics_service.py", "line": 1, "end_line": 6, "label": "no one-to-many joins" },
+        { "path": "backend/app/api/v1/routes/analytics.py", "line": 66, "end_line": 85, "label": "GET /analytics/overview" }
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "backend",
+      "label": "Audit service",
+      "sublabel": "append-only events",
+      "tag": "trigger-enforced",
+      "stage": 4,
+      "row": 1,
+      "sources": [
+        { "path": "backend/app/services/audit_service.py", "line": 54, "end_line": 81, "label": "audit_for_actor" },
+        { "path": "backend/app/models/audit.py", "line": 69, "end_line": 73, "label": "trigger, not crypto" },
+        { "path": "backend/migrations/versions/0001_initial_schema.py", "line": 1852, "end_line": 1855, "label": "append-only trigger" }
+      ]
+    },
+    {
+      "id": "decisions",
+      "type": "database",
+      "label": "review_decisions",
+      "sublabel": "human outcome row",
+      "tag": "no payment",
+      "stage": 4,
+      "row": 2,
+      "sources": [
+        { "path": "backend/app/models/review.py", "line": 177, "end_line": 181, "label": "decisions table" },
+        { "path": "backend/app/services/expense_workflow_service.py", "line": 158, "end_line": 199, "label": "record_claim_decision" }
+      ]
+    },
+    {
+      "id": "reviewer",
+      "type": "external",
+      "label": "Finance reviewer",
+      "sublabel": "Human decision maker",
+      "tag": "reason required",
+      "stage": 4,
+      "row": 3,
+      "sources": [
+        { "path": "backend/app/api/v1/routes/expense_lifecycle.py", "line": 519, "end_line": 530, "label": "decide endpoint" }
+      ]
+    },
+    {
+      "id": "duplicates",
+      "type": "database",
+      "label": "Duplicate signals",
+      "sublabel": "candidate, not fraud",
+      "tag": "reviewer resolves",
+      "stage": 4,
+      "row": 4,
+      "sources": [
+        { "path": "backend/app/models/review.py", "line": 131, "end_line": 140, "label": "duplicate_candidates" },
+        { "path": "backend/app/duplicates/signals.py", "line": 1, "end_line": 20, "label": "candidates only" }
+      ]
+    }
+  ],
+  "flows": [
+    { "id": "employee-portal", "from": "employee", "to": "portal", "label": "enters claim fields", "classification": "own membership", "variant": "default" },
+    { "id": "employee-mobile", "from": "employee", "to": "mobile", "label": "captures receipt", "classification": "camera channel", "variant": "default" },
+    { "id": "portal-draft", "from": "portal", "to": "draftroute", "label": "POST /expenses", "classification": "Idempotency-Key", "variant": "emphasis" },
+    { "id": "portal-submit", "from": "portal", "to": "lifecycle", "label": "POST /submit", "classification": "submit_claim", "variant": "emphasis" },
+    { "id": "mobile-upload", "from": "mobile", "to": "uploadroute", "label": "receipt upload", "classification": "multipart", "variant": "emphasis" },
+    { "id": "draft-workflow", "from": "draftroute", "to": "workflow", "label": "create_draft_claim", "classification": "ExpenseWorkflowService", "variant": "emphasis", "fromSide": "bottom", "toSide": "top" },
+    { "id": "submit-workflow", "from": "lifecycle", "to": "workflow", "label": "submit_claim", "classification": "status → submitted", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
+    { "id": "workflow-expenses", "from": "workflow", "to": "expenses", "label": "draft row v1", "classification": "version 1", "variant": "emphasis" },
+    { "id": "workflow-evidence", "from": "workflow", "to": "evidence", "label": "employee input", "classification": "one row/field", "variant": "emphasis", "route": "straight" },
+    { "id": "correction-evidence", "from": "lifecycle", "to": "evidence", "label": "new evidence row", "classification": "owner | reviewer", "variant": "security" },
+    { "id": "upload-storage", "from": "uploadroute", "to": "storage", "label": "receipt bytes", "classification": "private write", "variant": "emphasis" },
+    { "id": "upload-receiptrow", "from": "uploadroute", "to": "receipts_rows", "label": "receipt row", "classification": "metadata", "variant": "emphasis", "route": "straight" },
+    { "id": "receiptrow-runs", "from": "receipts_rows", "to": "runs", "label": "pending run", "classification": "same txn", "variant": "emphasis", "route": "straight" },
+    { "id": "storage-extract", "from": "storage", "to": "extract", "label": "stored bytes", "classification": "storage.read", "variant": "dashed" },
+    { "id": "runs-extract", "from": "runs", "to": "extract", "label": "claim pending run", "classification": "skip-locked", "variant": "dashed", "fromSide": "top", "toSide": "bottom" },
+    { "id": "extract-result", "from": "extract", "to": "result", "label": "structured fields", "classification": "provider-required", "variant": "dashed", "fromSide": "top", "toSide": "bottom" },
+    { "id": "result-evidence", "from": "result", "to": "evidence", "label": "extracted fields", "classification": "not wired", "variant": "dashed", "route": "straight" },
+    { "id": "expenses-preflight", "from": "expenses", "to": "preflight", "label": "claim view", "classification": "read-only", "variant": "security", "fromSide": "bottom", "toSide": "top" },
+    { "id": "evidence-preflight", "from": "evidence", "to": "preflight", "label": "field evidence", "classification": "provenance", "variant": "security" },
+    { "id": "expenses-analytics", "from": "expenses", "to": "analytics", "label": "aggregate reads", "classification": "read-only", "variant": "default", "route": "straight" },
+    { "id": "reviewer-decisions", "from": "reviewer", "to": "decisions", "label": "POST /decisions", "classification": "record_claim_decision", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
+    { "id": "decisions-audit", "from": "decisions", "to": "audit", "label": "audit event", "classification": "same txn", "variant": "default", "fromSide": "top", "toSide": "bottom" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Primary Path",
+      "items": [
+        "Employee input creates the version-1 claim row plus one expense_field_evidence row per supplied field, all source=employee_input",
+        "PATCH /api/v1/expenses/{expense_id} appends new field evidence at version+1: employee_input for the owner, reviewer_correction for a scoped reviewer",
+        "Node sublabels show route suffixes only; every path is mounted under /api/v1 and both clients may call either the expense or the receipt route"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Receipt Intake",
+      "items": [
+        "The multipart upload is capped by RECEIPT_MAX_UPLOAD_BYTES; the real type is sniffed from magic bytes and the declared content type is never trusted",
+        "Only JPEG, PNG and WebP may queue extraction - HEIC, HEIF and PDF validate against the storage allow-list but are refused for extraction",
+        "Receipt bytes live in private object storage (local or supabase); content is streamed only through the authorized /receipts/{receipt_id}/content route"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Extraction Is Not Proven",
+      "items": [
+        "EXTRACTION_PROVIDER defaults to 'unavailable', which returns no fields, and every other unverified provider name fails closed at construction",
+        "The upload persists a PENDING extraction run; the worker claims it and records UNAVAILABLE, so structured_result and validation_result stay NULL",
+        "structured_result is constrained to success/partial runs, and no code path writes an expense_field_evidence row with source=receipt_extraction"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Advisory, Not Persisted",
+      "items": [
+        "POST /api/v1/policy/check writes nothing - no finding, no decision, no status change, no audit event - and its response is labelled advisory",
+        "No route or service writes a findings row yet: the evaluator returns finding drafts and names persist_findings_and_transition_status as a step, not an implementation",
+        "duplicate_candidates has no writer; receipts.sha256 is the duplicate signal and only the local demo seeder links duplicate receipts"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Guarantees And Limits",
+      "items": [
+        "audit_events refuses UPDATE and DELETE through trg_audit_events_append_only - database-enforced append-only, not cryptographic immutability",
+        "An approved or rejected claim is a workflow status change; no payment or reimbursement execution exists anywhere in the backend",
+        "Analytics reads persisted expenses only and never joins receipts, extraction runs, findings or audit rows, so those records cannot multiply an aggregate"
+      ]
+    }
+  ]
+}

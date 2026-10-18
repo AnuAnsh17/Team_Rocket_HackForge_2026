@@ -1,0 +1,603 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Policy Evaluation & Audit Traceability (mechanism view)",
+    "locale": "en",
+    "output": "docs/architecture/proofline-policy-audit-flow.html",
+    "quality_profile": "showcase",
+    "visual_preset": "signal-flow",
+    "legend": { "mode": "auto" },
+    "repository": {
+      "url": "https://github.com/AnuAnsh17/Team_Rocket_HackForge_2026",
+      "provider": "github",
+      "revision": "a779782f3fa093c31eb84aabdad11ee7e937ccb3"
+    },
+    "views": [
+      {
+        "id": "advisory",
+        "label": "Advisory pre-flight (read-only)",
+        "focus": [
+          "employee",
+          "portal",
+          "api",
+          "authorize",
+          "preflight",
+          "scope",
+          "evaluator",
+          "registry",
+          "resolver",
+          "claimstore",
+          "policyrules",
+          "assignments",
+          "policysrc"
+        ],
+        "note": "The only live evaluation path: it reads, decides and returns. No finding, no status change, no audit event."
+      },
+      {
+        "id": "persisted",
+        "label": "Persisted writes & audit trail",
+        "focus": ["reviewer", "console", "api", "decisions", "audit", "tx", "auditevents", "evaluator", "findings"],
+        "note": "Human decisions append audit events in one transaction. The engine's findings are never written: that edge is dashed."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "employee",
+      "type": "external",
+      "label": "Employee",
+      "sublabel": "Expense owner",
+      "pos": [40, 40],
+      "size": [150, 64],
+      "sources": [
+        {
+          "path": "backend/app/services/policy_check_service.py",
+          "line": 111,
+          "end_line": 118,
+          "label": "evaluated for the owning actor"
+        }
+      ]
+    },
+    {
+      "id": "portal",
+      "type": "frontend",
+      "label": "Employee portal",
+      "sublabel": "Next.js · self-service",
+      "pos": [40, 170],
+      "size": [155, 70],
+      "sources": [
+        {
+          "path": "apps/portal/src/lib/api.ts",
+          "line": 22,
+          "end_line": 25,
+          "label": "targets /api/v1"
+        }
+      ]
+    },
+    {
+      "id": "scope",
+      "type": "backend",
+      "label": "Claim view & scope",
+      "sublabel": "ClaimView + fingerprint",
+      "pos": [40, 320],
+      "size": [165, 88],
+      "sources": [
+        {
+          "path": "backend/app/context/scope.py",
+          "line": 129,
+          "end_line": 135,
+          "label": "read-only claim snapshot"
+        },
+        {
+          "path": "backend/app/context/scope.py",
+          "line": 246,
+          "end_line": 254,
+          "label": "resolve_scope"
+        },
+        {
+          "path": "backend/app/context/scope.py",
+          "line": 322,
+          "end_line": 328,
+          "label": "idempotency fingerprint"
+        }
+      ]
+    },
+    {
+      "id": "claimstore",
+      "type": "database",
+      "label": "Claims + field evidence",
+      "sublabel": "current provenance per field",
+      "pos": [40, 830],
+      "size": [165, 88],
+      "sources": [
+        {
+          "path": "backend/app/models/expense.py",
+          "line": 168,
+          "end_line": 188,
+          "label": "expense_field_evidence"
+        },
+        {
+          "path": "backend/app/context/scope.py",
+          "line": 136,
+          "end_line": 144,
+          "label": "reads is_current rows"
+        }
+      ]
+    },
+    {
+      "id": "findings",
+      "type": "database",
+      "label": "Findings",
+      "sublabel": "PASS · FAIL · UNKNOWN",
+      "tag": "UNKNOWN is not a pass",
+      "pos": [40, 990],
+      "size": [180, 95],
+      "sources": [
+        {
+          "path": "backend/app/models/review.py",
+          "line": 62,
+          "end_line": 70,
+          "label": "tri-state, never a pass"
+        },
+        {
+          "path": "backend/app/models/review.py",
+          "line": 86,
+          "end_line": 100,
+          "label": "evidence + calculation"
+        },
+        {
+          "path": "backend/app/models/review.py",
+          "line": 119,
+          "end_line": 127,
+          "label": "FAIL needs evidence"
+        }
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI API",
+      "sublabel": "/api/v1 · 8 routers",
+      "pos": [300, 170],
+      "size": [175, 70],
+      "sources": [
+        {
+          "path": "backend/app/api/v1/router.py",
+          "line": 39,
+          "end_line": 47,
+          "label": "policy router mounted"
+        },
+        {
+          "path": "backend/app/api/deps.py",
+          "line": 60,
+          "end_line": 98,
+          "label": "one session per request"
+        }
+      ]
+    },
+    {
+      "id": "authorize",
+      "type": "security",
+      "label": "Authorization & scope",
+      "sublabel": "Permissions + org scoping",
+      "pos": [300, 320],
+      "size": [175, 78],
+      "sources": [
+        {
+          "path": "backend/app/services/scope_service.py",
+          "line": 103,
+          "end_line": 115,
+          "label": "claim read scope"
+        },
+        {
+          "path": "backend/app/services/policy_check_service.py",
+          "line": 111,
+          "end_line": 127,
+          "label": "create permission + trip ownership"
+        }
+      ]
+    },
+    {
+      "id": "preflight",
+      "type": "backend",
+      "label": "Policy pre-flight",
+      "sublabel": "advisory · writes nothing",
+      "tag": "POST /api/v1/policy/check",
+      "pos": [300, 470],
+      "size": [180, 95],
+      "sources": [
+        {
+          "path": "backend/app/services/policy_check_service.py",
+          "line": 1,
+          "end_line": 6,
+          "label": "a read: no finding, no audit"
+        },
+        {
+          "path": "backend/app/services/policy_check_service.py",
+          "line": 189,
+          "end_line": 203,
+          "label": "check_policy"
+        },
+        {
+          "path": "backend/app/api/v1/routes/policy.py",
+          "line": 30,
+          "end_line": 46,
+          "label": "advisory route"
+        }
+      ]
+    },
+    {
+      "id": "evaluator",
+      "type": "backend",
+      "label": "Deterministic evaluator",
+      "sublabel": "pure · 9 ordered steps",
+      "tag": "PASS | FAIL | UNKNOWN",
+      "pos": [300, 660],
+      "size": [180, 95],
+      "sources": [
+        {
+          "path": "backend/app/policy/evaluator.py",
+          "line": 8,
+          "end_line": 11,
+          "label": "pure; writes live elsewhere"
+        },
+        {
+          "path": "backend/app/policy/evaluator.py",
+          "line": 48,
+          "end_line": 58,
+          "label": "EVALUATION_STEPS"
+        },
+        {
+          "path": "backend/app/policy/evaluator.py",
+          "line": 255,
+          "end_line": 264,
+          "label": "evaluate_expense writes nothing"
+        }
+      ]
+    },
+    {
+      "id": "registry",
+      "type": "backend",
+      "label": "Rule registry",
+      "sublabel": "evaluator_type → implementation",
+      "pos": [300, 830],
+      "size": [175, 88],
+      "sources": [
+        {
+          "path": "backend/app/policy/registry.py",
+          "line": 77,
+          "end_line": 79,
+          "label": "empty by design"
+        },
+        {
+          "path": "backend/app/policy/registry.py",
+          "line": 320,
+          "end_line": 336,
+          "label": "loads active + approved rules"
+        },
+        {
+          "path": "backend/app/policy/registry.py",
+          "line": 343,
+          "end_line": 348,
+          "label": "fictional rules gated by local flags"
+        }
+      ]
+    },
+    {
+      "id": "policyrules",
+      "type": "database",
+      "label": "Policy rules",
+      "sublabel": "source clause + named validator",
+      "pos": [300, 990],
+      "size": [175, 88],
+      "sources": [
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 145,
+          "end_line": 154,
+          "label": "source_requires_validation"
+        },
+        {
+          "path": "docs/demo-company-expense-policy.md",
+          "line": 116,
+          "end_line": 121,
+          "label": "DEMO-EXP-NNN clause ids"
+        }
+      ]
+    },
+    {
+      "id": "console",
+      "type": "frontend",
+      "label": "Internal console",
+      "sublabel": "Next.js · review & analytics",
+      "pos": [580, 40],
+      "size": [165, 64],
+      "sources": [
+        {
+          "path": "apps/console/src/lib/api.ts",
+          "line": 29,
+          "end_line": 34,
+          "label": "targets /api/v1"
+        },
+        {
+          "path": "apps/console/src/components/AppShell.tsx",
+          "line": 99,
+          "end_line": 101,
+          "label": "audit screen is a scaffold"
+        }
+      ]
+    },
+    {
+      "id": "resolver",
+      "type": "backend",
+      "label": "Effective-policy resolution",
+      "sublabel": "priority · conflict → unresolved",
+      "pos": [580, 830],
+      "size": [175, 88],
+      "sources": [
+        {
+          "path": "backend/app/policy/resolution.py",
+          "line": 150,
+          "end_line": 163,
+          "label": "resolve_effective_policy"
+        },
+        {
+          "path": "backend/app/policy/resolution.py",
+          "line": 192,
+          "end_line": 200,
+          "label": "no assignment → unresolved"
+        },
+        {
+          "path": "backend/app/policy/resolution.py",
+          "line": 219,
+          "end_line": 229,
+          "label": "conflict → unresolved"
+        }
+      ]
+    },
+    {
+      "id": "assignments",
+      "type": "database",
+      "label": "Policy assignments",
+      "sublabel": "scope selector + priority",
+      "pos": [580, 990],
+      "size": [175, 88],
+      "sources": [
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 157,
+          "end_line": 166,
+          "label": "priority is configuration, not specificity"
+        },
+        {
+          "path": "backend/app/policy/resolution.py",
+          "line": 184,
+          "end_line": 190,
+          "label": "effective-period filter"
+        }
+      ]
+    },
+    {
+      "id": "reviewer",
+      "type": "external",
+      "label": "Finance reviewer",
+      "sublabel": "Human decision maker",
+      "pos": [860, 40],
+      "size": [170, 64],
+      "sources": [
+        {
+          "path": "backend/app/api/v1/routes/expense_lifecycle.py",
+          "line": 519,
+          "end_line": 530,
+          "label": "scoped decision; own claim refused"
+        }
+      ]
+    },
+    {
+      "id": "decisions",
+      "type": "database",
+      "label": "Review decisions",
+      "sublabel": "previous → new status",
+      "pos": [860, 170],
+      "size": [170, 78],
+      "sources": [
+        {
+          "path": "backend/app/models/review.py",
+          "line": 177,
+          "end_line": 199,
+          "label": "review_decisions"
+        },
+        {
+          "path": "backend/app/models/review.py",
+          "line": 218,
+          "end_line": 222,
+          "label": "rejection requires a reason"
+        },
+        {
+          "path": "backend/app/services/expense_workflow_service.py",
+          "line": 177,
+          "end_line": 207,
+          "label": "status change + audit in one unit"
+        }
+      ]
+    },
+    {
+      "id": "audit",
+      "type": "backend",
+      "label": "Audit service",
+      "sublabel": "append-only events",
+      "pos": [860, 320],
+      "size": [170, 78],
+      "sources": [
+        {
+          "path": "backend/app/services/audit_service.py",
+          "line": 1,
+          "end_line": 7,
+          "label": "no update or delete helper"
+        },
+        {
+          "path": "backend/app/audit/writer.py",
+          "line": 58,
+          "end_line": 80,
+          "label": "caller must commit"
+        }
+      ]
+    },
+    {
+      "id": "tx",
+      "type": "backend",
+      "label": "Request transaction",
+      "sublabel": "commit or rollback",
+      "pos": [860, 470],
+      "size": [170, 85],
+      "sources": [
+        {
+          "path": "backend/app/api/deps.py",
+          "line": 60,
+          "end_line": 98,
+          "label": "state change + audit event atomic"
+        },
+        {
+          "path": "backend/app/db/session.py",
+          "line": 75,
+          "end_line": 91,
+          "label": "session_scope"
+        }
+      ]
+    },
+    {
+      "id": "auditevents",
+      "type": "database",
+      "label": "audit_events",
+      "sublabel": "append-only via DB trigger",
+      "tag": "UPDATE / DELETE refused",
+      "pos": [860, 660],
+      "size": [170, 85],
+      "sources": [
+        {
+          "path": "backend/app/models/audit.py",
+          "line": 69,
+          "end_line": 72,
+          "label": "not cryptographic immutability"
+        },
+        {
+          "path": "backend/migrations/versions/0001_initial_schema.py",
+          "line": 1850,
+          "end_line": 1857,
+          "label": "trg_audit_events_append_only"
+        }
+      ]
+    },
+    {
+      "id": "policysrc",
+      "type": "database",
+      "label": "Policy documents & versions",
+      "sublabel": "sha256 · effective window",
+      "tag": "fictional demo policy",
+      "pos": [860, 990],
+      "size": [180, 95],
+      "sources": [
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 55,
+          "end_line": 74,
+          "label": "source_file_sha256 pins the file"
+        },
+        {
+          "path": "backend/app/models/policy.py",
+          "line": 77,
+          "end_line": 108,
+          "label": "approval_requires_approver"
+        },
+        {
+          "path": "docs/demo-company-expense-policy.md",
+          "line": 1,
+          "end_line": 9,
+          "label": "this policy is fiction"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    { "id": "employee-portal", "from": "employee", "to": "portal", "label": "drafts a claim" },
+    { "id": "portal-api", "from": "portal", "to": "api", "label": "HTTP /api/v1", "variant": "emphasis" },
+    { "id": "reviewer-console", "from": "reviewer", "to": "console", "label": "decides" },
+    { "id": "console-api", "from": "console", "to": "api", "label": "review screens" },
+    { "id": "api-authorize", "from": "api", "to": "authorize", "label": "permission + scope gate", "variant": "security" },
+    { "id": "authorize-preflight", "from": "authorize", "to": "preflight", "label": "authorized context only" },
+    { "id": "preflight-scope", "from": "preflight", "to": "scope", "label": "builds context" },
+    { "id": "scope-evaluator", "from": "scope", "to": "evaluator", "label": "claim view + scope" },
+    { "id": "preflight-evaluator", "from": "preflight", "to": "evaluator", "label": "evaluate_expense()", "variant": "emphasis" },
+    { "id": "scope-claimstore", "from": "scope", "to": "claimstore", "label": "reads provenance" },
+    { "id": "evaluator-registry", "from": "evaluator", "to": "registry", "label": "loads active rules" },
+    { "id": "evaluator-resolver", "from": "evaluator", "to": "resolver", "label": "resolves version" },
+    { "id": "evaluator-findings", "from": "evaluator", "to": "findings", "label": "no caller in source", "variant": "dashed" },
+    { "id": "registry-policyrules", "from": "registry", "to": "policyrules", "label": "reads active rows" },
+    { "id": "resolver-assignments", "from": "resolver", "to": "assignments", "label": "matches selectors" },
+    { "id": "resolver-policysrc", "from": "resolver", "to": "policysrc", "label": "approved version?" },
+    { "id": "api-decisions", "from": "api", "to": "decisions", "label": "POST /decisions" },
+    { "id": "decisions-audit", "from": "decisions", "to": "audit", "label": "audited in the same tx" },
+    { "id": "audit-tx", "from": "audit", "to": "tx", "label": "appends to the session" },
+    { "id": "tx-auditevents", "from": "tx", "to": "auditevents", "label": "commits rows" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "The two paths in this view",
+      "items": [
+        "Advisory (solid): POST /api/v1/policy/check resolves context, runs the evaluator and returns findings. It creates no claim, writes no finding, records no audit event and changes no status (policy_check_service.py:1-6).",
+        "Persisted (solid, human only): a reviewer decision writes the status change and its audit event in one transaction (expense_workflow_service.py:177-207).",
+        "Dashed: the engine's findings are never written. evaluate_expense() has exactly one caller - the advisory pre-flight - and the steps 8-9 persistence module it names, app/services/policy_service.py, does not exist in this revision (evaluator.py:8-11). No Finding row is ever constructed outside app/models/review.py."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Tri-state result: PASS / FAIL / UNKNOWN",
+      "items": [
+        "PASS: reliable information exists and the rule is satisfied.",
+        "FAIL: reliable information exists and the rule is breached. A FAIL must carry the expected condition or the calculation that produced it, in code and in the database (policy/base.py:169-175, models/review.py:124-127).",
+        "UNKNOWN: required fields, context or reliable evidence are missing. It is a legitimate, first-class outcome and is never converted into PASS - it routes to an employee correction, a reviewer assessment or a notice, and that routing is carried on the finding (policy/base.py:8-16).",
+        "With no approved policy provisioned the registry holds no rule, so every claim is reported UNKNOWN rather than looking clean (evaluator.py:218-237, registry.py:77-79)."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "The real audit guarantee - nothing more",
+      "items": [
+        "audit_events is append-only because the database refuses: trigger trg_audit_events_append_only (BEFORE UPDATE OR DELETE ... RAISE EXCEPTION, ERRCODE restrict_violation) is installed by migration 0001 (migration 0001:1850-1857).",
+        "That is a database-level refusal of UPDATE and DELETE. It is NOT cryptographic immutability, NOT WORM storage, NOT tamper-evidence (nobody hashes or chains the rows) and NOT a claim of legal admissibility (models/audit.py:69-72).",
+        "Atomicity comes from the request transaction, not the trigger: one session per request commits when the handler returns and rolls back on any exception, so a decision and its audit event either both persist or neither does (api/deps.py:60-98, db/session.py:75-91)."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "What this engine does not do",
+      "items": [
+        "It never auto-approves, auto-rejects or pays anything. A finding is a flag; a finance reviewer decides (expense_workflow_service.py:177-207). No payment or reimbursement execution exists anywhere in this revision.",
+        "Duplicate candidates are signals, not fraud determinations - and app/duplicates/signals.py has no caller at all, so candidate generation is not wired (evaluator.py:412-414).",
+        "No currency conversion: no approved rate source exists, so step 6 is skipped and that fact is recorded instead of an invented rate (evaluator.py:356-364).",
+        "Finding persistence and resolution are declared unimplemented by the API's own capability report (meta_service.py:30-46), and no endpoint resolves or dismisses a finding: schemas/review.py models it, nothing routes it."
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Evidence, rule parameters and idempotency",
+      "items": [
+        "Every finding carries message, employee_message, evidence (JSONB), calculation, expected_value, observed_value, recommended_action and a source_reference back to the policy clause (models/review.py:86-100).",
+        "Thresholds are not in code: a rule can only be active with a verified source clause and a named human validator (source_requires_validation, models/policy.py:145-154). The rule implementation is looked up by evaluator_type string, never stored as a callable.",
+        "The evaluation fingerprint hashes the claim version, the policy version and the resolved scope, so re-running evaluation for identical inputs cannot produce a second finding (context/scope.py:69-107, models/review.py:98-100).",
+        "Fields are read from provenance rows, not the denormalised claim columns, so employee-entered text is never treated as receipt evidence (context/scope.py:129-135)."
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "The demo policy is fiction, and the clients are not wired",
+      "items": [
+        "docs/demo-company-expense-policy.md opens with 'This policy is fiction'; it is not an employer policy and not legal, tax or accounting guidance. Its clause ids (DEMO-EXP-NNN) live in policy_rules.source_clause and the version is labelled DEMO ONLY / FICTIONAL (docs:1-9, docs:116-121).",
+        "It seeds only when APP_ENV is development or test AND DEMO_MODE is true AND DEMO_SYNTHETIC_POLICY_ENABLED is true, a flag that defaults to false; with it off the registry loads no fictional rule and claims evaluate to UNKNOWN rather than to a fictional PASS (registry.py:343-348, demo-company-expense-policy.md:83-94).",
+        "The pre-flight is registered and generated into the shared client types (packages/api-client/src/schema.d.ts:373-386), but no shipped screen calls it or the decision endpoint: apps/portal and apps/console only configure an /api/v1 base URL, and the console's audit surface labels itself 'Scaffold · no audit workflow implemented' (apps/console/src/lib/api.ts:29-34, AppShell.tsx:99-101)."
+      ]
+    }
+  ]
+}

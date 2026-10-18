@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "sequence",
+  "quality": "showcase",
+  "specification": {
+    "path": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-auth-sequence.json",
+    "sha256": "008314ec8e7b1a476c1952ed005153d1d1ed4cba79f633b2a332bd92aaf461e5",
+    "bytes": 16321
+  },
+  "artifact": {
+    "path": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-auth-sequence.html",
+    "sha256": "09ad4a258008665d61c0d7512e38ff0827e4536b47653285bc7c2366a00fd4fa",
+    "bytes": 840444
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-auth-sequence.finalize.json",
+    "summaryReceipt": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-auth-sequence.finalize-summary.json",
+    "browserCheckReceipt": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-auth-sequence.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.1.0",
+    "availableVersion": "3.1.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-18T04:40:54.036Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 11141
+}

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "dataflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-expense-dataflow.json",
+    "sha256": "b744b0dab38de580db735f0e5e079f92890660a3aecdcaa1060413cc24f36940",
+    "bytes": 17586
+  },
+  "artifact": {
+    "path": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-expense-dataflow.html",
+    "sha256": "47f9117ec1e01a32e751469f72bec1b9c7ff9e3ed2d98b0ec6ce1a12f22a58b1",
+    "bytes": 862461
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-expense-dataflow.finalize.json",
+    "summaryReceipt": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-expense-dataflow.finalize-summary.json",
+    "browserCheckReceipt": "C:\\Users\\anura\\proofline-docs\\docs\\architecture\\proofline-expense-dataflow.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.1.0",
+    "availableVersion": "3.1.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-18T04:40:54.036Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 12027
+}
