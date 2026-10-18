@@ -3,7 +3,7 @@ package org.proofline.android.ui.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
@@ -70,7 +70,7 @@ fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
                                 when (screen) {
                                     Screen.Home -> Icon(Icons.Default.Home, contentDescription = screen.title)
                                     Screen.Expenses -> Icon(Icons.Default.List, contentDescription = screen.title)
-                                    Screen.Calendar -> Icon(Icons.Default.CalendarMonth, contentDescription = screen.title)
+                                    Screen.Calendar -> Icon(Icons.Default.DateRange, contentDescription = screen.title)
                                     Screen.Profile -> Icon(Icons.Default.Person, contentDescription = screen.title)
                                     else -> {}
                                 }

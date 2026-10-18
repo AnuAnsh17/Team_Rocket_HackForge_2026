@@ -10,8 +10,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -78,7 +78,7 @@ fun CalendarScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { currentYearMonth = currentYearMonth.minusMonths(1) }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month")
+                    Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "Previous Month")
                 }
                 Text(
                     text = "${currentYearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${currentYearMonth.year}",
@@ -86,7 +86,7 @@ fun CalendarScreen(
                     fontWeight = FontWeight.Bold
                 )
                 IconButton(onClick = { currentYearMonth = currentYearMonth.plusMonths(1) }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "Next Month")
+                    Icon(Icons.Default.KeyboardArrowRight, contentDescription = "Next Month")
                 }
             }
         }
@@ -255,21 +255,5 @@ fun CalendarScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-fun LegendItem(color: Color, label: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(14.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Text(text = label, style = MaterialTheme.typography.labelSmall)
     }
 }
