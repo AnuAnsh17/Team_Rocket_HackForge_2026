@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -180,14 +182,14 @@ class ProoflineApiClient(
     suspend fun checkPolicy(expenseId: String): Result<PolicyCheckResponse> =
         withContext(Dispatchers.IO) {
             runCatching {
-                // Path per docs/api-contract.md. The route is listed there as
-                // unimplemented, and the contract does not pin the request body
-                // shape yet, so this sends an empty document rather than
-                // inventing fields.
-                val emptyBody = "{}".toRequestBody(jsonMediaType)
+                // The contract pins this body: PolicyCheckRequest takes an optional
+                // expense_id for an existing draft and the inline fields when it is
+                // null. So the expense belongs in the body. A header would be ignored,
+                // and an empty document would ask the backend to evaluate nothing and
+                // report an unresolved result for a claim it never looked at.
+                val payload = buildJsonObject { put("expense_id", expenseId) }
                 val request = newRequestBuilder("policy/check")
-                    .addHeader("X-Expense-Id", expenseId)
-                    .post(emptyBody)
+                    .post(payload.toString().toRequestBody(jsonMediaType))
                     .build()
                 executeRequest<PolicyCheckResponse>(request)
             }
