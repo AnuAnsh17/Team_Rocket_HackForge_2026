@@ -246,9 +246,16 @@ def resolve_target(
             .with_for_update()
         ).scalar_one_or_none()
         if user is None:
+            # A seeded demo actor's subject *is* its user id, and binding it replaces
+            # that mapping - so after the first successful link this lookup no longer
+            # matches. Falling back to the primary key keeps the documented command
+            # idempotent instead of failing with "no demo actor" the second time it is
+            # run, which read as though the binding had been lost.
+            user = session.get(User, actor_id, with_for_update=True)
+        if user is None:
             raise ProvisioningError(
-                f"No demo actor with id {actor_id}. Seed the demo dataset first "
-                "(python scripts/dev_seed.py), then use the actor id it prints."
+                f"No demo actor and no user with id {actor_id}. Seed the demo dataset "
+                "first (python scripts/dev_seed.py), then use the actor id it prints."
             )
         return user
 
