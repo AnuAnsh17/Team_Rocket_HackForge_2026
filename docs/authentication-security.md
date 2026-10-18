@@ -75,6 +75,50 @@ all six of the requirements this section used to list as outstanding:
 interface is deliberately narrow (`resolve_identity(request) -> Identity`) so a
 different provider can be introduced without touching the expense or policy services.
 
+## Provisioning: how a verified subject becomes an employee
+
+Verifying a token is only half of authentication. The verified `sub` is an opaque
+identifier from Supabase; it means nothing in Proofline until an operator has bound it
+to a user that already exists. Until then that subject is `401`, and the reason is
+deliberate: if an unknown subject were turned into a new user, anyone who could create
+a Supabase account would have created a Proofline account.
+
+The binding is `backend/scripts/provision_identity.py`, and it is a CLI rather than a
+route because a self-service "link my account" endpoint is an account-takeover
+primitive in either direction - unauthenticated, it lets an attacker claim a known
+employee; authenticated, it lets any user claim any unbound identity. The script:
+
+- binds `(provider, subject)` to a target the operator names by id (`--user`,
+  `--demo-actor`, or `--membership`), and refuses to create a user or a membership;
+- grants no role and revokes no role. Everything that user may do was already in the
+  database, so provisioning cannot escalate privilege - a property the tests assert by
+  comparing the grants before and after;
+- refuses a blank, over-long or whitespace-bearing subject, and refuses a subject that
+  is not the UUID shape a Supabase `sub` has - which is what catches a pasted access
+  token or an email address before it becomes a permanently dead identity;
+- refuses a target whose membership is not active, because that user could only ever
+  be `403`;
+- writes nothing without `--confirm`, and prints the exact before/after mapping first;
+- records an `identity.bound`, `identity.rebound` or `identity.unbound` audit event in
+  the same transaction as the change, naming the mapping it replaced;
+- relies on `UNIQUE (auth_provider, external_subject)` as the actual guarantee. Moving
+  a subject between users clears the previous holder in the same transaction.
+
+### What demo mode can and cannot be made to do
+
+`actor_service._find_user` matches `(auth_provider, external_subject)` and then falls
+back to a primary-key lookup, because a seeded demo actor's subject *is* its user id.
+So under `AUTH_PROVIDER=demo`, presenting a seeded user's id authenticates as that
+user regardless of the stored mapping, and clearing a mapping does not revoke it. That
+is demo mode working as documented - it is a development impersonation facility with an
+actor picker in the console - and it is why demo mode is refused outside development
+and why `DemoAuthProvider` cannot be constructed in production.
+
+The property that matters is that the demo provider is not selected, not that it is
+merely unused: with `AUTH_PROVIDER=supabase`, `build_auth_provider` returns
+`SupabaseAuthProvider` and the header is never read, so it authenticates nothing. This
+is asserted end to end in `tests/security/test_supabase_jwt.py`.
+
 ## Authorization
 
 See `docs/authorization-matrix.md`. Two independent stages - permission and resource
