@@ -166,6 +166,14 @@ export const Mini3DScene: React.FC<Mini3DSceneProps> = ({ type }) => {
 
     scene.add(group);
 
+    // Hover state
+    let isHovered = false;
+    let hoverScale = 1.0;
+    const onEnter = () => { isHovered = true; };
+    const onLeave = () => { isHovered = false; };
+    container.addEventListener('mouseenter', onEnter);
+    container.addEventListener('mouseleave', onLeave);
+
     // Animation Loop
     let animId: number;
     const clock = new THREE.Clock();
@@ -174,24 +182,29 @@ export const Mini3DScene: React.FC<Mini3DSceneProps> = ({ type }) => {
       animId = requestAnimationFrame(animate);
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
+      const speedMultiplier = isHovered ? 2.2 : 1.0;
+
+      // Smooth hover scale
+      hoverScale = THREE.MathUtils.damp(hoverScale, isHovered ? 1.08 : 1.0, 5.0, delta);
+      group.scale.setScalar(hoverScale);
 
       // Gentle group rotation
-      group.rotation.y = Math.sin(elapsed * 1.2) * 0.25;
-      group.rotation.x = Math.cos(elapsed * 0.9) * 0.1;
+      group.rotation.y = Math.sin(elapsed * 1.2 * speedMultiplier) * 0.3;
+      group.rotation.x = Math.cos(elapsed * 0.9 * speedMultiplier) * 0.12;
 
       if (type === 'scan' && scanLine) {
-        scanLine.position.y = Math.sin(elapsed * 2.5) * 0.7;
+        scanLine.position.y = Math.sin(elapsed * 2.5 * speedMultiplier) * 0.7;
       }
 
       if (type === 'policy') {
-        if (ring1) ring1.rotation.z += delta * 1.2;
-        if (ring2) ring2.rotation.x -= delta * 0.9;
+        if (ring1) ring1.rotation.z += delta * 1.2 * speedMultiplier;
+        if (ring2) ring2.rotation.x -= delta * 0.9 * speedMultiplier;
         if (shieldMesh) shieldMesh.position.y = Math.sin(elapsed * 2) * 0.04;
       }
 
       if (type === 'approve') {
-        if (ring1) ring1.rotation.z += delta * 1.5;
-        if (sealGroup) sealGroup.rotation.z = Math.sin(elapsed * 1.5) * 0.1;
+        if (ring1) ring1.rotation.z += delta * 1.5 * speedMultiplier;
+        if (sealGroup) sealGroup.rotation.z = Math.sin(elapsed * 1.5 * speedMultiplier) * 0.15;
       }
 
       renderer.render(scene, camera);

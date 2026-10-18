@@ -25,6 +25,8 @@ export const HeroReceiptScene: React.FC<HeroReceiptSceneProps> = ({ onScanComple
     scanProgress: 0,
     showRings: true,
     showBoxes: true,
+    isHovered: false,
+    hoverFactor: 0,
   });
 
   useEffect(() => {
@@ -390,22 +392,36 @@ export const HeroReceiptScene: React.FC<HeroReceiptSceneProps> = ({ onScanComple
     // Pre-warm shaders
     renderer.compile(scene, camera);
 
-    // 7. Mouse & Scroll interaction handlers
+    // 7. Mouse, Hover & Scroll interaction handlers
+    const handleMouseEnter = () => {
+      stateRef.current.isHovered = true;
+    };
+
+    const handleMouseLeave = () => {
+      stateRef.current.isHovered = false;
+      stateRef.current.targetRotationX = 0.1;
+      stateRef.current.targetRotationY = -0.3;
+      stateRef.current.mouseX = 0;
+      stateRef.current.mouseY = 0;
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
       stateRef.current.mouseX = x;
       stateRef.current.mouseY = y;
-      stateRef.current.targetRotationY = -0.3 + x * 0.45;
-      stateRef.current.targetRotationX = 0.1 - y * 0.35;
+      stateRef.current.targetRotationY = -0.3 + x * 0.55;
+      stateRef.current.targetRotationX = 0.1 - y * 0.4;
     };
 
     const handleScroll = () => {
       stateRef.current.scrollY = window.scrollY;
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseenter', handleMouseEnter);
+    container.addEventListener('mouseleave', handleMouseLeave);
+    container.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('scroll', handleScroll, { passive: true });
 
     // 8. Animation Loop
@@ -417,44 +433,85 @@ export const HeroReceiptScene: React.FC<HeroReceiptSceneProps> = ({ onScanComple
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
 
+      // Exponential damping for smooth hover interpolation (0 to 1)
+      const targetHover = stateRef.current.isHovered ? 1.0 : 0.0;
+      stateRef.current.hoverFactor = THREE.MathUtils.damp(
+        stateRef.current.hoverFactor,
+        targetHover,
+        5.5,
+        delta
+      );
+      const hf = stateRef.current.hoverFactor;
+
       // Exponential Damping for smooth rotation & tilt
       receiptGroup.rotation.y = THREE.MathUtils.damp(
         receiptGroup.rotation.y,
         stateRef.current.targetRotationY,
-        5.0,
+        5.5,
         delta
       );
       receiptGroup.rotation.x = THREE.MathUtils.damp(
         receiptGroup.rotation.x,
         stateRef.current.targetRotationX,
-        5.0,
+        5.5,
         delta
       );
 
-      // Gentle floating levitation motion
-      const floatY = Math.sin(elapsed * 1.5) * 0.06;
-      receiptGroup.position.y = floatY;
-      shadowMesh.scale.setScalar(1 - floatY * 0.5);
+      // Interactive 3D hover elevation and scale expansion
+      const currentScale = 1.0 + hf * 0.07;
+      receiptGroup.scale.set(currentScale, currentScale, currentScale);
 
-      // Rings revolution & bobbing
+      // Gentle floating levitation motion + hover elevation
+      const floatY = Math.sin(elapsed * (1.5 + hf * 0.8)) * 0.06;
+      receiptGroup.position.y = floatY + hf * 0.14;
+      receiptGroup.position.z = hf * 0.32;
+
+      // Dynamic ground contact shadow response
+      const shadowScale = (1 - floatY * 0.5) * (1 + hf * 0.3);
+      shadowMesh.scale.setScalar(shadowScale);
+      shadowMat.opacity = 0.85 - hf * 0.25;
+
+      // Rings revolution, expansion & bobbing
       ringGroup.visible = stateRef.current.showRings;
       if (stateRef.current.showRings) {
-        ring1.rotation.z += delta * 0.8;
-        ring2.rotation.z -= delta * 0.6;
-        const ringBob = Math.sin(elapsed * 2.2) * 0.4;
+        const ringScale = 1.0 + hf * 0.16;
+        ringGroup.scale.set(ringScale, ringScale, ringScale);
+
+        const ringSpeed = 1.0 + hf * 2.2;
+        ring1.rotation.z += delta * 0.8 * ringSpeed;
+        ring2.rotation.z -= delta * 0.6 * ringSpeed;
+        const ringBob = Math.sin(elapsed * 2.2) * (0.35 + hf * 0.15);
         ringGroup.position.y = ringBob;
+
+        if (!stateRef.current.isScanning) {
+          ringMat1.emissiveIntensity = 0.8 + hf * 0.9;
+          ringMat2.emissiveIntensity = 0.7 + hf * 0.8;
+        }
       }
 
       // Bounding box visibility & pulse
       boxGroup.visible = stateRef.current.showBoxes;
+      if (stateRef.current.showBoxes) {
+        const boxPulse = Math.sin(elapsed * 4.0) * 0.15 + 0.85;
+        boxGroup.children.forEach((child) => {
+          if ((child as THREE.LineSegments).material) {
+            const mat = (child as THREE.LineSegments).material as THREE.LineBasicMaterial;
+            mat.opacity = (0.7 + hf * 0.3) * boxPulse;
+          }
+        });
+      }
 
       // Verification Badge subtle hover & spin
-      badgeGroup.rotation.z = Math.sin(elapsed * 2.0) * 0.08;
-      badgeGroup.position.z = 0.12 + Math.cos(elapsed * 2.5) * 0.02;
+      badgeGroup.rotation.z = Math.sin(elapsed * (2.0 + hf * 1.5)) * 0.1;
+      badgeGroup.position.z = 0.12 + hf * 0.06 + Math.cos(elapsed * 2.5) * 0.02;
+      badgeMat.emissiveIntensity = 0.7 + hf * 0.7;
 
       // Ambient particle slow rotation & drift
-      particles.rotation.y = elapsed * 0.04;
-      particles.rotation.x = Math.sin(elapsed * 0.03) * 0.1;
+      const particleSpeed = 1.0 + hf * 1.8;
+      particles.rotation.y = elapsed * 0.04 * particleSpeed;
+      particles.rotation.x = Math.sin(elapsed * 0.03 * particleSpeed) * 0.12;
+      particleMaterial.size = 0.035 + hf * 0.015;
+      particleMaterial.opacity = 0.65 + hf * 0.25;
 
       // Active verification scan simulation
       if (stateRef.current.isScanning) {
@@ -466,8 +523,8 @@ export const HeroReceiptScene: React.FC<HeroReceiptSceneProps> = ({ onScanComple
         if (stateRef.current.scanProgress >= 2.0) {
           stateRef.current.isScanning = false;
           stateRef.current.scanProgress = 0;
-          ringMat1.emissiveIntensity = 0.8;
-          ringMat2.emissiveIntensity = 0.7;
+          ringMat1.emissiveIntensity = 0.8 + hf * 0.9;
+          ringMat2.emissiveIntensity = 0.7 + hf * 0.8;
           setIsVerifying(false);
           if (onScanComplete) onScanComplete();
         }
@@ -492,7 +549,9 @@ export const HeroReceiptScene: React.FC<HeroReceiptSceneProps> = ({ onScanComple
     // Cleanup
     return () => {
       cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseenter', handleMouseEnter);
+      container.removeEventListener('mouseleave', handleMouseLeave);
+      container.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
 

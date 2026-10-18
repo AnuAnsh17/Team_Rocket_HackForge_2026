@@ -25,6 +25,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [showRings, setShowRings] = useState(true);
   const [showBoxes, setShowBoxes] = useState(true);
+  const [isCanvasHovered, setIsCanvasHovered] = useState(false);
 
   // Mutable state ref for 60fps Three.js animation loop without re-triggering React renders
   const stateRef = useRef({
@@ -36,6 +37,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
     scanProgress: 0,
     showRings: true,
     showBoxes: true,
+    isHovered: false,
+    hoverFactor: 0,
   });
 
   useEffect(() => {
@@ -394,20 +397,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
     // Compile shaders once
     renderer.compile(scene, camera);
 
-    // 7. Interactive Mouse Coordinates with Exponential Damping
+    // 7. Interactive Hover & Cursor Listeners with Exponential Damping
+    const handleMouseEnter = () => {
+      stateRef.current.isHovered = true;
+      setIsCanvasHovered(true);
+    };
+
+    const handleMouseLeave = () => {
+      stateRef.current.isHovered = false;
+      setIsCanvasHovered(false);
+      stateRef.current.targetRotationX = 0.1;
+      stateRef.current.targetRotationY = -0.3;
+      stateRef.current.mouseX = 0;
+      stateRef.current.mouseY = 0;
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
       stateRef.current.mouseX = x;
       stateRef.current.mouseY = y;
-      stateRef.current.targetRotationY = -0.3 + x * 0.45;
-      stateRef.current.targetRotationX = 0.1 - y * 0.35;
+      stateRef.current.targetRotationY = -0.3 + x * 0.55;
+      stateRef.current.targetRotationX = 0.1 - y * 0.4;
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mouseenter', handleMouseEnter);
+    container.addEventListener('mouseleave', handleMouseLeave);
+    container.addEventListener('mousemove', handleMouseMove);
 
-    // 8. 60fps Animation Loop
+    // 8. 60fps Animation Loop with Hover Elevation & Physics
     let animId: number;
     const clock = new THREE.Clock();
 
@@ -416,44 +435,88 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       const delta = clock.getDelta();
       const elapsed = clock.getElapsedTime();
 
-      // Exponential damping on rotation
+      // Exponential damping for smooth hover interpolation (0 to 1)
+      const targetHover = stateRef.current.isHovered ? 1.0 : 0.0;
+      stateRef.current.hoverFactor = THREE.MathUtils.damp(
+        stateRef.current.hoverFactor,
+        targetHover,
+        5.5,
+        delta
+      );
+      const hf = stateRef.current.hoverFactor;
+
+      // Exponential damping on rotation with dynamic responsiveness
       receiptGroup.rotation.y = THREE.MathUtils.damp(
         receiptGroup.rotation.y,
         stateRef.current.targetRotationY,
-        5.0,
+        5.5,
         delta
       );
       receiptGroup.rotation.x = THREE.MathUtils.damp(
         receiptGroup.rotation.x,
         stateRef.current.targetRotationX,
-        5.0,
+        5.5,
         delta
       );
 
-      // Levitation motion
-      const floatY = Math.sin(elapsed * 1.5) * 0.06;
-      receiptGroup.position.y = floatY;
-      shadowMesh.scale.setScalar(1 - floatY * 0.5);
+      // Interactive 3D hover elevation and scale expansion
+      const currentScale = 1.0 + hf * 0.07;
+      receiptGroup.scale.set(currentScale, currentScale, currentScale);
 
-      // Rings revolution & bobbing
+      // Levitation motion + hover elevation
+      const floatY = Math.sin(elapsed * (1.5 + hf * 0.8)) * 0.06;
+      receiptGroup.position.y = floatY + hf * 0.14; // Floats higher off table when hovered
+      receiptGroup.position.z = hf * 0.32; // Glides forward toward camera on hover
+
+      // Dynamic ground contact shadow response
+      const shadowScale = (1 - floatY * 0.5) * (1 + hf * 0.3);
+      shadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
+      shadowMat.opacity = 0.85 - hf * 0.25; // Softens and diffuses as model elevates
+
+      // Rings revolution, expansion & bobbing on hover
       ringGroup.visible = stateRef.current.showRings;
       if (stateRef.current.showRings) {
-        ring1.rotation.z += delta * 0.8;
-        ring2.rotation.z -= delta * 0.6;
-        const ringBob = Math.sin(elapsed * 2.2) * 0.4;
+        // Expand ring diameter on hover
+        const ringScale = 1.0 + hf * 0.16;
+        ringGroup.scale.set(ringScale, ringScale, ringScale);
+
+        // Accelerated spin speed when hovered
+        const ringSpeed = 1.0 + hf * 2.2;
+        ring1.rotation.z += delta * 0.8 * ringSpeed;
+        ring2.rotation.z -= delta * 0.6 * ringSpeed;
+        const ringBob = Math.sin(elapsed * 2.2) * (0.35 + hf * 0.15);
         ringGroup.position.y = ringBob;
+
+        // Dynamic emissive glow brightening on hover
+        if (!stateRef.current.isScanning) {
+          ringMat1.emissiveIntensity = 0.8 + hf * 0.9;
+          ringMat2.emissiveIntensity = 0.7 + hf * 0.8;
+        }
       }
 
-      // OCR bounding box visibility
+      // OCR bounding box visibility and interactive hover pulse
       boxGroup.visible = stateRef.current.showBoxes;
+      if (stateRef.current.showBoxes) {
+        const boxPulse = Math.sin(elapsed * 4.0) * 0.15 + 0.85;
+        boxGroup.children.forEach((child) => {
+          if ((child as THREE.LineSegments).material) {
+            const mat = (child as THREE.LineSegments).material as THREE.LineBasicMaterial;
+            mat.opacity = (0.7 + hf * 0.3) * boxPulse;
+          }
+        });
+      }
 
-      // Compliance seal subtle hover
-      badgeGroup.rotation.z = Math.sin(elapsed * 2.0) * 0.08;
-      badgeGroup.position.z = 0.12 + Math.cos(elapsed * 2.5) * 0.02;
+      // Compliance seal subtle hover elevation and energetic spin
+      badgeGroup.rotation.z = Math.sin(elapsed * (2.0 + hf * 1.5)) * 0.1;
+      badgeGroup.position.z = 0.12 + hf * 0.06 + Math.cos(elapsed * 2.5) * 0.02;
+      badgeMat.emissiveIntensity = 0.7 + hf * 0.7;
 
-      // Particle slow drift
-      particles.rotation.y = elapsed * 0.04;
-      particles.rotation.x = Math.sin(elapsed * 0.03) * 0.1;
+      // Particle field reacts to hover: accelerated swirl & radial excitation
+      const particleSpeed = 1.0 + hf * 1.8;
+      particles.rotation.y = elapsed * 0.04 * particleSpeed;
+      particles.rotation.x = Math.sin(elapsed * 0.03 * particleSpeed) * 0.12;
+      particleMaterial.size = 0.035 + hf * 0.015;
+      particleMaterial.opacity = 0.65 + hf * 0.25;
 
       // Active verification scan
       if (stateRef.current.isScanning) {
@@ -465,8 +528,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         if (stateRef.current.scanProgress >= 2.0) {
           stateRef.current.isScanning = false;
           stateRef.current.scanProgress = 0;
-          ringMat1.emissiveIntensity = 0.8;
-          ringMat2.emissiveIntensity = 0.7;
+          ringMat1.emissiveIntensity = 0.8 + hf * 0.9;
+          ringMat2.emissiveIntensity = 0.7 + hf * 0.8;
           setIsScanning(false);
         }
       }
@@ -490,7 +553,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
     return () => {
       cancelAnimationFrame(animId);
       resizeObserver.disconnect();
-      window.removeEventListener('mousemove', handleMouseMove);
+      container.removeEventListener('mouseenter', handleMouseEnter);
+      container.removeEventListener('mouseleave', handleMouseLeave);
+      container.removeEventListener('mousemove', handleMouseMove);
 
       paperGeometry.dispose();
       paperMaterial.dispose();
@@ -556,24 +621,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={() => onNavigate('overview')}
-                className="flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors shadow-xs"
+                className="group flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 hover:-translate-y-0.5 hover:shadow-md rounded-lg transition-all duration-200 active:translate-y-0 active:scale-98 shadow-xs cursor-pointer"
               >
                 <span>Launch Audit Console</span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
               </button>
 
               <button
                 onClick={() => onNavigate('workbench')}
-                className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors"
+                className="group flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-800 bg-white hover:bg-slate-50 hover:border-slate-300 hover:-translate-y-0.5 hover:shadow-xs border border-slate-200 rounded-lg transition-all duration-200 active:translate-y-0 active:scale-98 cursor-pointer"
               >
                 <span>Receipt Workbench</span>
-                <ChevronRight className="h-4 w-4 text-slate-400" />
+                <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-slate-700" />
               </button>
             </div>
 
-            {/* Quick Metrics Strip */}
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-200 max-w-lg">
-              <div>
+            {/* Quick Metrics Strip with Hover Animation */}
+            <div className="grid grid-cols-3 gap-3 pt-6 border-t border-slate-200 max-w-lg">
+              <div className="p-3 -m-1 rounded-xl border border-transparent hover:border-slate-200/80 hover:bg-white hover:shadow-xs hover:-translate-y-0.5 transition-all duration-200 cursor-default">
                 <div className="font-mono text-xl font-bold text-slate-900">
                   ₹14.25L
                 </div>
@@ -581,7 +646,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                   Audited This Cycle
                 </div>
               </div>
-              <div>
+              <div className="p-3 -m-1 rounded-xl border border-transparent hover:border-slate-200/80 hover:bg-white hover:shadow-xs hover:-translate-y-0.5 transition-all duration-200 cursor-default">
                 <div className="font-mono text-xl font-bold text-emerald-700">
                   99.8%
                 </div>
@@ -589,7 +654,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                   OCR Arithmetic Match
                 </div>
               </div>
-              <div>
+              <div className="p-3 -m-1 rounded-xl border border-transparent hover:border-slate-200/80 hover:bg-white hover:shadow-xs hover:-translate-y-0.5 transition-all duration-200 cursor-default">
                 <div className="font-mono text-xl font-bold text-slate-900">
                   3-Valued
                 </div>
@@ -601,7 +666,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           </div>
 
           {/* Right Hero Column: Three.js 3D Viewport with Floating Receipt */}
-          <div className="lg:col-span-6 bg-gradient-to-b from-slate-100/60 to-white rounded-2xl border border-slate-200/90 shadow-xs p-2 relative overflow-hidden">
+          <div className="lg:col-span-6 bg-gradient-to-b from-slate-100/60 to-white rounded-2xl border border-slate-200/90 hover:border-slate-300 hover:shadow-md transition-all duration-300 p-2 relative overflow-hidden group/canvas">
             <div className="relative w-full h-[540px] flex items-center justify-center">
               {/* Three.js Canvas Container */}
               <div
@@ -609,12 +674,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
                 className="w-full h-full cursor-grab active:cursor-grabbing"
               />
 
-              {/* Floating 3D Control Dock */}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 p-1.5 bg-white/90 border border-slate-200/80 rounded-full shadow-sm text-xs backdrop-blur-xs select-none">
+              {/* Floating Top Left Hover Indicator Badge */}
+              <div
+                className={`absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-medium transition-all duration-300 backdrop-blur-xs select-none ${
+                  isCanvasHovered
+                    ? 'bg-emerald-50/95 border-emerald-300 text-emerald-800 shadow-xs scale-102 -translate-y-0.5'
+                    : 'bg-white/85 border-slate-200/80 text-slate-500 hover:border-slate-300'
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full transition-colors ${
+                    isCanvasHovered ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                  }`}
+                />
+                <span>
+                  {isCanvasHovered ? 'Interactive 3D Hover · Parallax Active' : 'Hover Receipt to Inspect'}
+                </span>
+              </div>
+
+              {/* Floating Top Right Compliance Status Chip */}
+              <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-white/95 px-3 py-1.5 rounded-full border border-slate-200 shadow-2xs hover:shadow-xs hover:border-slate-300 text-[11px] font-medium text-slate-700 transition-all duration-200 backdrop-blur-xs select-none">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>PBR Audit Verification Engine</span>
+                <span className="font-mono text-slate-400">· 99.8%</span>
+              </div>
+
+              {/* Floating 3D Control Dock with Interactive Hover Effects */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 p-1.5 bg-white/95 border border-slate-200/90 hover:border-slate-300 rounded-full shadow-sm hover:shadow-md text-xs backdrop-blur-xs select-none transition-all duration-200">
                 <button
                   onClick={triggerScan}
                   disabled={isScanning}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-full transition-colors disabled:opacity-50 shadow-2xs"
+                  className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 hover:bg-slate-800 hover:scale-103 active:scale-97 text-white font-medium rounded-full transition-all duration-150 disabled:opacity-50 shadow-2xs cursor-pointer"
                 >
                   <ScanLine className="h-3.5 w-3.5 text-emerald-400" />
                   <span>{isScanning ? 'Scanning Receipt...' : 'Simulate Audit Scan'}</span>
@@ -624,8 +714,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
                 <button
                   onClick={() => setShowRings(!showRings)}
-                  className={`px-2.5 py-1 rounded-full transition-colors ${
-                    showRings ? 'bg-emerald-50 text-emerald-800 font-semibold' : 'text-slate-600 hover:bg-slate-100'
+                  className={`px-2.5 py-1 rounded-full transition-all duration-150 hover:scale-105 active:scale-95 cursor-pointer ${
+                    showRings ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   Rings: {showRings ? 'On' : 'Off'}
@@ -633,8 +723,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
                 <button
                   onClick={() => setShowBoxes(!showBoxes)}
-                  className={`px-2.5 py-1 rounded-full transition-colors ${
-                    showBoxes ? 'bg-blue-50 text-blue-800 font-semibold' : 'text-slate-600 hover:bg-slate-100'
+                  className={`px-2.5 py-1 rounded-full transition-all duration-150 hover:scale-105 active:scale-95 cursor-pointer ${
+                    showBoxes ? 'bg-blue-50 hover:bg-blue-100 text-blue-800 font-semibold' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   OCR Boxes: {showBoxes ? 'On' : 'Off'}
@@ -642,18 +732,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
                 <button
                   onClick={resetView}
-                  className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
+                  className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 hover:scale-110 active:scale-95 rounded-full transition-all duration-150 cursor-pointer"
                   title="Reset Camera Angles"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
-              </div>
-
-              {/* Floating Top Compliance Status Chip */}
-              <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-white/95 px-3 py-1.5 rounded-full border border-slate-200 shadow-2xs text-[11px] font-medium text-slate-700">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span>PBR Audit Verification Engine</span>
-                <span className="font-mono text-slate-400">· 99.8%</span>
               </div>
             </div>
           </div>
@@ -676,17 +759,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Step 1: 3D Scanning Scene */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3 shadow-2xs hover:shadow-lg hover:border-slate-300 hover:-translate-y-1.5 transition-all duration-300 group flex flex-col justify-between cursor-default">
             <div>
-              <div className="bg-slate-50 rounded-lg border border-slate-100 overflow-hidden mb-3">
+              <div className="bg-slate-50 rounded-lg border border-slate-100 group-hover:border-slate-200 group-hover:shadow-2xs overflow-hidden mb-3 transition-all duration-300">
                 <Mini3DScene type="scan" />
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 group-hover:bg-emerald-600 group-hover:scale-105 text-white transition-all duration-200">
                   01
                 </span>
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-950 transition-colors">
                   Multimodal OCR & Extraction
                 </h3>
               </div>
@@ -697,22 +780,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
               <span className="font-mono">Pixel-to-Field Mapping</span>
-              <span className="text-emerald-700 font-medium">BBox Verified</span>
+              <span className="text-emerald-700 font-medium group-hover:translate-x-0.5 transition-transform">BBox Verified</span>
             </div>
           </div>
 
           {/* Step 2: 3D Policy Checking Scene */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3 shadow-2xs hover:shadow-lg hover:border-slate-300 hover:-translate-y-1.5 transition-all duration-300 group flex flex-col justify-between cursor-default">
             <div>
-              <div className="bg-slate-50 rounded-lg border border-slate-100 overflow-hidden mb-3">
+              <div className="bg-slate-50 rounded-lg border border-slate-100 group-hover:border-slate-200 group-hover:shadow-2xs overflow-hidden mb-3 transition-all duration-300">
                 <Mini3DScene type="policy" />
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 group-hover:bg-blue-600 group-hover:scale-105 text-white transition-all duration-200">
                   02
                 </span>
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-sm font-bold text-slate-900 group-hover:text-blue-950 transition-colors">
                   Clause-Grounded Policy Verification
                 </h3>
               </div>
@@ -723,22 +806,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
               <span className="font-mono">Cumulative Ledger</span>
-              <span className="text-blue-700 font-medium">Rule Compiled</span>
+              <span className="text-blue-700 font-medium group-hover:translate-x-0.5 transition-transform">Rule Compiled</span>
             </div>
           </div>
 
           {/* Step 3: 3D Approval & Payout Scene */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3 shadow-2xs hover:shadow-lg hover:border-slate-300 hover:-translate-y-1.5 transition-all duration-300 group flex flex-col justify-between cursor-default">
             <div>
-              <div className="bg-slate-50 rounded-lg border border-slate-100 overflow-hidden mb-3">
+              <div className="bg-slate-50 rounded-lg border border-slate-100 group-hover:border-slate-200 group-hover:shadow-2xs overflow-hidden mb-3 transition-all duration-300">
                 <Mini3DScene type="approve" />
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 group-hover:bg-emerald-600 group-hover:scale-105 text-white transition-all duration-200">
                   03
                 </span>
-                <h3 className="text-sm font-bold text-slate-900">
+                <h3 className="text-sm font-bold text-slate-900 group-hover:text-emerald-950 transition-colors">
                   Immutable Audit & Disbursement
                 </h3>
               </div>
@@ -749,7 +832,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
               <span className="font-mono">SOC-2 Type II Log</span>
-              <span className="text-emerald-700 font-medium">Auto-Reimbursed</span>
+              <span className="text-emerald-700 font-medium group-hover:translate-x-0.5 transition-transform">Auto-Reimbursed</span>
             </div>
           </div>
         </div>
@@ -772,64 +855,64 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <div
             onClick={() => onNavigate('workbench')}
-            className="cursor-pointer p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50/50 transition-all group"
+            className="cursor-pointer p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50/80 hover:-translate-y-1.5 hover:shadow-md transition-all duration-300 group"
           >
             <div className="flex items-center justify-between text-slate-400 group-hover:text-slate-900">
-              <FileSearch className="h-5 w-5" />
-              <ChevronRight className="h-4 w-4" />
+              <FileSearch className="h-5 w-5 transition-transform duration-200 group-hover:scale-115 text-slate-600 group-hover:text-slate-900" />
+              <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1.5 group-hover:text-slate-900" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 mt-3">
+            <h3 className="text-sm font-bold text-slate-900 mt-3 group-hover:text-slate-950 transition-colors">
               Investigation Workbench
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
               Split-screen viewer with zoom, rotate, and OCR bounding boxes alongside arithmetic verification.
             </p>
           </div>
 
           <div
             onClick={() => onNavigate('duplicates')}
-            className="cursor-pointer p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50/50 transition-all group"
+            className="cursor-pointer p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50/80 hover:-translate-y-1.5 hover:shadow-md transition-all duration-300 group"
           >
             <div className="flex items-center justify-between text-slate-400 group-hover:text-slate-900">
-              <Scale className="h-5 w-5" />
-              <ChevronRight className="h-4 w-4" />
+              <Scale className="h-5 w-5 transition-transform duration-200 group-hover:scale-115 text-slate-600 group-hover:text-slate-900" />
+              <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1.5 group-hover:text-slate-900" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 mt-3">
+            <h3 className="text-sm font-bold text-slate-900 mt-3 group-hover:text-slate-950 transition-colors">
               Duplicate Review
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
               Perceptual image hash matching and side-by-side comparison without premature fraud accusations.
             </p>
           </div>
 
           <div
             onClick={() => onNavigate('policy-studio')}
-            className="cursor-pointer p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50/50 transition-all group"
+            className="cursor-pointer p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50/80 hover:-translate-y-1.5 hover:shadow-md transition-all duration-300 group"
           >
             <div className="flex items-center justify-between text-slate-400 group-hover:text-slate-900">
-              <Layers className="h-5 w-5" />
-              <ChevronRight className="h-4 w-4" />
+              <Layers className="h-5 w-5 transition-transform duration-200 group-hover:scale-115 text-slate-600 group-hover:text-slate-900" />
+              <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1.5 group-hover:text-slate-900" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 mt-3">
+            <h3 className="text-sm font-bold text-slate-900 mt-3 group-hover:text-slate-950 transition-colors">
               Policy Studio
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
               Drag-and-drop corporate PDF uploader compiling natural-language text into mathematical rules.
             </p>
           </div>
 
           <div
             onClick={() => onNavigate('audit-trail')}
-            className="cursor-pointer p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50/50 transition-all group"
+            className="cursor-pointer p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50/80 hover:-translate-y-1.5 hover:shadow-md transition-all duration-300 group"
           >
             <div className="flex items-center justify-between text-slate-400 group-hover:text-slate-900">
-              <Lock className="h-5 w-5" />
-              <ChevronRight className="h-4 w-4" />
+              <Lock className="h-5 w-5 transition-transform duration-200 group-hover:scale-115 text-slate-600 group-hover:text-slate-900" />
+              <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1.5 group-hover:text-slate-900" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900 mt-3">
+            <h3 className="text-sm font-bold text-slate-900 mt-3 group-hover:text-slate-950 transition-colors">
               Audit Trail & Exports
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
               Immutable state changes and reviewer reasoning with CSV and PDF evidence pack export.
             </p>
           </div>
@@ -837,7 +920,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       </section>
 
       {/* 4. BOTTOM ACTION CALLOUT */}
-      <section className="bg-slate-900 text-white rounded-2xl p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <section className="bg-slate-900 text-white rounded-2xl p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm hover:shadow-md transition-shadow">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
             <CheckCircle2 className="h-4 w-4" />
@@ -853,10 +936,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
         <button
           onClick={() => onNavigate('overview')}
-          className="flex items-center gap-2 px-5 py-3 text-xs font-semibold text-slate-900 bg-white hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap shadow-xs"
+          className="group flex items-center gap-2 px-5 py-3 text-xs font-semibold text-slate-900 bg-white hover:bg-slate-50 hover:scale-103 hover:shadow-md active:scale-97 rounded-lg transition-all duration-200 whitespace-nowrap shadow-xs cursor-pointer"
         >
           <span>Open Overview Dashboard</span>
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1.5" />
         </button>
       </section>
     </div>
