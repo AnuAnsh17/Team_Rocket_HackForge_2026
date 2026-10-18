@@ -37,7 +37,10 @@ UNIMPLEMENTED_CAPABILITIES: tuple[str, ...] = (
     # UNKNOWN, which is the honest result rather than a silent pass.
     "policy rule execution against a provisioned authoritative policy",
     "audit export",
-    "production authentication (Supabase JWT validation)",
+    # Production authentication was listed here until Supabase JWT verification was
+    # implemented and security-tested (see app/core/security.py::SupabaseAuthProvider and
+    # tests/security/test_supabase_jwt.py). It is no longer a gap, so it is no longer
+    # claimed as one - the list must not understate or overstate what works.
     "production receipt storage adapters (Supabase/S3)",
     "currency conversion",
 )

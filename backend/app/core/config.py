@@ -63,6 +63,19 @@ class Settings(BaseSettings):
     supabase_jwt_issuer: str | None = None
     supabase_jwt_audience: str = "authenticated"
     supabase_jwks_url: str | None = None
+    # Algorithms accepted for a Supabase access token, comma-separated.
+    #
+    # Deliberately a plain string rather than a list: pydantic-settings JSON-decodes a
+    # list field from the environment before any field validator runs, so a
+    # comma-separated value in a .env file raises instead of being split (the same trap
+    # CORS_ALLOWED_ORIGINS hits today). Parsed once by ``supabase_jwt_algorithm_set``.
+    #
+    # Asymmetric algorithms only. Accepting an HMAC algorithm would let the public JWKS
+    # double as a signing secret, and accepting ``none`` would accept an unsigned token.
+    supabase_jwt_algorithms: str = "RS256,ES256"
+    # Bounded clock skew applied to exp/nbf/iat. Small on purpose: a generous leeway is
+    # an extended token lifetime by another name.
+    supabase_jwt_leeway_seconds: int = 30
 
     # --- Receipt storage -------------------------------------------------
     receipt_storage_backend: Literal["local", "supabase", "s3"] = "local"
@@ -102,6 +115,15 @@ class Settings(BaseSettings):
     def demo_routes_enabled(self) -> bool:
         """Demo routes exist only when demo mode is on outside production."""
         return self.demo_mode and not self.is_production
+
+    @property
+    def supabase_jwt_algorithm_set(self) -> tuple[str, ...]:
+        """The verified algorithm allowlist, normalized for comparison with a token header."""
+        return tuple(
+            algorithm.strip().upper()
+            for algorithm in self.supabase_jwt_algorithms.split(",")
+            if algorithm.strip()
+        )
 
     # --- Validators ------------------------------------------------------
     @field_validator("cors_allowed_origins", mode="before")
@@ -194,6 +216,20 @@ class Settings(BaseSettings):
                 "DEMO_SYNTHETIC_POLICY_ENABLED requires DEMO_MODE=true in development or test."
             )
 
+        if self.auth_provider == "supabase" and not self.supabase_jwt_algorithm_set:
+            raise ValueError(
+                "SUPABASE_JWT_ALGORITHMS must list at least one algorithm. An empty "
+                "allowlist would refuse every token; listing 'none' or an HMAC "
+                "algorithm would accept tokens that were not signed by the project key."
+            )
+        for algorithm in self.supabase_jwt_algorithm_set:
+            if algorithm in {"NONE", ""} or algorithm.startswith("HS"):
+                raise ValueError(
+                    f"SUPABASE_JWT_ALGORITHMS must not contain {algorithm!r}: an "
+                    "unsigned or HMAC-signed token must never be accepted as a "
+                    "Supabase access token."
+                )
+
         if self.app_env == "production" and self.auth_provider == "supabase":
             missing = [
                 name
@@ -209,6 +245,24 @@ class Settings(BaseSettings):
                     "Supabase auth is selected but required configuration is missing: "
                     + ", ".join(missing)
                 )
+
+        if self.auth_provider == "supabase" and not (
+            self.supabase_jwt_issuer and self.supabase_jwks_url
+        ):
+            # Not only production: a token cannot be verified without the issuer it must
+            # match and the key set it must be signed by, and a half-configured provider
+            # would otherwise fail at request time instead of at startup.
+            raise ValueError(
+                "Supabase auth is selected but required configuration is missing: "
+                + ", ".join(
+                    name
+                    for name, value in (
+                        ("SUPABASE_JWT_ISSUER", self.supabase_jwt_issuer),
+                        ("SUPABASE_JWKS_URL", self.supabase_jwks_url),
+                    )
+                    if not value
+                )
+            )
         return self
 
 
