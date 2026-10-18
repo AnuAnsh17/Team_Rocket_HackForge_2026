@@ -527,6 +527,32 @@ class TestCli:
         assert code == EXIT_OK
         assert user.external_subject == SUBJECT
 
+    def test_the_documented_command_is_safe_to_run_twice(
+        self, db, cli, capsys, seeded_user
+    ) -> None:
+        """A regression: the second run used to fail as though the binding were lost.
+
+        Binding replaces the demo mapping, so the (provider='demo', subject) lookup
+        stops matching after the first run. Re-running the same command must report
+        that nothing changed rather than "no demo actor with id ...".
+        """
+        user, _ = seeded_user
+        actor_id = str(user.external_subject)
+        command = ["link", "--subject", SUBJECT, "--demo-actor", actor_id, "--confirm"]
+
+        first = cli(command)
+        first_out = capsys.readouterr().out
+        second = cli(command)
+        second_out = capsys.readouterr().out
+
+        assert first == EXIT_OK
+        assert "Bound" in first_out
+        assert second == EXIT_OK
+        assert "Already bound" in second_out
+        assert user.external_subject == SUBJECT
+        # One change, one audit event - a retry is not a second change.
+        assert len(_audit_events(db, user.id, "identity.bound")) == 1
+
     def test_an_invalid_subject_fails_before_touching_the_database(
         self, db, cli, capsys, seeded_user
     ) -> None:
