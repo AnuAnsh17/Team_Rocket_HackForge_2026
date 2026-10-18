@@ -1,44 +1,35 @@
 import Link from "next/link";
 
-import {
-  Card,
-  EmptyState,
-  Metric,
-  PageHeader,
-  PlaceholderNotice,
-  ResultBadge,
-} from "@/components/ui";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+import { Card, PlaceholderNotice, ResultBadge } from "@/components/ui";
 
 /**
- * Overview.
+ * Overview: Finance/Admin spend analytics.
  *
- * Deliberately renders NO numbers. The analytics API is implemented, but this overview
- * page does not consume it yet. Showing a plausible figure would be misleading.
+ * The metrics on this page come from real backend requests to
+ * `GET /api/v1/analytics/overview` and `GET /api/v1/analytics/spend` for the selected
+ * period, filters and grouping dimension. Nothing here is hard-coded, and no section
+ * renders substituted figures when a request fails.
+ *
+ * Everything the analytics API does not expose stays marked as unimplemented rather than
+ * approximated: there is no review queue, findings list, duplicate-candidate list or
+ * activity feed, because those routes do not exist yet.
  */
 export default function OverviewPage() {
   return (
     <>
-      <PageHeader
-        title="Overview"
-        description="Review queue, open findings, duplicate candidates and recent activity."
-      />
+      <AnalyticsDashboard />
 
       <PlaceholderNotice
-        title="No metrics are shown on this page"
+        title="This page shows analytics only"
         whatIsMissing={
-          "GET /api/v1/analytics/overview now returns persisted organization metrics, but this " +
-          "page is not connected to it yet. A hard-coded or example number would be " +
-          "indistinguishable from real data, so this page shows none."
+          "The review queue, open findings, duplicate candidates and recent-activity feed are " +
+          "not implemented: GET /api/v1/findings, GET /api/v1/duplicates and GET /api/v1/audit " +
+          "do not exist yet. No figure on this page stands in for them, and the totals above are " +
+          "not a work queue."
         }
-        blockedOn="The dashboard UI integration."
+        blockedOn="Rule evaluation, candidate persistence and organization-scoped audit reads."
       />
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Metric label="Awaiting review" value={null} basis="not yet available" />
-        <Metric label="Open findings" value={null} basis="not yet available" />
-        <Metric label="Duplicate candidates" value={null} basis="not yet available" />
-        <Metric label="Needs information" value={null} basis="not yet available" />
-      </div>
 
       <Card
         title="The tri-state contract"
@@ -51,13 +42,16 @@ export default function OverviewPage() {
         </div>
         <p className="mt-3 max-w-prose text-xs text-[var(--color-text-muted)]">
           UNKNOWN is a first-class outcome, not an error. It is the correct answer whenever
-          required evidence or policy context is missing, and it is never presented as a
-          pass. Today the backend&apos;s policy registry holds zero rules, so every claim
-          would evaluate to UNKNOWN.
+          required evidence or policy context is missing, and it is never presented as a pass. The
+          analytics figures above are workflow and completeness measures: an approval is not a
+          policy result, because the backend&apos;s policy registry still holds zero rules.
         </p>
       </Card>
 
-      <Card title="Where the real work is" description="The two surfaces that prove the product.">
+      <Card
+        title="Where the rest of the work is"
+        description="Surfaces that are still scaffolds."
+      >
         <ul className="space-y-2 text-sm">
           <li>
             <Link className="underline" href="/review">
@@ -65,7 +59,7 @@ export default function OverviewPage() {
             </Link>
             <span className="text-[var(--color-text-muted)]">
               {" "}
-              — receipt evidence, corrected fields and findings with their clause.
+              — receipt evidence, corrected fields and findings with their clause. Not built yet.
             </span>
           </li>
           <li>
@@ -74,16 +68,12 @@ export default function OverviewPage() {
             </Link>
             <span className="text-[var(--color-text-muted)]">
               {" "}
-              — matched signals shown side by side, confirmed or dismissed by a person.
+              — matched signals shown side by side, confirmed or dismissed by a person. Not built
+              yet; the analytics API deliberately does not join candidate rows.
             </span>
           </li>
         </ul>
       </Card>
-
-      <EmptyState
-        title="No claims in the queue"
-        description="This placeholder does not load the claim queue or analytics yet; an empty display does not mean the organization has no expenses."
-      />
     </>
   );
 }

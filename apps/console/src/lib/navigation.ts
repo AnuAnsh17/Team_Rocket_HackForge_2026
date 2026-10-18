@@ -44,9 +44,10 @@ export interface NavItem {
   /**
    * Whether the underlying workflow is actually implemented.
    *
-   * `false` renders an explicit "not implemented yet" marker. Every item below is
-   * currently `false`, because no claim, finding, duplicate or decision route exists.
-   * That flag is what stops a placeholder screen from reading as a working feature.
+   * `false` renders an explicit "not implemented yet" marker. Only the overview is `true`:
+   * it reads the live analytics API. Every other item is still `false`, because no claim,
+   * finding, duplicate or decision route exists. That flag is what stops a placeholder
+   * screen from reading as a working feature.
    */
   implemented: boolean;
 }
@@ -60,8 +61,9 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         href: "/",
         label: "Overview",
-        description: "Review queue, open findings, duplicate candidates and recent activity.",
-        implemented: false,
+        description:
+          "Live analytics for a selected period: workflow status, currency-separated amounts, field completeness and grouped spend.",
+        implemented: true,
       },
     ],
   },
