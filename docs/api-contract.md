@@ -517,15 +517,25 @@ later:
 
 ## 6. Authentication and authorization baseline
 
-Production authentication is **not implemented**. `SupabaseAuthProvider.resolve_identity`
-raises `NotImplementedYet` rather than accepting an unverified token. This is
-deliberate: a permissive stub is the single most likely way for an authentication gap
-to reach a deployed environment unnoticed.
+Production authentication is **implemented**. `SupabaseAuthProvider.resolve_identity`
+reads the bearer token from `Authorization`, fetches and caches the project key set from
+`SUPABASE_JWKS_URL`, verifies the signature against a pinned asymmetric algorithm
+allowlist, and validates `iss`, `aud` and `exp`/`nbf` with a small bounded clock skew
+(`SUPABASE_JWT_ALGORITHMS`, `SUPABASE_JWT_LEEWAY_SECONDS`). An unsigned token, an
+HMAC-signed token, a token from another issuer or audience, an expired token and a token
+signed by an untrusted key are all refused with `401`.
+
+What a valid token does *not* grant is authority. The verified `sub` is mapped to
+`users.external_subject`/`users.auth_provider` and the caller's memberships, non-revoked
+role grants and permissions are loaded from the Proofline database; an unknown subject is
+`401` and a known subject with no active membership is `403`. Nothing is provisioned
+just in time, so a Supabase user must be pre-provisioned before it can reach any endpoint.
 
 - Demo mode uses `X-Demo-Actor-Id`. It is active only when `DEMO_MODE=true` and
   `APP_ENV` is not `production`/`staging`. Configuration validation refuses that
   combination at startup, so a demo deployment is impossible rather than merely
-  discouraged.
+  discouraged. When `AUTH_PROVIDER=supabase` the demo header is ignored entirely: it
+  cannot authenticate anything.
 - The demo header identifies a *user*, never a role. Roles, permissions and scope are
   loaded from the database on every request.
 - A client-supplied role, employee id, department, grade, allowance or approval limit

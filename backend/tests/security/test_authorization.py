@@ -291,7 +291,11 @@ class TestUnimplementedCapabilityHonesty:
         """Anything the contract lists but this build lacks must be declared."""
         declared = " ".join(client.get("/api/v1/meta").json()["unimplemented_capabilities"])
         assert "receipt upload" not in declared
-        assert "production authentication" in declared
+        # Production authentication was declared here while it was a stub. It is verified
+        # against the project JWKS now, so the claim must be withdrawn rather than left to
+        # understate the build as much as overstating it would.
+        assert "production authentication" not in declared
+        assert "production receipt storage adapters" in declared
 
     def test_the_extraction_factory_refuses_an_unimplemented_provider(self) -> None:
         from app.core.config import Settings
@@ -321,8 +325,44 @@ class TestUnimplementedCapabilityHonesty:
         with pytest.raises(Unauthenticated):
             NoAuthProvider().resolve_identity(request=object())  # type: ignore[arg-type]
 
-    def test_supabase_auth_provider_refuses_until_implemented(self) -> None:
-        from app.core.security import SupabaseAuthProvider
+    def test_supabase_auth_provider_refuses_an_unverifiable_request(self) -> None:
+        """The Supabase provider is fail-closed: no token, no identity.
 
-        with pytest.raises(Exception, match="not implemented"):
-            SupabaseAuthProvider().resolve_identity(request=object())  # type: ignore[arg-type]
+        Full verification behaviour (signature, issuer, audience, expiry, algorithm
+        allowlist, rotation) lives in tests/security/test_supabase_jwt.py; this case keeps
+        the fail-closed assertion in the suite that covers the whole auth boundary.
+        """
+        from app.core.config import Settings
+        from app.core.security import SupabaseAuthProvider
+        from starlette.datastructures import Headers
+
+        provider = SupabaseAuthProvider(
+            Settings(  # type: ignore[arg-type]
+                _env_file=None,
+                APP_ENV="test",
+                AUTH_PROVIDER="supabase",
+                SUPABASE_JWT_ISSUER="https://project.supabase.co/auth/v1",
+                SUPABASE_JWKS_URL="https://project.supabase.co/auth/v1/.well-known/jwks.json",
+            )
+        )
+
+        class _Anonymous:
+            """A request that carries no credential at all."""
+
+            headers = Headers({})
+
+        with pytest.raises(Unauthenticated):
+            provider.resolve_identity(request=_Anonymous())  # type: ignore[arg-type]
+
+    def test_the_supabase_provider_cannot_be_selected_without_its_configuration(self) -> None:
+        """A half-configured production identity provider must fail at startup, not per request."""
+        from app.core.config import Settings
+
+        with pytest.raises(ValueError, match="required configuration is missing"):
+            Settings(  # type: ignore[arg-type]
+                _env_file=None,
+                APP_ENV="test",
+                AUTH_PROVIDER="supabase",
+                SUPABASE_JWT_ISSUER=None,
+                SUPABASE_JWKS_URL=None,
+            )

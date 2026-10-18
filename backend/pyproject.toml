@@ -23,6 +23,10 @@ dependencies = [
     "python-multipart==0.0.32",
     "python-json-logger==4.2.0",
     "httpx==0.28.1",
+    # Supabase access-token verification: JWT decode with an asymmetric algorithm
+    # allowlist, pinned to the project's JWKS. The [crypto] extra supplies the RSA/EC
+    # primitives, so no signature check is ever hand-rolled.
+    "pyjwt[crypto]==2.10.1",
 ]
 
 [project.optional-dependencies]

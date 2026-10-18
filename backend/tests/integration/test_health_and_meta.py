@@ -81,10 +81,12 @@ class TestMeta:
         joined = " ".join(body["unimplemented_capabilities"])
         for capability in (
             "receipt extraction",
-            "production authentication",
             "policy rule execution",
         ):
             assert capability in joined
+        # Supabase JWT verification is implemented now, so claiming it as a gap would
+        # understate the build just as badly as hiding a real gap would.
+        assert "production authentication" not in joined
 
     def test_meta_reports_demo_mode_and_environment(self, client: TestClient) -> None:
         body = client.get("/api/v1/meta").json()
