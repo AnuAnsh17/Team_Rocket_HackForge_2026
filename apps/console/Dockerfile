@@ -18,6 +18,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
 COPY apps ./apps
 COPY packages ./packages
+# The root package's install lifecycle runs `scripts/workspace-note.mjs`, so the root
+# scripts directory has to be present before `npm ci` or the install fails.
+COPY scripts ./scripts
 RUN npm ci --no-audit --no-fund
 
 # Source and the public build-time configuration.

@@ -90,8 +90,12 @@ services:
   api:
     profiles: ["demo"]
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      # The backend Dockerfile is written to be built from `backend/` (it copies
+      # `pyproject.toml`, `alembic.ini` and `app/` relative to that directory), so the
+      # context is set explicitly. `backend/.dockerignore` keeps the local virtualenv and
+      # test artefacts out of the image.
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: proofline-api
     restart: unless-stopped
     environment:
