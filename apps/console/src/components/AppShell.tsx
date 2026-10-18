@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Scaffold · no audit workflow implemented
           </span>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <label className="text-xs text-[var(--color-text-muted)]" htmlFor="demo-role">
               Demo role preview
             </label>
@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   const next = event.target.value.trim();
                   if (next !== (demoActorId ?? "")) writeDemoActorId(next || null);
                 }}
-                className="w-64 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 font-mono text-xs"
+                className="w-full min-w-0 rounded border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 font-mono text-xs sm:w-64"
               />
             )}
           </div>
@@ -85,8 +85,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </p>
       </header>
 
-      <div className="mx-auto flex max-w-[1600px] gap-6 px-6 py-6">
-        <nav aria-label="Sections" className="w-64 shrink-0 space-y-6">
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-6 px-6 py-6 lg:flex-row">
+        <nav aria-label="Sections" className="w-full shrink-0 space-y-6 lg:w-64">
           {sections.length === 0 && (
             <p className="text-xs text-[var(--color-text-muted)]">
               No sections are shown for this role preview.
