@@ -257,3 +257,19 @@ fun CalendarScreen(
         }
     }
 }
+
+@Composable
+fun LegendItem(color: Color, label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Text(text = label, style = MaterialTheme.typography.labelSmall)
+    }
+}
