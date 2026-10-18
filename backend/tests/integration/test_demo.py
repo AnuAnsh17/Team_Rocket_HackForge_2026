@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from io import BytesIO
 
@@ -154,13 +155,33 @@ class TestSyntheticPolicy:
 
         monkeypatch.setattr(settings, "demo_synthetic_policy_enabled", True)
         result = demo_service.seed_demo_dataset(db)
-        assert result.policy_rules_activated == 1
-        rule = db.execute(
-            sa.text("SELECT rule_id, source_clause, is_active FROM policy_rules")
-        ).one()
-        assert rule.rule_id == "demo_only_meal_cap"
-        assert "DEMO ONLY" in rule.source_clause
-        assert rule.is_active is True
+        # The fictional policy is now one clause per capped category rather than a single
+        # meal-cap example. The flag is still what decides whether any of them load.
+        assert result.policy_rules_activated == len(demo_service.DEMO_POLICY_CLAUSES)
+
+        rules = db.execute(
+            sa.text(
+                "SELECT rule_id, source_clause, category, is_active, title, "
+                "source_excerpt FROM policy_rules ORDER BY category"
+            )
+        ).all()
+        assert len(rules) == len(demo_service.DEMO_POLICY_CLAUSES)
+        for rule in rules:
+            assert rule.rule_id.startswith("demo_only_")
+            assert rule.is_active is True
+            # The clause carries a stable identifier...
+            assert re.fullmatch(r"DEMO-EXP-\d{3}", rule.source_clause), rule.source_clause
+            # ...while the "this is fiction" statement lives in the human-readable fields,
+            # where a reader will actually meet it.
+            assert "DEMO ONLY" in rule.title.upper() or "FICTIONAL" in rule.title.upper()
+            assert "FICTIONAL" in rule.source_excerpt.upper()
+            assert "authoritative" in rule.source_excerpt.lower()
+        assert {rule.category for rule in rules} == {
+            category for _clause, category, _amount in demo_service.DEMO_POLICY_CLAUSES
+        }
+        assert {rule.source_clause for rule in rules} == {
+            clause for clause, _category, _amount in demo_service.DEMO_POLICY_CLAUSES
+        }
 
 
 class TestDemoRoutes:
