@@ -1,14 +1,19 @@
 package org.proofline.android
 
-import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonParseException
 import org.junit.Test
 import org.junit.Assert.*
 import org.proofline.android.data.model.Money
+import org.proofline.android.data.model.MoneyDeserializer
 
 class MoneySerializationTest {
+    private val gson = GsonBuilder()
+        .registerTypeAdapter(Money::class.java, MoneyDeserializer())
+        .create()
+
     @Test
     fun testMoneyDecimalPrecisionRoundTrip() {
-        val gson = Gson()
         val original = Money(value = "1400.00", currency = "INR")
         val json = gson.toJson(original)
         val deserialized = gson.fromJson(json, Money::class.java)
@@ -18,9 +23,8 @@ class MoneySerializationTest {
         assertTrue(json.contains("\"1400.00\""))
     }
 
-    @Test(expected = com.google.gson.JsonSyntaxException::class)
+    @Test(expected = JsonParseException::class)
     fun testMoneyRejectsDoubleInsteadOfString() {
-        val gson = Gson()
         val badJson = "{\"value\": 1400.00, \"currency\": \"INR\"}"
         gson.fromJson(badJson, Money::class.java)
     }

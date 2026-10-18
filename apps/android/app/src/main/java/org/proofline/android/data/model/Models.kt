@@ -1,5 +1,8 @@
 package org.proofline.android.data.model
 
+import com.google.gson.*
+import java.lang.reflect.Type
+
 data class UserSummary(
     val id: String,
     val display_name: String,
@@ -17,6 +20,22 @@ data class MembershipSummary(
 )
 
 data class Money(val value: String, val currency: String)
+
+class MoneyDeserializer : JsonDeserializer<Money> {
+    override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): Money {
+        if (!json.isJsonObject) {
+            throw JsonParseException("Expected JSON object for Money")
+        }
+        val obj = json.asJsonObject
+        val valueElement = obj.get("value")
+        if (valueElement == null || !valueElement.isJsonPrimitive || !valueElement.asJsonPrimitive.isString) {
+            throw JsonParseException("Money value must be a decimal string, numbers are rejected per API contract")
+        }
+        val currencyElement = obj.get("currency")
+        val currency = if (currencyElement != null && currencyElement.isJsonPrimitive) currencyElement.asString else "INR"
+        return Money(value = valueElement.asString, currency = currency)
+    }
+}
 
 data class EvidenceRef(
     val receipt_id: String?,
