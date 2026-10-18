@@ -71,6 +71,19 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-slate-400">·</span>
           <span className="text-emerald-700 font-medium">Active Policy</span>
         </div>
+
+        <button
+          onClick={() => onNavigate(activeTab === 'landing' ? 'overview' : 'landing')}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors whitespace-nowrap ${
+            activeTab === 'landing'
+              ? 'bg-slate-900 text-white font-semibold'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200'
+          }`}
+          title="Toggle Three.js 3D Landing Page"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+          <span>{activeTab === 'landing' ? 'Console App' : '3D Visuals'}</span>
+        </button>
       </div>
 
       {/* Zone 2: Global Search & Date Range */}

@@ -34,6 +34,7 @@ import { ApprovalsPipeline } from './views/ApprovalsPipeline';
 import { EmployeeMerchantProfiles } from './views/EmployeeMerchantProfiles';
 import { PolicyStudio } from './views/PolicyStudio';
 import { AuditTrail } from './views/AuditTrail';
+import { LandingPage } from './views/LandingPage';
 import { Check, Info, X } from 'lucide-react';
 
 export default function App() {
@@ -273,6 +274,10 @@ export default function App() {
         {/* Dynamic View Content Area */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8">
           <div className="max-w-[1400px] mx-auto">
+            {activeTab === 'landing' && (
+              <LandingPage onNavigate={setActiveTab} />
+            )}
+
             {activeTab === 'overview' && (
               <OverviewDashboard
                 claims={claims}

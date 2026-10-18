@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Shield,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 import { ActiveTab, Claim } from '../types';
 
@@ -39,6 +40,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: 'OVERVIEW',
       items: [
+        {
+          id: 'landing' as ActiveTab,
+          label: '3D Product Tour',
+          icon: Sparkles,
+          badge: '3D',
+          badgeColor: 'bg-blue-50 text-blue-700 font-semibold',
+        },
         {
           id: 'overview' as ActiveTab,
           label: 'Overview Dashboard',

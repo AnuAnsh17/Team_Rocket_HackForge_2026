@@ -177,6 +177,7 @@ export interface MerchantInsight {
 }
 
 export type ActiveTab =
+  | 'landing'
   | 'overview'
   | 'audit-queue'
   | 'workbench'
