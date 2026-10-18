@@ -11,8 +11,12 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 class ProoflineRepository(
-    baseUrl: String = "http://10.0.2.2:8000/api/v1/"
+    initialBaseUrl: String = DEFAULT_BASE_URL
 ) {
+    companion object {
+        const val DEFAULT_BASE_URL = "http://10.0.2.2:8000/api/v1/"
+    }
+
     private val customGson: Gson = GsonBuilder()
         .registerTypeAdapter(Money::class.java, MoneyDeserializer())
         .create()
@@ -25,16 +29,25 @@ class ProoflineRepository(
         })
         .build()
 
-    private val api: ProoflineApi = Retrofit.Builder()
-        .baseUrl(baseUrl)
-        .client(client)
-        .addConverterFactory(GsonConverterFactory.create(customGson))
-        .build()
-        .create(ProoflineApi::class.java)
+    private var currentBaseUrl: String = if (initialBaseUrl.endsWith("/")) initialBaseUrl else "$initialBaseUrl/"
+    private var api: ProoflineApi = buildApi(currentBaseUrl)
 
-    // Real seeded UUID from backend/app/services/demo_service.py (employee.asha)
     var currentDemoActor: String = DemoActors.default
-    private val gson = Gson()
+
+    private fun buildApi(baseUrl: String): ProoflineApi {
+        val url = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        return Retrofit.Builder()
+            .baseUrl(url)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create(customGson))
+            .build()
+            .create(ProoflineApi::class.java)
+    }
+
+    fun setBaseUrl(newUrl: String) {
+        currentBaseUrl = if (newUrl.endsWith("/")) newUrl else "$newUrl/"
+        api = buildApi(currentBaseUrl)
+    }
 
     suspend fun getMe(): Result<MembershipSummary> {
         return try {

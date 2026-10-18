@@ -20,7 +20,10 @@ fun ProfileScreen(
     onRefresh: () -> Unit,
     onSeedDemo: () -> Unit,
     onSelectDemoActor: (String) -> Unit,
-    onToggleSampleData: (Boolean) -> Unit
+    onToggleSampleData: (Boolean) -> Unit,
+    onUpdateBackendUrl: (String) -> Unit,
+    onSaveBackendUrl: () -> Unit,
+    onResetBackendUrl: () -> Unit
 ) {
     val displayName = state.membership?.user?.display_name ?: "Unavailable"
     val initials = displayName.split(" ")
@@ -209,7 +212,50 @@ fun ProfileScreen(
             }
         }
 
-        // 4. Sample Data Toggle Card (Step 3 & 4)
+        // 4. Backend URL Setting Card (Step 5)
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Backend URL (debug only)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                HorizontalDivider()
+
+                OutlinedTextField(
+                    value = state.editingBackendUrl,
+                    onValueChange = onUpdateBackendUrl,
+                    label = { Text("http://192.168.x.x:8000/api/v1/") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(onClick = onSaveBackendUrl) {
+                        Text("Save & Reload")
+                    }
+                    TextButton(onClick = onResetBackendUrl) {
+                        Text("Reset to default")
+                    }
+                }
+
+                Text(
+                    text = "Default: http://10.0.2.2:8000/api/v1/ (emulator only). On a physical phone, use your laptop's LAN IP.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // 5. Sample Data Toggle Card
         Card(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -239,7 +285,7 @@ fun ProfileScreen(
             }
         }
 
-        // 5. Danger Zone (Demo only)
+        // 6. Danger Zone (Demo only)
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             modifier = Modifier.fillMaxWidth()

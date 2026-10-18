@@ -21,7 +21,8 @@ fun HomeScreen(
     state: ProoflineUiState,
     onNavigateToExpenses: (String?) -> Unit,
     onNavigateToCapture: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onToggleSampleData: (Boolean) -> Unit
 ) {
     val draftsPending = state.expenses.count { it.status == "draft" }
     val needInfoCount = state.expenses.count { it.status == "needs_info" }
@@ -74,7 +75,7 @@ fun HomeScreen(
             }
         }
 
-        // Receipt Submission Reminder Banner (Step 5)
+        // Receipt Submission Reminder Banner
         if (draftsPending > 0 || needInfoCount > 0) {
             item {
                 Card(
@@ -129,7 +130,7 @@ fun HomeScreen(
             }
         }
 
-        // Step 1 requirement: When errorMessage != null AND membership == null, show ONLY error card + Retry
+        // Step 3 requirement: When errorMessage != null AND membership == null, show error card with "Retry" AND "Use sample data"
         if (state.errorMessage != null && state.membership == null) {
             item {
                 Card(
@@ -143,8 +144,8 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "Connection / Data Error",
-                            style = MaterialTheme.typography.titleSmall,
+                            text = "Backend unreachable",
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             fontWeight = FontWeight.Bold
                         )
@@ -153,13 +154,31 @@ fun HomeScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
-                        Button(
-                            onClick = onRefresh,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error
-                            )
+                        Text(
+                            text = "Sample data is clearly labelled and never sent to the backend.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 4.dp)
                         ) {
-                            Text("Retry")
+                            Button(
+                                onClick = onRefresh,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Text("Retry")
+                            }
+                            Button(
+                                onClick = { onToggleSampleData(true) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            ) {
+                                Text("Use sample data")
+                            }
                         }
                     }
                 }
@@ -176,7 +195,7 @@ fun HomeScreen(
                 }
             }
         } else {
-            // Welcome / Identity Header (only show when membership is present; never fall back to fake "Demo Employee")
+            // Welcome / Identity Header (only show when membership is present)
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(

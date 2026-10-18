@@ -128,7 +128,8 @@ fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
                         navController.navigate(Screen.Expenses.createRoute(status))
                     },
                     onNavigateToCapture = { navController.navigate(Screen.Capture.route) },
-                    onRefresh = { viewModel.loadData() }
+                    onRefresh = { viewModel.loadData() },
+                    onToggleSampleData = { enabled -> viewModel.toggleSampleData(enabled) }
                 )
             }
             composable(
@@ -166,7 +167,10 @@ fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
                     onRefresh = { viewModel.loadData() },
                     onSeedDemo = { viewModel.seedDemoDataset() },
                     onSelectDemoActor = { uuid -> viewModel.setDemoActor(uuid) },
-                    onToggleSampleData = { enabled -> viewModel.toggleSampleData(enabled) }
+                    onToggleSampleData = { enabled -> viewModel.toggleSampleData(enabled) },
+                    onUpdateBackendUrl = { url -> viewModel.updateEditingBackendUrl(url) },
+                    onSaveBackendUrl = { viewModel.saveBackendUrl() },
+                    onResetBackendUrl = { viewModel.resetBackendUrl() }
                 )
             }
             composable(

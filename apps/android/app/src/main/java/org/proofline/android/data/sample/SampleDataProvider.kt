@@ -57,7 +57,7 @@ object SampleDataProvider {
             category = "Travel",
             business_purpose = "Flight to Mumbai office",
             findings = listOf(
-                Finding("f-2", "missing_policy_context", "rule-purpose", "v1", "FAIL", "blocking", "Missing client name for travel", null, "request_correction", "open", "2026-10-10T15:00:00Z")
+                Finding("f-2", "missing_policy_context", "rule-purpose", "v1", "UNKNOWN", "blocking", "Missing client name for travel", null, "request_correction", "open", "2026-10-10T15:00:00Z")
             ),
             created_at = "2026-10-10T14:00:00Z"
         ),
@@ -92,13 +92,13 @@ object SampleDataProvider {
             version = 1,
             status = "rejected",
             channel = "android",
-            merchant = FieldValue("Luxury Spa & Wellness", "employee_input", true, null, null, null),
+            merchant = FieldValue("Wellness Center", "employee_input", true, null, null, null),
             expense_date = FieldValue("2026-10-02", "employee_input", true, null, null, null),
             amount = FieldValue(Money("5000.00", "INR"), "employee_input", true, null, null, null),
             category = "Personal",
-            business_purpose = "Personal wellness",
+            business_purpose = "Wellness activity",
             findings = listOf(
-                Finding("f-3", "ineligible_category", "rule-category", "v1", "FAIL", "blocking", "Personal expenses are not reimbursable", null, "none", "resolved", "2026-10-03T10:00:00Z")
+                Finding("f-3", "ineligible_category", "rule-category", "v1", "UNKNOWN", "blocking", "Sample data: policy evaluation unavailable offline.", null, "none", "resolved", "2026-10-03T10:00:00Z")
             ),
             created_at = "2026-10-02T18:00:00Z"
         )
