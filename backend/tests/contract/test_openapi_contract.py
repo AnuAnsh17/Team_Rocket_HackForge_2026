@@ -281,3 +281,63 @@ class TestDocumentedRoutesAreAccountedFor:
             "This endpoint set is intentionally limited; update this expectation and the "
             "coverage report together if it changes."
         )
+
+
+class TestAnalyticsCompletenessMetricSemantics:
+    """The completeness metric must describe itself the way it behaves.
+
+    ``claims_missing_critical_fields`` is computed over a condition set that always carries the
+    required transaction-date range, so a claim with no transaction date can never satisfy it.
+    The field description previously read "missing merchant, expense_date, amount or currency",
+    which advertised a behaviour the query cannot have: undated claims are reported through
+    ``claims_with_unknown_transaction_date`` instead.
+
+    This is a *description* defect, so it has to be pinned at the description. The arithmetic
+    cannot move - restoring the removed predicate changes no number, verified by mutation - which
+    means no response-level assertion is capable of detecting it. This test fails the moment the
+    schema claims a set the metric does not compute.
+    """
+
+    def _properties(self, spec: dict) -> dict:
+        return spec["components"]["schemas"]["AnalyticsOverviewResponse"]["properties"]
+
+    def test_missing_critical_fields_description_names_the_dated_in_range_set(
+        self, spec: dict
+    ) -> None:
+        description = self._properties(spec)["claims_missing_critical_fields"].get(
+            "description", ""
+        )
+        lowered = description.lower()
+        assert "dated" in lowered and "in-range" in lowered, (
+            "the metric must say it counts dated, in-range claims: " + repr(description)
+        )
+        assert "undated" in lowered, "the metric must say what happens to undated claims: " + repr(
+            description
+        )
+
+    def test_missing_critical_fields_does_not_claim_the_transaction_date(self, spec: dict) -> None:
+        """The regression guard.
+
+        The previous description listed ``expense_date`` among the fields whose absence made a
+        claim missing-critical. A claim cannot be both in-range and missing its transaction date,
+        so that wording described a set the query never produces.
+        """
+        description = self._properties(spec)["claims_missing_critical_fields"].get(
+            "description", ""
+        )
+        assert "expense_date" not in description.lower(), (
+            "claims_missing_critical_fields must not present expense_date as one of the fields "
+            "whose absence counts it in; undated claims are counted separately: "
+            + repr(description)
+        )
+
+    def test_undated_claims_are_reported_through_their_own_field(self, spec: dict) -> None:
+        properties = self._properties(spec)
+        assert "claims_with_unknown_transaction_date" in properties, (
+            "undated claims need their own metric; folding them into the completeness count "
+            "would double-report them"
+        )
+        description = properties["claims_missing_critical_fields"].get("description", "").lower()
+        assert "claims_with_unknown_transaction_date" in description, (
+            "the completeness metric must point at where undated claims are counted"
+        )

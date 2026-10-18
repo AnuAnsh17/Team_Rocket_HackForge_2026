@@ -89,7 +89,7 @@ def analytics_dataset(db: Session, seeded: dict[str, object]) -> dict[str, uuid.
             channel="web",
             status=status.value,
             version=1,
-            merchant=f"Synthetic {key}",
+            merchant=None if key == "unknown-date" else f"Synthetic {key}",
             expense_date=expense_date,
             amount=Decimal(amount) if amount is not None else None,
             currency=currency,
@@ -469,3 +469,41 @@ def test_analytics_permission_matrix_and_authentication(
         ).status_code
         == 200
     )
+
+
+def test_missing_critical_fields_is_date_bounded_and_undated_claims_are_separate(
+    client: TestClient, finance_headers: dict[str, str], analytics_dataset: dict[str, uuid.UUID]
+) -> None:
+    """`claims_missing_critical_fields` must never absorb undated claims.
+
+    Pins the result-level half of the completeness semantics. The fixture's `unknown-date` claim
+    is both undated and missing a merchant, so it is missing critical fields by the field test
+    alone; it must still be excluded from the period metric, because it has no transaction date
+    to be in the period with, and reported through `claims_with_unknown_transaction_date`.
+
+    Note on what this can and cannot detect: the metric is always date-bounded, so re-adding
+    `expense_date IS NULL` to the field test changes no number and this test cannot fail on it.
+    That is why the description is pinned separately by
+    tests/contract/test_openapi_contract.py::TestAnalyticsCompletenessMetricSemantics. What this
+    test guards is the invariant the query rests on: if the date bound is ever dropped (an
+    "all time" mode, say), the period metric would start absorbing undated claims and this is
+    what would notice.
+    """
+    body = client.get(
+        "/api/v1/analytics/overview", headers=finance_headers, params=_params()
+    ).json()
+
+    undated_claim_id = analytics_dataset["expense_unknown-date"]
+    assert undated_claim_id is not None, "sanity: the undated fixture claim exists"
+
+    # Counted - separately, and independently of the period, having no date to fall inside it.
+    assert body["claims_with_unknown_transaction_date"] == 1
+
+    # Not part of the period metric. It must stay a subset of the period's claims; if it ever
+    # absorbed an undated claim it could exceed claim_count and the two figures on screen would
+    # contradict each other.
+    assert body["claims_missing_critical_fields"] <= body["claim_count"], (
+        "missing-critical-fields must be a subset of the period's claims"
+    )
+    # The only in-period claim missing a critical field is the dated one missing its amount.
+    assert body["claims_missing_critical_fields"] == 1

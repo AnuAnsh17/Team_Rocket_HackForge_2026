@@ -424,6 +424,10 @@ which is the trust boundary this design refuses.
   `expenses.expense_date`. Claims with a null transaction date are excluded from the
   requested period and reported separately. They are never bucketed by `created_at`,
   `submitted_at` or `decided_at`.
+- `claims_missing_critical_fields` counts dated claims inside the selected period that
+  lack a merchant, amount or currency. A missing transaction date cannot contribute to
+  that in-range metric; such claims are reported by
+  `claims_with_unknown_transaction_date` instead.
 - `status_counts` includes every canonical `ExpenseStatus`, including zero-count
   statuses. `claims_requiring_review` is the count of `submitted` plus `in_review`;
   `claims_needing_information` is reported separately.

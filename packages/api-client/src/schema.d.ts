@@ -559,7 +559,7 @@ export interface components {
             claim_count: number;
             /**
              * Claims Missing Critical Fields
-             * @description Dated in-range claims missing merchant, expense_date, amount or currency.
+             * @description Dated in-range claims missing merchant, amount or currency. Undated claims are reported separately in claims_with_unknown_transaction_date.
              */
             claims_missing_critical_fields: number;
             /** Claims Needing Information */
