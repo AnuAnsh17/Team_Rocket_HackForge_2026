@@ -11,6 +11,13 @@ on:
   push:
     branches: [main, develop, backend, "chore/**", "feat/**", "fix/**"]
   pull_request:
+    # `backend` is the integration branch this work targets, and PRs against it must be
+    # validated just like PRs against main and develop. Existing entries are unchanged.
+    #
+    # This change arrived on this branch AND on the base it now sits on, so the hunk
+    # conflicted with itself. Both sides are the identical branch list, so it is now
+    # redundant here - kept rather than reverted, because reverting would be a second
+    # commit saying nothing and the content merges to the same thing either way.
     branches: [main, develop, backend]
   workflow_dispatch:
 

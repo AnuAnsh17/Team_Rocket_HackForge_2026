@@ -26,8 +26,14 @@ What does **not** work and must not be implied:
 
 - Structured merchant/date/amount extraction and OCR text retention. The raw result
   is deliberately not persisted while the retention decision is open.
-- Policy evaluation: the registry holds zero rules, so every claim would evaluate to
-  `UNKNOWN`.
+- Policy evaluation against an authoritative policy. The read-only pre-flight
+  (`POST /api/v1/policy/check`) is implemented and always registered, but no approved
+  company policy is provisioned, so every claim evaluates to `UNKNOWN`. A local run can
+  additionally seed the plainly fictional demo policy with
+  `DEMO_SYNTHETIC_POLICY_ENABLED=true` (see `docs/demo-company-expense-policy.md`), which
+  produces real `PASS`/`FAIL` findings against invented ceilings. Those findings are a
+  demonstration of the engine, never a reimbursement decision, and the flag is refused
+  outside a local environment.
 - Production authentication.
 
 `GET /api/v1/meta` states this in machine-readable form. Do not present the OCR slice as
