@@ -16,6 +16,7 @@ from app.api.v1.routes import (
     health,
     identity,
     meta,
+    policy,
     receipts,
 )
 from app.core.config import settings
@@ -43,6 +44,7 @@ def build_api_router(*, demo_mode: bool | None = None) -> APIRouter:
     router.include_router(analytics.router)
     router.include_router(expenses.router)
     router.include_router(receipts.router)
+    router.include_router(policy.router)
 
     if enabled:
         from app.api.v1.routes import demo

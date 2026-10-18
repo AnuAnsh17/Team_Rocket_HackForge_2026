@@ -22,7 +22,7 @@ from app.schemas.meta import ApiMetaResponse, EnumCatalogueResponse
 # Version label of the reviewed human-readable contract this build targets. Must match
 # the "Contract version" line at the top of docs/api-contract.md; a contract test
 # compares the two.
-CONTRACT_VERSION = "1.5.0-analytics"
+CONTRACT_VERSION = "1.6.0-analytics"
 
 # Capabilities the contract describes that this build does NOT implement. Reported
 # explicitly so a caller can tell a scaffold from a finished product without
@@ -31,8 +31,11 @@ UNIMPLEMENTED_CAPABILITIES: tuple[str, ...] = (
     "approval task workflow and configured review queues",
     "receipt extraction accuracy evaluation against a labelled benchmark",
     "finding and duplicate candidate persistence and resolution",
-    "policy rule execution (the registry holds zero rules)",
-    "policy pre-flight check",
+    # The pre-flight is implemented and always registered, so it is not listed here. What
+    # remains unimplemented is having anything authoritative to run it against: with no
+    # approved policy provisioned the registry holds no rule and every claim evaluates to
+    # UNKNOWN, which is the honest result rather than a silent pass.
+    "policy rule execution against a provisioned authoritative policy",
     "audit export",
     "production authentication (Supabase JWT validation)",
     "production receipt storage adapters (Supabase/S3)",
