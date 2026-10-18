@@ -1,34 +1,35 @@
 package org.proofline.android
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.proofline.android.data.repository.TravelDayRepository
-import org.proofline.android.ui.navigation.NavGraph
+import org.proofline.android.ui.navigation.ProoflineNavGraph
 import org.proofline.android.ui.theme.ProoflineTheme
+import org.proofline.android.ui.viewmodel.LoginViewModel
 import org.proofline.android.ui.viewmodel.ProoflineViewModel
 
 class MainActivity : ComponentActivity() {
-    private lateinit var travelRepo: TravelDayRepository
-    private val viewModel = ProoflineViewModel()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        travelRepo = TravelDayRepository(applicationContext)
+
+        val container = ProoflineApplication.container
+        val travelRepo = TravelDayRepository(applicationContext)
+
         setContent {
             ProoflineTheme {
-                NavGraph(viewModel = viewModel, travelRepo = travelRepo)
-            }
-        }
-    }
+                val prooflineViewModel: ProoflineViewModel = viewModel()
+                val loginViewModel: LoginViewModel = viewModel()
 
-    override fun onResume() {
-        super.onResume()
-        viewModel.loadData()
-        val drafts = viewModel.uiState.value.expenses.count { it.status == "draft" }
-        if (drafts > 0) {
-            Log.d("ProoflineApp", "REMINDER: $drafts drafts pending")
+                ProoflineNavGraph(
+                    viewModel = prooflineViewModel,
+                    loginViewModel = loginViewModel,
+                    travelRepo = travelRepo,
+                    sessionManager = container.sessionManager
+                )
+            }
         }
     }
 }

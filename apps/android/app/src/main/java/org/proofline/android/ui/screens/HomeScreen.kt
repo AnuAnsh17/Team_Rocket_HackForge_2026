@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import org.proofline.android.core.network.NetworkConfig
 import org.proofline.android.ui.viewmodel.ProoflineUiState
 
 @Composable
@@ -33,39 +34,18 @@ fun HomeScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        if (state.useSampleData) {
+        if (NetworkConfig.demoHeaderEnabled) {
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.error),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "SAMPLE DATA — NOT FROM BACKEND",
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.onError,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-
-        // Demo / Simulated Banner
-        item {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Demo Mode Active (Simulated Employee Session)",
+                        text = "Debug build: no Supabase session, so X-Demo-Actor-Id is being sent. " +
+                            "A backend running AUTH_PROVIDER=supabase ignores that header.",
+                        modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         fontWeight = FontWeight.Bold
