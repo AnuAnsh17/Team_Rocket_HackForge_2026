@@ -10,13 +10,15 @@ import kotlinx.coroutines.launch
 import org.proofline.android.data.model.Expense
 import org.proofline.android.data.model.MembershipSummary
 import org.proofline.android.data.repository.ProoflineRepository
+import org.proofline.android.data.sample.SampleDataProvider
 
 data class ProoflineUiState(
     val isLoading: Boolean = false,
     val membership: MembershipSummary? = null,
     val expenses: List<Expense> = emptyList(),
     val errorMessage: String? = null,
-    val isDemoMode: Boolean = true
+    val isDemoMode: Boolean = true,
+    val useSampleData: Boolean = false
 )
 
 class ProoflineViewModel : ViewModel() {
@@ -30,6 +32,19 @@ class ProoflineViewModel : ViewModel() {
     }
 
     fun loadData() {
+        val currentState = _uiState.value
+        if (currentState.useSampleData) {
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    membership = SampleDataProvider.sampleMembership,
+                    expenses = SampleDataProvider.sampleExpenses,
+                    errorMessage = null
+                )
+            }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
@@ -52,6 +67,11 @@ class ProoflineViewModel : ViewModel() {
 
     fun setDemoActor(uuid: String) {
         repository.currentDemoActor = uuid
+        loadData()
+    }
+
+    fun toggleSampleData(enabled: Boolean) {
+        _uiState.update { it.copy(useSampleData = enabled) }
         loadData()
     }
 

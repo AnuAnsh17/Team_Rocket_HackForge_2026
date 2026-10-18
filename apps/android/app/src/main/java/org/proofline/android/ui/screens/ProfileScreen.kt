@@ -19,7 +19,8 @@ fun ProfileScreen(
     state: ProoflineUiState,
     onRefresh: () -> Unit,
     onSeedDemo: () -> Unit,
-    onSelectDemoActor: (String) -> Unit
+    onSelectDemoActor: (String) -> Unit,
+    onToggleSampleData: (Boolean) -> Unit
 ) {
     val displayName = state.membership?.user?.display_name ?: "Unavailable"
     val initials = displayName.split(" ")
@@ -208,7 +209,37 @@ fun ProfileScreen(
             }
         }
 
-        // 4. Danger Zone (Demo only)
+        // 4. Sample Data Toggle Card (Step 3 & 4)
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Use sample data (backend offline)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Toggle to use local fallback sample expenses.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = state.useSampleData,
+                    onCheckedChange = { onToggleSampleData(it) }
+                )
+            }
+        }
+
+        // 5. Danger Zone (Demo only)
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
             modifier = Modifier.fillMaxWidth()

@@ -1,5 +1,6 @@
 package org.proofline.android.ui.navigation
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -10,6 +11,9 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -50,6 +54,23 @@ fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
     )
 
     Scaffold(
+        topBar = {
+            if (state.useSampleData) {
+                Surface(
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "SAMPLE DATA — NOT FROM BACKEND",
+                        modifier = Modifier.padding(8.dp),
+                        color = MaterialTheme.colorScheme.onError,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        },
         floatingActionButton = {
             if (currentRoute == Screen.Home.route || currentRoute == Screen.Calendar.route) {
                 FloatingActionButton(onClick = { navController.navigate(Screen.Capture.route) }) {
@@ -143,7 +164,9 @@ fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
                 ProfileScreen(
                     state = state,
                     onRefresh = { viewModel.loadData() },
-                    onSeedDemo = { viewModel.seedDemoDataset() }
+                    onSeedDemo = { viewModel.seedDemoDataset() },
+                    onSelectDemoActor = { uuid -> viewModel.setDemoActor(uuid) },
+                    onToggleSampleData = { enabled -> viewModel.toggleSampleData(enabled) }
                 )
             }
             composable(
