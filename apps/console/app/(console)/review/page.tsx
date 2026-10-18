@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Card, PageHeader } from "@/components/ui";
 import { ApiError, unwrap, type components } from "@proofline/api-client";
-import { API_BASE_URL, createConsoleApi, readDemoActorId } from "@/lib/api";
+import { API_BASE_URL, consoleAuthHeaders, consoleFetch, createConsoleApi } from "@/lib/api";
 
 type Receipt = components["schemas"]["ReceiptResponse"];
 type ExpenseSummary = components["schemas"]["ExpenseSummary"];
@@ -106,11 +106,9 @@ export default function ReviewQueuePage() {
     }
     tab.opener = null;
     try {
-      const headers = new Headers();
-      const actorId = readDemoActorId();
-      if (actorId) headers.set("X-Demo-Actor-Id", actorId);
+      const headers = await consoleAuthHeaders();
       const origin = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
-      const response = await fetch(`${origin}${contentUrl}`, { headers, cache: "no-store" });
+      const response = await consoleFetch(`${origin}${contentUrl}`, { headers, cache: "no-store" });
       if (!response.ok) throw new Error("The API refused receipt content access.");
       const objectUrl = URL.createObjectURL(await response.blob());
       tab.location.href = objectUrl;

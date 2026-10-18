@@ -248,7 +248,13 @@ export interface ApiClientOptions {
    * The versioned prefix is part of each generated OpenAPI path.
    */
   baseUrl: string;
-  /** Supplies the Authorization header, or nothing in demo mode. */
+  /**
+   * Supplies the Authorization header, or nothing in demo mode.
+   *
+   * May be asynchronous: it is awaited before the request is sent, so a caller can fetch
+   * a short-lived access token (for example from a session store) per request instead of
+   * capturing one at client-construction time.
+   */
   getToken?: () => string | null | undefined | Promise<string | null | undefined>;
   /**
    * Supplies the demo actor header.
@@ -273,8 +279,10 @@ export function createApiClient(options: ApiClientOptions): ProoflineClient {
   });
 
   client.use({
-    onRequest({ request }) {
-      const token = options.getToken?.();
+    // Async so an asynchronous token provider is awaited rather than stringified into the
+    // header as "[object Promise]". openapi-fetch awaits this middleware's return value.
+    async onRequest({ request }) {
+      const token = await options.getToken?.();
       if (token) request.headers.set("Authorization", `Bearer ${token}`);
 
       const demoActorId = options.getDemoActorId?.();
