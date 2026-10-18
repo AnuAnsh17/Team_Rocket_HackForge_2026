@@ -21,10 +21,14 @@ import uuid
 from pathlib import Path
 
 import pytest
-from app.core.enums import PolicyReviewState  # noqa: F401  (documents intent in assertions)
+from app.core.enums import (  # noqa: F401  (PolicyReviewState documents intent in assertions)
+    MembershipStatus,
+    PolicyReviewState,
+    RoleCode,
+)
 from app.models.audit import AuditEvent
 from app.models.expense import Expense
-from app.models.identity import OrganizationMembership, User
+from app.models.identity import OrganizationMembership, RoleAssignment, User
 from app.models.organization import AllowanceProfile, Department, OfficeLocation
 from app.models.receipt import Receipt
 from app.services import corporate_demo_service, demo_service
@@ -81,16 +85,75 @@ def corporate(
 
 
 def _memberships(db: Session) -> list[OrganizationMembership]:
+    """Demo-organization memberships in a deterministic order.
+
+    The explicit ordering matters. A caller that takes "the first membership that is not the
+    owner" was previously at the mercy of physical row order, which shifts as rows are
+    inserted, so the same test selected a different actor depending on what else had run.
+    """
     organization = demo_service._ensure_organization(db)
     return list(
         db.execute(
-            select(OrganizationMembership).where(
-                OrganizationMembership.organization_id == organization.id
-            )
+            select(OrganizationMembership)
+            .where(OrganizationMembership.organization_id == organization.id)
+            .order_by(OrganizationMembership.id)
         )
         .scalars()
         .all()
     )
+
+
+# Roles that ``require_expense_read`` deliberately admits to another member's claim, which the
+# receipt content route then admits with ``receipt:read_scoped``
+# (app/services/scope_service.py, app/api/v1/routes/receipts.py::_read_receipt_for_actor).
+# A membership holding any of these is a legitimately authorized reader and can never stand in
+# for an unauthorized actor in a refusal assertion. MANAGER is included because a direct
+# manager of the owner is admitted by the same function.
+_ORG_WIDE_CLAIM_READ_ROLES = frozenset(
+    {
+        RoleCode.FINANCE_REVIEWER,
+        RoleCode.FINANCE_ADMIN,
+        RoleCode.HR_REVIEWER,
+        RoleCode.AUDITOR,
+        RoleCode.MANAGER,
+    }
+)
+
+
+def _active_roles(db: Session) -> dict[uuid.UUID, set[RoleCode]]:
+    """Non-revoked roles per membership id."""
+    roles: dict[uuid.UUID, set[RoleCode]] = {}
+    for assignment in db.execute(
+        select(RoleAssignment).where(RoleAssignment.revoked_at.is_(None))
+    ).scalars():
+        roles.setdefault(assignment.membership_id, set()).add(RoleCode(assignment.role))
+    return roles
+
+
+def _unprivileged_actor(db: Session, owner_membership_id: uuid.UUID) -> OrganizationMembership:
+    """A membership that must be refused another member's claim.
+
+    Chosen on the actor's *grants*, not merely on being a different person, and ordered
+    explicitly, so the refusal assertion cannot pass or fail by accident.
+    """
+    roles = _active_roles(db)
+    candidates = [
+        membership
+        for membership in _memberships(db)
+        if membership.id != owner_membership_id
+        and not (roles.get(membership.id, set()) & _ORG_WIDE_CLAIM_READ_ROLES)
+    ]
+    assert candidates, (
+        "the fixture must contain a member holding no organization-wide claim-read grant"
+    )
+    actor = candidates[0]
+    # Keeps the selection above honest: if the fixture ever changes so that every remaining
+    # candidate is privileged, this fails loudly instead of quietly testing nothing.
+    assert not (roles.get(actor.id, set()) & _ORG_WIDE_CLAIM_READ_ROLES), (
+        "the selected actor must hold no organization-wide claim-read role"
+    )
+    assert actor.status == MembershipStatus.ACTIVE.value
+    return actor
 
 
 @requires_benchmark
@@ -394,12 +457,17 @@ def test_receipt_content_is_authorized_per_actor(
     target = receipts[0]
     owner = db.get(Expense, target.expense_id).membership_id
 
-    # An employee who does not own the claim must not be able to fetch its content.
-    other = next(m for m in _memberships(db) if m.id != owner)
-    outsider_headers = {"X-Demo-Actor-Id": str(db.get(User, other.user_id).external_subject)}
+    # An actor with no grant to this claim must not be able to fetch its content.
+    #
+    # Being a different employee is not the same as being unauthorized. This assertion used to
+    # take "the first membership that is not the owner", which sometimes selected a member who
+    # legitimately holds a reviewer role. The 200 it produced was correct behaviour, and the
+    # test was wrong to demand a refusal. The actor is now selected on its grants.
+    outsider = _unprivileged_actor(db, owner)
+    outsider_headers = {"X-Demo-Actor-Id": str(db.get(User, outsider.user_id).external_subject)}
     denied = client.get(f"/api/v1/receipts/{target.id}/content", headers=outsider_headers)
     assert denied.status_code in (403, 404), (
-        f"an unrelated employee must not read this receipt, got {denied.status_code}"
+        f"an actor with no grant to this claim must not read its receipt, got {denied.status_code}"
     )
 
     # The owner can.
