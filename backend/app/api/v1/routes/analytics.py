@@ -14,6 +14,7 @@ from app.core.errors import ValidationFailed
 from app.core.pagination import Pagination
 from app.core.security import Actor
 from app.schemas.analytics import (
+    AnalyticsDepartmentSummaryResponse,
     AnalyticsGroupBy,
     AnalyticsOverviewResponse,
     AnalyticsSpendMatrixResponse,
@@ -163,3 +164,29 @@ def get_spend_matrix(
     return analytics_service.spend_matrix(
         session, organization_id, filters, primary, secondary, pagination
     )
+
+
+@router.get(
+    "/departments",
+    response_model=AnalyticsDepartmentSummaryResponse,
+    summary="Read department-wise expenditure and review workload",
+    description=(
+        "Breaks the organization's requested and approved expenditure for the inclusive "
+        "expense_date range down by the department recorded on each claim's membership, "
+        "separately per currency, alongside that department's review workload. "
+        "Requested expenditure is every persisted claim amount in range; approved is the "
+        "subset in an approved workflow state, and neither one means the money has been paid. "
+        "Claims whose member has no department are reported as an unassigned row rather than "
+        "guessed at, and claims without a transaction date are excluded from members and "
+        "counted separately. A department filter restricts the whole breakdown to that department."
+    ),
+)
+def get_departments(
+    filters: AnalyticsFilters = Depends(get_analytics_filters),
+    actor: Actor = Depends(get_actor),
+    session: Session = Depends(get_session),
+) -> AnalyticsDepartmentSummaryResponse:
+    organization_id = analytics_service.require_analytics_access(
+        actor, employee_level=filters.employee_membership_id is not None
+    )
+    return analytics_service.department_summary(session, organization_id, filters)

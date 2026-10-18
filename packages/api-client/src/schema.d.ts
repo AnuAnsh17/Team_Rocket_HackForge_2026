@@ -1,4 +1,24 @@
 export interface paths {
+    "/api/v1/analytics/departments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read department-wise expenditure and review workload
+         * @description Breaks the organization's requested and approved expenditure for the inclusive expense_date range down by the department recorded on each claim's membership, separately per currency, alongside that department's review workload. Requested expenditure is every persisted claim amount in range; approved is the subset in an approved workflow state, and neither one means the money has been paid. Claims whose member has no department are reported as an unassigned row rather than guessed at, and claims without a transaction date are excluded from members and counted separately. A department filter restricts the whole breakdown to that department.
+         */
+        get: operations["get_departments_api_v1_analytics_departments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analytics/overview": {
         parameters: {
             query?: never;
@@ -502,6 +522,138 @@ export interface components {
             department_id?: string | null;
             /** Department Name */
             department_name?: string | null;
+        };
+        /**
+         * AnalyticsDepartmentRow
+         * @description One department's expenditure and review workload, for one currency.
+         *
+         *     ``amount_total`` is *requested* expenditure: the sum of persisted claim amounts in
+         *     range, whatever their workflow status. Approved expenditure is reported separately
+         *     and is a subset of it - approval is a workflow decision, not a payment, so neither
+         *     figure means money has moved.
+         */
+        AnalyticsDepartmentRow: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /**
+             * Approved Amount Total
+             * @description Sum of amounts on claims in an approved state.
+             */
+            approved_amount_total?: string | null;
+            /** Approved Claim Count */
+            approved_claim_count: number;
+            /**
+             * Average Amount Total
+             * @description Mean amount per claim that has an amount; null when none does.
+             */
+            average_amount_total?: string | null;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Department Id
+             * @description Null for claims whose member has no department: unassigned, not unknown.
+             */
+            department_id?: string | null;
+            /** Department Name */
+            department_name?: string | null;
+            /** Draft Count */
+            draft_count: number;
+            /** Needs Info Count */
+            needs_info_count: number;
+            /**
+             * Pending Review Count
+             * @description Claims in submitted or in_review: the same definition overview uses.
+             */
+            pending_review_count: number;
+            /** Rejected Count */
+            rejected_count: number;
+            /**
+             * Requested Share
+             * @description This department's share of the organization's requested expenditure in the same currency, to four decimal places. Null when the currency total is zero.
+             */
+            requested_share?: string | null;
+        };
+        /**
+         * AnalyticsDepartmentSummaryResponse
+         * @description Department-wise expenditure and review workload for the selected period.
+         *
+         *     ``totals`` is the whole organization per currency and ``departments`` decomposes it,
+         *     so a consumer never has to add the rows up (and cannot add them up wrongly). Amounts
+         *     are never combined across currencies.
+         */
+        AnalyticsDepartmentSummaryResponse: {
+            /**
+             * Claims With Unknown Transaction Date
+             * @description Claims matching the other filters but lacking expense_date; excluded from groups.
+             */
+            claims_with_unknown_transaction_date: number;
+            /** Departments */
+            departments: components["schemas"]["AnalyticsDepartmentRow"][];
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+            /** Totals */
+            totals: components["schemas"]["AnalyticsDepartmentTotals"][];
+        };
+        /**
+         * AnalyticsDepartmentTotals
+         * @description The organization-wide figures the department rows are a breakdown of.
+         */
+        AnalyticsDepartmentTotals: {
+            /**
+             * Amount Claim Count
+             * @description Claims with a persisted amount.
+             */
+            amount_claim_count: number;
+            /**
+             * Amount Total
+             * @description Exact NUMERIC sum for this currency; null when no amount is recorded.
+             */
+            amount_total?: string | null;
+            /** Approved Amount Total */
+            approved_amount_total?: string | null;
+            /** Approved Claim Count */
+            approved_claim_count: number;
+            /**
+             * Claim Count
+             * @description Claims in this bucket, including missing amounts.
+             */
+            claim_count: number;
+            /** Currency */
+            currency?: string | null;
+            /** Draft Count */
+            draft_count: number;
+            /** Needs Info Count */
+            needs_info_count: number;
+            /** Pending Review Count */
+            pending_review_count: number;
+            /** Rejected Count */
+            rejected_count: number;
+            /**
+             * Unassigned Claim Count
+             * @description Claims counted above whose member has no department.
+             */
+            unassigned_claim_count: number;
         };
         /**
          * AnalyticsGroupBy
@@ -2108,6 +2260,47 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_departments_api_v1_analytics_departments_get: {
+        parameters: {
+            query: {
+                /** @description Inclusive lower transaction-date boundary (YYYY-MM-DD). */
+                from: string;
+                /** @description Inclusive upper transaction-date boundary (YYYY-MM-DD). */
+                to: string;
+                department_id?: string | null;
+                office_location_id?: string | null;
+                /** @description Organization membership UUID; requires analytics:read_org. */
+                employee_membership_id?: string | null;
+                category?: string | null;
+                currency?: string | null;
+                status?: components["schemas"]["ExpenseStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsDepartmentSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_overview_api_v1_analytics_overview_get: {
         parameters: {
             query: {

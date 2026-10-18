@@ -1,0 +1,25 @@
+# Build context exclusions for the backend image (context: ./backend).
+#
+# The backend Dockerfile was written to be built from `backend/`, so the container build
+# needs its own ignore file; the repository-root `.dockerignore` only applies to contexts
+# rooted at the repository.
+#
+# `.venv` matters most here: a worktree-local virtualenv may be a junction pointing at
+# another checkout, and sending it as build context is both slow and a way to bake a
+# developer's local state into an image.
+.venv
+venv
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+tests
+data/receipts
+data/samples
+.local-storage
+.env
+.env.*
+!.env.example

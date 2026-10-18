@@ -708,3 +708,98 @@ export function summariseStatusAmounts(
     amountClaimCount: entries.reduce((count, entry) => count + entry.amount_claim_count, 0),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Department breakdown
+// ---------------------------------------------------------------------------
+
+export type AnalyticsDepartmentSummary =
+  components["schemas"]["AnalyticsDepartmentSummaryResponse"];
+export type AnalyticsDepartmentRow = components["schemas"]["AnalyticsDepartmentRow"];
+export type AnalyticsDepartmentTotals = components["schemas"]["AnalyticsDepartmentTotals"];
+
+export type DepartmentQuery =
+  paths["/api/v1/analytics/departments"]["get"]["parameters"]["query"];
+
+/**
+ * The same filter set as the other analytics queries, built the same way.
+ *
+ * An empty string means "no filter", so the parameter is omitted rather than sent blank:
+ * the API validates a present-but-empty UUID as invalid, which would turn an unfiltered
+ * view into a 422.
+ */
+export function buildDepartmentQuery(
+  range: DateRange,
+  filters: AnalyticsFilters,
+): DepartmentQuery {
+  const query: DepartmentQuery = { from: range.from, to: range.to };
+  if (filters.departmentId) query.department_id = filters.departmentId;
+  if (filters.officeLocationId) query.office_location_id = filters.officeLocationId;
+  if (filters.employeeMembershipId) query.employee_membership_id = filters.employeeMembershipId;
+  if (filters.category) query.category = filters.category;
+  if (filters.currency) query.currency = filters.currency;
+  if (filters.status) query.status = filters.status;
+  return query;
+}
+
+export async function loadDepartments(
+  api: ProoflineClient,
+  query: DepartmentQuery,
+  signal?: AbortSignal,
+): Promise<AnalyticsDepartmentSummary> {
+  return unwrap(api.GET("/api/v1/analytics/departments", { params: { query }, signal }));
+}
+
+/**
+ * A department row's share of its currency total, as a percentage string.
+ *
+ * The API returns an exact fraction string; this only formats it, using the same BigInt
+ * digit arithmetic as the rest of the file. It never recomputes the share from money
+ * values, so the displayed percentage cannot disagree with the backend.
+ */
+export function formatSharePercent(share: string | null | undefined): string | null {
+  const fraction = parseDecimal(share ?? "");
+  if (fraction === null) return null;
+  const scale = fraction.fraction.length;
+  const digits = signedDigits(fraction, scale);
+  // Multiply by 1000 so one decimal place can be truncated rather than rounded away.
+  const perThousand = (digits * 1000n) / 10n ** BigInt(scale);
+  const whole = perThousand / 10n;
+  const tenth = perThousand % 10n < 0n ? -(perThousand % 10n) : perThousand % 10n;
+  return `${whole}.${tenth}%`;
+}
+
+/**
+ * A bar width as a percentage of the widest value in the same currency.
+ *
+ * Money stays in exact digits for the comparison; only the final CSS width becomes a
+ * number, and it is a rendering decision rather than a figure anyone reads as money.
+ */
+export function barWidthPercent(
+  value: string | null | undefined,
+  widest: string | null | undefined,
+): number {
+  const amount = parseDecimal(value ?? "");
+  const max = parseDecimal(widest ?? "");
+  if (amount === null || max === null) return 0;
+  const scale = Math.max(amount.fraction.length, max.fraction.length);
+  const digits = signedDigits(amount, scale);
+  const ceiling = signedDigits(max, scale);
+  if (ceiling <= 0n || digits <= 0n) return 0;
+  if (digits >= ceiling) return 100;
+  // Two decimal places of precision, computed on integers.
+  const perTenThousand = (digits * 10000n) / ceiling;
+  return Math.max(1, Math.min(100, Number(perTenThousand) / 100));
+}
+
+/** The largest requested total among rows sharing a currency. */
+export function widestRequested(rows: AnalyticsDepartmentRow[]): string | null {
+  let widest: string | null = null;
+  for (const row of rows) {
+    if (row.amount_total === null || row.amount_total === undefined) continue;
+    if (widest === null || compareDecimals(row.amount_total, widest) > 0) {
+      widest = row.amount_total;
+    }
+  }
+  return widest;
+}

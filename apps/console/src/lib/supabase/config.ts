@@ -88,5 +88,20 @@ export const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
  */
 export const SUPABASE_ANON_KEY = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").trim();
 
-/** The resolved mode for this build. */
-export const CONSOLE_AUTH: ConsoleAuth = resolveConsoleAuth(consoleEnvFromProcess());
+/**
+ * The resolved mode for this build.
+ *
+ * These are literal `process.env.NEXT_PUBLIC_*` member expressions rather than a call to
+ * `consoleEnvFromProcess`, and that is deliberate: a bundler substitutes only the
+ * expressions it can see statically. Passing `process.env` as a *value* leaves the browser
+ * bundle with an empty environment, so the server (where `process.env` is real) resolves the
+ * demo identity gate while the hydrated page falls back to "unconfigured" and shows
+ * "Sign in to continue". The split is invisible in `next dev`, which injects the public
+ * variables at runtime for the client, and appears only in a production build - which is
+ * precisely the build an image ships.
+ */
+export const CONSOLE_AUTH: ConsoleAuth = resolveConsoleAuth({
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  demoMode: process.env.NEXT_PUBLIC_DEMO_MODE,
+});

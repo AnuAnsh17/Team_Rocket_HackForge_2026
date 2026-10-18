@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import Date, and_, exists, func, or_, select
@@ -27,6 +28,9 @@ from app.schemas.analytics import (
     UNASSIGNED_BUCKET_KEY,
     AnalyticsCategoryAmount,
     AnalyticsDepartmentAmount,
+    AnalyticsDepartmentRow,
+    AnalyticsDepartmentSummaryResponse,
+    AnalyticsDepartmentTotals,
     AnalyticsGroupBy,
     AnalyticsLocationAmount,
     AnalyticsMonthlyAmount,
@@ -550,4 +554,146 @@ def spend_matrix(
         secondary=secondary,
         claims_with_unknown_transaction_date=unknown_date_count,
         results=build_page(results, pagination, total_groups),
+    )
+
+
+def _share_of_total(part: Decimal | None, whole: Decimal | None) -> str | None:
+    """A department's fraction of the organization's expenditure in the same currency.
+
+    Computed with ``Decimal`` (never float) from two figures the database already
+    summed, so it is exact to four decimal places. It is a derived display ratio, not
+    an authoritative money total, which is why it is safe to derive here at all.
+    """
+    if part is None or whole is None or whole == 0:
+        return None
+    return str((Decimal(part) / Decimal(whole)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
+
+
+def _department_aggregates() -> list[Any]:
+    """Conditional aggregates, defined once so the rows and the totals cannot diverge.
+
+    ``FILTER (WHERE ...)`` keeps every figure in a single pass over the same filtered
+    set, which is what makes the department rows a genuine decomposition of the totals
+    rather than a second, independently-computed answer.
+    """
+    approved = Expense.status == ExpenseStatus.APPROVED.value
+    return [
+        func.count(Expense.id).label("claim_count"),
+        func.count(Expense.amount).label("amount_claim_count"),
+        func.sum(Expense.amount).label("amount_total"),
+        func.count(Expense.id).filter(approved).label("approved_claim_count"),
+        func.sum(Expense.amount).filter(approved).label("approved_amount_total"),
+        func.count(Expense.id)
+        .filter(Expense.status.in_([ExpenseStatus.SUBMITTED.value, ExpenseStatus.IN_REVIEW.value]))
+        .label("pending_review_count"),
+        func.count(Expense.id)
+        .filter(Expense.status == ExpenseStatus.NEEDS_INFO.value)
+        .label("needs_info_count"),
+        func.count(Expense.id)
+        .filter(Expense.status == ExpenseStatus.REJECTED.value)
+        .label("rejected_count"),
+        func.count(Expense.id)
+        .filter(Expense.status == ExpenseStatus.DRAFT.value)
+        .label("draft_count"),
+        func.count(Expense.id)
+        .filter(OrganizationMembership.department_id.is_(None))
+        .label("unassigned_claim_count"),
+        func.round(func.sum(Expense.amount) / func.nullif(func.count(Expense.amount), 0), 4).label(
+            "average_amount_total"
+        ),
+    ]
+
+
+def _department_counts(row: Any) -> dict[str, Any]:
+    return {
+        "approved_claim_count": row["approved_claim_count"],
+        "approved_amount_total": row["approved_amount_total"],
+        "pending_review_count": row["pending_review_count"],
+        "needs_info_count": row["needs_info_count"],
+        "rejected_count": row["rejected_count"],
+        "draft_count": row["draft_count"],
+    }
+
+
+def department_summary(
+    session: Session, organization_id: uuid.UUID, filters: AnalyticsFilters
+) -> AnalyticsDepartmentSummaryResponse:
+    """Department-wise requested and approved expenditure plus review workload.
+
+    Department membership comes from the member's ``OrganizationMembership`` row - the
+    same relationship the rest of the product uses - so a claim's department is a
+    persisted employment fact, never a label supplied by a caller. A member with no
+    department is reported as an explicit unassigned row rather than dropped or guessed.
+    """
+    conditions = _conditions(organization_id, filters, include_date_range=True)
+    aggregates = _department_aggregates()
+
+    total_statement = _expense_statement(Expense.currency.label("currency"), *aggregates).where(
+        *conditions
+    )
+    total_rows = session.execute(
+        total_statement.group_by(Expense.currency).order_by(Expense.currency.asc().nullsfirst())
+    ).mappings()
+
+    totals: list[AnalyticsDepartmentTotals] = []
+    requested_by_currency: dict[Any, Decimal | None] = {}
+    for row in total_rows:
+        requested_by_currency[row["currency"]] = row["amount_total"]
+        totals.append(
+            AnalyticsDepartmentTotals(
+                **_amount_values(row),
+                **_department_counts(row),
+                unassigned_claim_count=row["unassigned_claim_count"],
+            )
+        )
+
+    department_statement = (
+        _expense_statement(
+            Department.id.label("department_id"),
+            Department.name.label("department_name"),
+            Expense.currency.label("currency"),
+            *aggregates,
+        )
+        .outerjoin(
+            Department,
+            and_(
+                Department.id == OrganizationMembership.department_id,
+                Department.organization_id == organization_id,
+            ),
+        )
+        .where(*conditions)
+        .group_by(Department.id, Department.name, Expense.currency)
+        .order_by(
+            func.sum(Expense.amount).desc().nullslast(),
+            Department.name.asc().nullsfirst(),
+            Expense.currency.asc().nullsfirst(),
+        )
+    )
+    departments = [
+        AnalyticsDepartmentRow(
+            **_amount_values(row),
+            **_department_counts(row),
+            department_id=row["department_id"],
+            department_name=row["department_name"],
+            average_amount_total=row["average_amount_total"],
+            requested_share=_share_of_total(
+                row["amount_total"], requested_by_currency.get(row["currency"])
+            ),
+        )
+        for row in session.execute(department_statement).mappings()
+    ]
+
+    unknown_date_count = session.execute(
+        _expense_statement(func.count(Expense.id)).where(
+            *_conditions(organization_id, filters, include_date_range=False),
+            Expense.expense_date.is_(None),
+        )
+    ).scalar_one()
+
+    return AnalyticsDepartmentSummaryResponse(
+        from_date=filters.from_date,
+        to_date=filters.to_date,
+        claims_with_unknown_transaction_date=unknown_date_count,
+        totals=totals,
+        departments=departments,
     )

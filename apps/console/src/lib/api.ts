@@ -59,13 +59,28 @@ export const DEMO_MODE_ACTIVE = CONSOLE_AUTH.demoModeActive;
 
 export const DEMO_ACTOR_STORAGE_KEY = "proofline.console.demoActorId";
 
-/** Read the currently selected demo actor id, if any. */
+/**
+ * The seeded actor the console impersonates when demo mode is active and no actor has been
+ * chosen yet.
+ *
+ * This is a first-load convenience for the local demonstration, not an identity system: the
+ * value is just the header the switcher would otherwise set, and the backend resolves it
+ * against its own database exactly as before, granting only the roles that row actually
+ * holds. It is inert unless `DEMO_MODE_ACTIVE` (no Supabase project configured) and the
+ * backend is running with demo mode enabled outside production, so it cannot authenticate
+ * anything in a real deployment. Override it with `NEXT_PUBLIC_DEMO_ACTOR_ID` to point the
+ * demo at a different seeded actor.
+ */
+export const DEMO_DEFAULT_ACTOR_ID =
+  process.env.NEXT_PUBLIC_DEMO_ACTOR_ID ?? "01613bdb-528d-5ff3-979b-ba292d858d77";
+
+/** Read the currently selected demo actor id, falling back to the seeded demo actor. */
 export function readDemoActorId(
   active: boolean = DEMO_MODE_ACTIVE,
   storage: Pick<Storage, "getItem"> | null = demoStorage(),
 ): string | null {
   if (!active || !storage) return null;
-  return storage.getItem(DEMO_ACTOR_STORAGE_KEY);
+  return storage.getItem(DEMO_ACTOR_STORAGE_KEY) ?? DEMO_DEFAULT_ACTOR_ID;
 }
 
 /** Select a demo actor id. Reloads so server components re-read the value. */
