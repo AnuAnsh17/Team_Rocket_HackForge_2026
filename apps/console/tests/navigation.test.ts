@@ -30,13 +30,15 @@ describe("console navigation", () => {
     }
   });
 
-  it("reports every scaffolded route as not implemented", () => {
+  it("reports exactly the routes that have a real implementation", () => {
     // If a route gains a real implementation, flip its `implemented` flag in the same
-    // change as the work. This test exists so that cannot be forgotten.
+    // change as the work and add it here. This test exists so that cannot be forgotten in
+    // either direction: a scaffold cannot claim to work, and a working route cannot stay
+    // labelled a stub.
     const claimedImplemented = NAV_SECTIONS.flatMap((section) =>
       section.items.filter((item) => item.implemented).map((item) => item.href),
     );
-    expect(claimedImplemented).toEqual([]);
+    expect(claimedImplemented).toEqual(["/"]);
   });
 
   it("shows an auditor only read-oriented sections", () => {
