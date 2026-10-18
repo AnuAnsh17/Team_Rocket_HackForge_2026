@@ -1,6 +1,6 @@
 # Proofline API Contract
 
-**Contract version:** 1.7.0-analytics
+**Contract version:** 1.8.0-analytics
 **Base path:** /api/v1
 **Status:** Implemented baseline. FastAPI's generated OpenAPI document is the
 machine-readable source of truth and must remain aligned with this document. A
@@ -30,6 +30,7 @@ unimplemented route works.
 | 1.4.0 -> 1.5.0 | Read-only policy pre-flight (`POST /api/v1/policy/check`) | The route was deferred on "an approved policy document". It writes nothing - no claim, finding, status transition or audit event - so nothing about it depends on the claim lifecycle, and the local demo now supplies a plainly fictional policy to evaluate against. The narrow read routes (`GET /policy/versions/current`, `GET /policy/rules`) and finding persistence stay deferred: they would expose policy structure or store results, which needs its own scoping decision. |
 | 1.5.0 -> 1.6.0 | Organization-scoped overview and spend analytics | Queries aggregate persisted claims by inclusive transaction-date range and currency; workflow approval is not policy approval or payment. Renumbered from 1.4.0 -> 1.5.0: the policy pre-flight took 1.5.0 first, and both changes are in the base this branch now sits on. |
 | 1.6.0 -> 1.7.0 | Two-dimensional spend matrix (`GET /api/v1/analytics/spend-matrix`) | A heatmap needs a genuine two-dimensional aggregation. Deriving one client-side from single-dimension rows, or inventing risk or compliance values to fill the cells, would let a client display numbers the backend never computed. The route groups by two dimensions and currency using the same group expressions and measures as `GET /api/v1/analytics/spend`, so a cell is a re-partition of the single-dimension totals rather than a second definition of spend. It adds no table and no migration: it is a read-only aggregation over the existing schema. |
+| 1.7.0 -> 1.8.0 | Department breakdown (`GET /api/v1/analytics/departments`) | A department table on the console needs requested and approved expenditure, review workload and each department's share of spend per currency, and none of the existing routes answers that in one query. Deriving it in the browser from one response per status would make the displayed figures a client-side calculation, and a wrong one whenever a claim carries two currencies. The route resolves department from the membership row and returns the organization total alongside the breakdown, so the rows are a decomposition of a figure the database computed. No table and no migration: a read-only aggregation over the existing schema. |
 
 ---
 
@@ -411,6 +412,7 @@ Status values:
 | `GET /api/v1/analytics/overview` | Database-backed status, amount, completeness, department, location, category and monthly aggregates for a required inclusive `from`/`to` transaction-date range. Requires analytics and organization-scoped expense-read permissions. |
 | `GET /api/v1/analytics/spend` | Paginated exact spend groups for a required `from`/`to` range. Supports `group_by=month|department|location|category|employee|status` plus department, location, employee-membership, category, currency and status filters. Employee grouping/filtering requires `analytics:read_org`. |
 | `GET /api/v1/analytics/spend-matrix` | Paginated two-dimensional spend for a required `from`/`to` range and two distinct `primary`/`secondary` dimensions from the same set as `group_by`. One row per `(primary bucket, secondary bucket, currency)`, built from the same group expressions and measures as `GET /api/v1/analytics/spend`, so summing a row set over one dimension per currency reproduces the corresponding single-dimension row exactly. Empty buckets are omitted; claims with no transaction date are excluded and counted separately; employee as either dimension requires `analytics:read_org`; equal dimensions are refused. |
+| `GET /api/v1/analytics/departments` | Department breakdown of requested and approved expenditure plus review workload for a required `from`/`to` range: one row per `(department, currency)` and the organization total per currency. Department is resolved from the member's membership row, never from the request; a member with no department is reported as an unassigned row rather than dropped. Claims with no transaction date are excluded and counted separately. Amounts are never combined across currencies. |
 | `POST /api/v1/policy/check` | Advisory, read-only policy pre-flight. Accepts an authorized `expense_id` or an inline preview evaluated against the caller's own organization and membership. Writes nothing: no claim, finding, status transition or audit event. Returns `resolved=false` with `UNKNOWN` findings when no policy resolves, so a missing policy can never look like a successful check. |
 | `POST /api/v1/demo/seed` | Load the deterministic synthetic dataset. Demo mode only. |
 | `POST /api/v1/demo/reset` | Remove only the synthetic dataset. Demo mode only. |
@@ -467,6 +469,25 @@ which is the trust boundary this design refuses.
   no claim holds is not emitted as a zero row. Employee as either dimension, like
   `employee_membership_id`, requires `analytics:read_org`. A request whose two
   dimensions are equal is refused rather than answered with a degenerate matrix.
+- `GET /api/v1/analytics/departments` resolves each claim's department from the
+  `department_id` on its member's `organization_membership` row - the same relationship
+  the rest of the product uses - so a department is a persisted employment fact and never a
+  label supplied by a caller. `amount_total` is *requested* expenditure: every persisted
+  claim amount in the inclusive range, whatever its workflow status. `approved_amount_total`
+  is the subset in an `approved` state and is therefore never greater than the requested
+  figure; approval is a workflow decision and neither number means money has been paid.
+  `pending_review_count` uses the same definition as `overview` (submitted or in_review), so
+  the two endpoints cannot disagree about what waiting for review means.
+- A claim whose member has no department yields a row with a null `department_id` and
+  `department_name`, and is additionally counted in `totals[].unassigned_claim_count`, so
+  unassigned spend stays visible instead of being dropped or guessed at. `requested_share`
+  is that row's fraction of the organization's requested expenditure *in the same currency*,
+  derived from two figures the database already summed and rounded to four decimal places;
+  it is null when the currency total is zero or the bucket has no currency at all.
+  `totals` is the organization per currency and `departments` is a decomposition of it, so
+  a consumer never has to add rows up - and cannot add them up wrongly. A period with no
+  dated claims returns empty lists rather than zero-filled rows, and a claim with no amount
+  is counted as a claim while its amount stays null.
 
 ### 5.2 Definitions written, routes deferred
 

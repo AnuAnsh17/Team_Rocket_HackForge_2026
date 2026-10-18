@@ -199,3 +199,77 @@ class AnalyticsSpendMatrixResponse(ApiModel):
         description="Claims matching the other filters but lacking expense_date; excluded from groups.",
     )
     results: Page[AnalyticsSpendMatrixRow]
+
+
+class AnalyticsDepartmentRow(AnalyticsAmount):
+    """One department's expenditure and review workload, for one currency.
+
+    ``amount_total`` is *requested* expenditure: the sum of persisted claim amounts in
+    range, whatever their workflow status. Approved expenditure is reported separately
+    and is a subset of it - approval is a workflow decision, not a payment, so neither
+    figure means money has moved.
+    """
+
+    department_id: uuid.UUID | None = Field(
+        default=None,
+        description="Null for claims whose member has no department: unassigned, not unknown.",
+    )
+    department_name: str | None = None
+    approved_claim_count: int = Field(..., ge=0)
+    approved_amount_total: MoneyString | None = Field(
+        default=None, description="Sum of amounts on claims in an approved state."
+    )
+    pending_review_count: int = Field(
+        ...,
+        ge=0,
+        description="Claims in submitted or in_review: the same definition overview uses.",
+    )
+    needs_info_count: int = Field(..., ge=0)
+    rejected_count: int = Field(..., ge=0)
+    draft_count: int = Field(..., ge=0)
+    average_amount_total: MoneyString | None = Field(
+        default=None,
+        description="Mean amount per claim that has an amount; null when none does.",
+    )
+    requested_share: MoneyString | None = Field(
+        default=None,
+        description=(
+            "This department's share of the organization's requested expenditure in the "
+            "same currency, to four decimal places. Null when the currency total is zero."
+        ),
+    )
+
+
+class AnalyticsDepartmentTotals(AnalyticsAmount):
+    """The organization-wide figures the department rows are a breakdown of."""
+
+    approved_claim_count: int = Field(..., ge=0)
+    approved_amount_total: MoneyString | None = None
+    pending_review_count: int = Field(..., ge=0)
+    needs_info_count: int = Field(..., ge=0)
+    rejected_count: int = Field(..., ge=0)
+    draft_count: int = Field(..., ge=0)
+    unassigned_claim_count: int = Field(
+        ...,
+        ge=0,
+        description="Claims counted above whose member has no department.",
+    )
+
+
+class AnalyticsDepartmentSummaryResponse(ApiModel):
+    """Department-wise expenditure and review workload for the selected period.
+
+    ``totals`` is the whole organization per currency and ``departments`` decomposes it,
+    so a consumer never has to add the rows up (and cannot add them up wrongly). Amounts
+    are never combined across currencies.
+    """
+
+    from_date: date
+    to_date: date
+    claims_with_unknown_transaction_date: int = Field(
+        ...,
+        ge=0,
+        description="Claims matching the other filters but lacking expense_date; excluded from groups.",
+    )
+    totals: list[AnalyticsDepartmentTotals]
+    departments: list[AnalyticsDepartmentRow]

@@ -25,6 +25,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import DepartmentSection from "@/components/DepartmentSection";
+
 import {
   Card,
   EmptyState,
@@ -393,6 +395,7 @@ export default function AnalyticsDashboard() {
       catalogueError={catalogueError}
       spend={spend}
       lastUpdated={lastUpdated}
+      reloadToken={reloadToken}
       onRangeChange={setRange}
       onFilterChange={updateFilter}
       onEmployeeDraftChange={setEmployeeDraft}
@@ -419,6 +422,7 @@ export function AnalyticsView({
   catalogueError,
   spend,
   lastUpdated,
+  reloadToken,
   onRangeChange,
   onFilterChange,
   onEmployeeDraftChange,
@@ -437,6 +441,8 @@ export function AnalyticsView({
   catalogueError: AnalyticsError | null;
   spend: SpendState;
   lastUpdated: Date | null;
+  /** Bumped by the refresh control so every section reloads together. */
+  reloadToken?: number;
   onRangeChange: (range: DateRange) => void;
   onFilterChange: <K extends keyof AnalyticsFilters>(key: K, value: AnalyticsFilters[K]) => void;
   onEmployeeDraftChange: (value: string) => void;
@@ -531,6 +537,8 @@ export function AnalyticsView({
         currentQuery={overviewQuery}
         selectionError={validationError}
       />
+
+      <DepartmentSection range={range} filters={filters} reloadToken={reloadToken} />
 
       <SpendSection
         spend={spend}

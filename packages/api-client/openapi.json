@@ -141,6 +141,308 @@
         "title": "AnalyticsDepartmentAmount",
         "type": "object"
       },
+      "AnalyticsDepartmentRow": {
+        "additionalProperties": false,
+        "description": "One department's expenditure and review workload, for one currency.\n\n``amount_total`` is *requested* expenditure: the sum of persisted claim amounts in\nrange, whatever their workflow status. Approved expenditure is reported separately\nand is a subset of it - approval is a workflow decision, not a payment, so neither\nfigure means money has moved.",
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "approved_amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sum of amounts on claims in an approved state.",
+            "title": "Approved Amount Total"
+          },
+          "approved_claim_count": {
+            "minimum": 0.0,
+            "title": "Approved Claim Count",
+            "type": "integer"
+          },
+          "average_amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean amount per claim that has an amount; null when none does.",
+            "title": "Average Amount Total"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "department_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for claims whose member has no department: unassigned, not unknown.",
+            "title": "Department Id"
+          },
+          "department_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Name"
+          },
+          "draft_count": {
+            "minimum": 0.0,
+            "title": "Draft Count",
+            "type": "integer"
+          },
+          "needs_info_count": {
+            "minimum": 0.0,
+            "title": "Needs Info Count",
+            "type": "integer"
+          },
+          "pending_review_count": {
+            "description": "Claims in submitted or in_review: the same definition overview uses.",
+            "minimum": 0.0,
+            "title": "Pending Review Count",
+            "type": "integer"
+          },
+          "rejected_count": {
+            "minimum": 0.0,
+            "title": "Rejected Count",
+            "type": "integer"
+          },
+          "requested_share": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This department's share of the organization's requested expenditure in the same currency, to four decimal places. Null when the currency total is zero.",
+            "title": "Requested Share"
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count",
+          "approved_claim_count",
+          "pending_review_count",
+          "needs_info_count",
+          "rejected_count",
+          "draft_count"
+        ],
+        "title": "AnalyticsDepartmentRow",
+        "type": "object"
+      },
+      "AnalyticsDepartmentSummaryResponse": {
+        "additionalProperties": false,
+        "description": "Department-wise expenditure and review workload for the selected period.\n\n``totals`` is the whole organization per currency and ``departments`` decomposes it,\nso a consumer never has to add the rows up (and cannot add them up wrongly). Amounts\nare never combined across currencies.",
+        "properties": {
+          "claims_with_unknown_transaction_date": {
+            "description": "Claims matching the other filters but lacking expense_date; excluded from groups.",
+            "minimum": 0.0,
+            "title": "Claims With Unknown Transaction Date",
+            "type": "integer"
+          },
+          "departments": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsDepartmentRow"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsDepartmentTotals"
+            },
+            "title": "Totals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "from_date",
+          "to_date",
+          "claims_with_unknown_transaction_date",
+          "totals",
+          "departments"
+        ],
+        "title": "AnalyticsDepartmentSummaryResponse",
+        "type": "object"
+      },
+      "AnalyticsDepartmentTotals": {
+        "additionalProperties": false,
+        "description": "The organization-wide figures the department rows are a breakdown of.",
+        "properties": {
+          "amount_claim_count": {
+            "description": "Claims with a persisted amount.",
+            "minimum": 0.0,
+            "title": "Amount Claim Count",
+            "type": "integer"
+          },
+          "amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact NUMERIC sum for this currency; null when no amount is recorded.",
+            "title": "Amount Total"
+          },
+          "approved_amount_total": {
+            "anyOf": [
+              {
+                "examples": [
+                  "1400.00"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Amount Total"
+          },
+          "approved_claim_count": {
+            "minimum": 0.0,
+            "title": "Approved Claim Count",
+            "type": "integer"
+          },
+          "claim_count": {
+            "description": "Claims in this bucket, including missing amounts.",
+            "minimum": 0.0,
+            "title": "Claim Count",
+            "type": "integer"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "draft_count": {
+            "minimum": 0.0,
+            "title": "Draft Count",
+            "type": "integer"
+          },
+          "needs_info_count": {
+            "minimum": 0.0,
+            "title": "Needs Info Count",
+            "type": "integer"
+          },
+          "pending_review_count": {
+            "minimum": 0.0,
+            "title": "Pending Review Count",
+            "type": "integer"
+          },
+          "rejected_count": {
+            "minimum": 0.0,
+            "title": "Rejected Count",
+            "type": "integer"
+          },
+          "unassigned_claim_count": {
+            "description": "Claims counted above whose member has no department.",
+            "minimum": 0.0,
+            "title": "Unassigned Claim Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "claim_count",
+          "amount_claim_count",
+          "approved_claim_count",
+          "pending_review_count",
+          "needs_info_count",
+          "rejected_count",
+          "draft_count",
+          "unassigned_claim_count"
+        ],
+        "title": "AnalyticsDepartmentTotals",
+        "type": "object"
+      },
       "AnalyticsGroupBy": {
         "enum": [
           "month",
@@ -4364,6 +4666,170 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/analytics/departments": {
+      "get": {
+        "description": "Breaks the organization's requested and approved expenditure for the inclusive expense_date range down by the department recorded on each claim's membership, separately per currency, alongside that department's review workload. Requested expenditure is every persisted claim amount in range; approved is the subset in an approved workflow state, and neither one means the money has been paid. Claims whose member has no department are reported as an unassigned row rather than guessed at, and claims without a transaction date are excluded from members and counted separately. A department filter restricts the whole breakdown to that department.",
+        "operationId": "get_departments_api_v1_analytics_departments_get",
+        "parameters": [
+          {
+            "description": "Inclusive lower transaction-date boundary (YYYY-MM-DD).",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "Inclusive lower transaction-date boundary (YYYY-MM-DD).",
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive upper transaction-date boundary (YYYY-MM-DD).",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "Inclusive upper transaction-date boundary (YYYY-MM-DD).",
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "office_location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Office Location Id"
+            }
+          },
+          {
+            "description": "Organization membership UUID; requires analytics:read_org.",
+            "in": "query",
+            "name": "employee_membership_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Organization membership UUID; requires analytics:read_org.",
+              "title": "Employee Membership Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 3,
+                  "minLength": 3,
+                  "pattern": "^[A-Z]{3}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsDepartmentSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read department-wise expenditure and review workload",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
     "/api/v1/analytics/overview": {
       "get": {
         "description": "Returns organization-scoped counts and exact currency-separated aggregates for the inclusive expense_date range. Claims without expense_date are counted separately and are not assigned to the selected period. Approved is a workflow status, not a policy PASS or a payment record.",
