@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -13,12 +13,36 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.proofline.android.ui.viewmodel.ProoflineUiState
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpensesScreen(
     state: ProoflineUiState,
+    initialStatusFilter: String? = null,
     onRefresh: () -> Unit,
     onExpenseClick: (String) -> Unit
 ) {
+    val tabs = listOf(
+        "All" to null,
+        "Draft" to "draft",
+        "Submitted" to "submitted",
+        "Needs info" to "needs_info",
+        "In review" to "in_review",
+        "Approved" to "approved",
+        "Not reimbursed" to "rejected"
+    )
+
+    var selectedTabIndex by remember {
+        val initialIdx = tabs.indexOfFirst { it.second == initialStatusFilter }
+        mutableStateOf(if (initialIdx >= 0) initialIdx else 0)
+    }
+
+    val currentStatusFilter = tabs[selectedTabIndex].second
+    val filteredExpenses = if (currentStatusFilter == null) {
+        state.expenses
+    } else {
+        state.expenses.filter { it.status == currentStatusFilter }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -30,6 +54,24 @@ fun ExpensesScreen(
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        ScrollableTabRow(
+            selectedTabIndex = selectedTabIndex,
+            edgePadding = 0.dp
+        ) {
+            tabs.forEachIndexed { index, (label, status) ->
+                val count = if (status == null) state.expenses.size else state.expenses.count { it.status == status }
+                Tab(
+                    selected = selectedTabIndex == index,
+                    onClick = { selectedTabIndex = index },
+                    text = {
+                        Text(text = "$label ($count)")
+                    }
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         if (state.errorMessage != null) {
@@ -54,14 +96,15 @@ fun ExpensesScreen(
             ) {
                 CircularProgressIndicator()
             }
-        } else if (state.expenses.isEmpty()) {
+        } else if (filteredExpenses.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No expenses recorded yet.")
+                val tabName = tabs[selectedTabIndex].first.lowercase()
+                Text("No $tabName claims yet.")
             }
         } else {
             LazyColumn(
@@ -70,15 +113,17 @@ fun ExpensesScreen(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(state.expenses) { expense ->
-                    val merchantName = expense.merchant?.value ?: "Unknown"
+                items(filteredExpenses) { expense ->
+                    val merchantName = expense.merchant?.value ?: "Unknown merchant"
                     val moneyObj = expense.amount?.value
                     val amountStr = if (moneyObj != null) "${moneyObj.currency} ${moneyObj.value}" else "—"
+                    val dateStr = expense.expense_date?.value ?: "Date missing"
                     val statusColor = when (expense.status) {
                         "approved" -> Color(0xFF2E7D32)
                         "rejected" -> Color(0xFFC62828)
                         "submitted", "in_review" -> Color(0xFF1565C0)
-                        else -> Color(0xFFEF6C00)
+                        "needs_info" -> Color(0xFFEF6C00)
+                        else -> Color(0xFF757575)
                     }
 
                     Card(
@@ -112,16 +157,22 @@ fun ExpensesScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = expense.expense_date?.value ?: "N/A",
+                                    text = dateStr,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Text(
-                                    text = expense.status.uppercase(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = statusColor
-                                )
+                                Surface(
+                                    color = statusColor.copy(alpha = 0.15f),
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    Text(
+                                        text = expense.status.uppercase(),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = statusColor
+                                    )
+                                }
                             }
                         }
                     }

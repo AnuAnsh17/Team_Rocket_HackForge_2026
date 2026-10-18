@@ -49,4 +49,12 @@ class ProoflineViewModel : ViewModel() {
             }
         }
     }
+
+    fun seedDemoDataset() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            repository.seedDemo()
+            loadData()
+        }
+    }
 }

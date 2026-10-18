@@ -3,13 +3,12 @@ package org.proofline.android.ui.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -18,12 +17,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import org.proofline.android.data.repository.TravelDayRepository
 import org.proofline.android.ui.screens.*
 import org.proofline.android.ui.viewmodel.ProoflineViewModel
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
-    object Expenses : Screen("expenses", "Claims")
+    object Expenses : Screen("expenses?status={status}", "Claims") {
+        fun createRoute(status: String? = null) = if (status != null) "expenses?status=$status" else "expenses"
+    }
+    object Calendar : Screen("calendar", "Calendar")
     object Capture : Screen("capture", "Capture")
     object Profile : Screen("profile", "Profile")
     object Detail : Screen("detail/{expenseId}", "Detail") {
@@ -33,39 +36,51 @@ sealed class Screen(val route: String, val title: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NavGraph(viewModel: ProoflineViewModel) {
+fun NavGraph(viewModel: ProoflineViewModel, travelRepo: TravelDayRepository) {
     val navController = rememberNavController()
     val state by viewModel.uiState.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val items = listOf(
+    val bottomNavItems = listOf(
         Screen.Home,
         Screen.Expenses,
-        Screen.Capture,
+        Screen.Calendar,
         Screen.Profile
     )
 
     Scaffold(
+        floatingActionButton = {
+            if (currentRoute == Screen.Home.route || currentRoute == Screen.Calendar.route) {
+                FloatingActionButton(onClick = { navController.navigate(Screen.Capture.route) }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Receipt")
+                }
+            }
+        },
         bottomBar = {
-            if (currentRoute in items.map { it.route }) {
+            if (bottomNavItems.any { currentRoute?.startsWith(it.route.substringBefore("?")) == true }) {
                 NavigationBar {
-                    items.forEach { screen ->
+                    bottomNavItems.forEach { screen ->
+                        val selected = when (screen) {
+                            Screen.Expenses -> currentRoute?.startsWith("expenses") == true
+                            else -> currentRoute == screen.route
+                        }
                         NavigationBarItem(
                             icon = {
                                 when (screen) {
                                     Screen.Home -> Icon(Icons.Default.Home, contentDescription = screen.title)
                                     Screen.Expenses -> Icon(Icons.Default.List, contentDescription = screen.title)
-                                    Screen.Capture -> Icon(Icons.Default.Add, contentDescription = screen.title)
+                                    Screen.Calendar -> Icon(Icons.Default.CalendarMonth, contentDescription = screen.title)
                                     Screen.Profile -> Icon(Icons.Default.Person, contentDescription = screen.title)
                                     else -> {}
                                 }
                             },
                             label = { Text(screen.title) },
-                            selected = currentRoute == screen.route,
+                            selected = selected,
                             onClick = {
-                                if (currentRoute != screen.route) {
-                                    navController.navigate(screen.route) {
+                                val targetRoute = if (screen == Screen.Expenses) Screen.Expenses.createRoute() else screen.route
+                                if (currentRoute != targetRoute) {
+                                    navController.navigate(targetRoute) {
                                         popUpTo(navController.graph.findStartDestination().id) {
                                             saveState = true
                                         }
@@ -88,15 +103,32 @@ fun NavGraph(viewModel: ProoflineViewModel) {
             composable(Screen.Home.route) {
                 HomeScreen(
                     state = state,
-                    onNavigateToExpenses = { navController.navigate(Screen.Expenses.route) },
+                    onNavigateToExpenses = { status ->
+                        navController.navigate(Screen.Expenses.createRoute(status))
+                    },
                     onNavigateToCapture = { navController.navigate(Screen.Capture.route) },
                     onRefresh = { viewModel.loadData() }
                 )
             }
-            composable(Screen.Expenses.route) {
+            composable(
+                route = Screen.Expenses.route,
+                arguments = listOf(navArgument("status") { nullable = true; defaultValue = null })
+            ) { backStackEntry ->
+                val status = backStackEntry.arguments?.getString("status")
                 ExpensesScreen(
                     state = state,
+                    initialStatusFilter = status,
                     onRefresh = { viewModel.loadData() },
+                    onExpenseClick = { expenseId ->
+                        navController.navigate(Screen.Detail.createRoute(expenseId))
+                    }
+                )
+            }
+            composable(Screen.Calendar.route) {
+                CalendarScreen(
+                    state = state,
+                    travelRepo = travelRepo,
+                    onNavigateToCapture = { navController.navigate(Screen.Capture.route) },
                     onExpenseClick = { expenseId ->
                         navController.navigate(Screen.Detail.createRoute(expenseId))
                     }
@@ -108,7 +140,11 @@ fun NavGraph(viewModel: ProoflineViewModel) {
                 )
             }
             composable(Screen.Profile.route) {
-                ProfileScreen(state = state)
+                ProfileScreen(
+                    state = state,
+                    onRefresh = { viewModel.loadData() },
+                    onSeedDemo = { viewModel.seedDemoDataset() }
+                )
             }
             composable(
                 route = Screen.Detail.route,
