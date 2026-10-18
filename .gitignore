@@ -85,3 +85,9 @@ pgdata/
 Thumbs.db
 *.swp
 *~
+
+# --- Android / Gradle ----------------------------------------------------
+apps/android/.gradle/
+apps/android/build/
+apps/android/app/build/
+apps/android/local.properties
