@@ -140,6 +140,74 @@ curl -X POST http://localhost:8000/api/v1/demo/seed      -H "X-Demo-Actor-Id: <s
 Removes only the synthetic organization and demo-provider users, and refuses to run
 outside a development environment.
 
+### Signing in with a real identity (Supabase)
+
+A verified Supabase token is not enough on its own: the backend maps the token's
+`sub` to a user that must already exist, and then loads that user's memberships and
+roles from its own database. A subject with no mapping is `401`; a mapped user with
+no active membership is `403`. Nothing is provisioned automatically at login, so a
+new subject has to be bound deliberately.
+
+That binding is deliberately a CLI and not an endpoint - "link my account" over HTTP
+is an account-takeover primitive - and it never creates a user, a membership or a
+role:
+
+```bash
+cd backend
+
+# 1. See what would be bound. Print-only; writes nothing without --confirm.
+./.venv/Scripts/python -m scripts.provision_identity show \
+    --demo-actor 6dbc60b8-8577-56ec-806e-4201fa5993c4
+
+# 2. Bind a Supabase subject to the seeded demo actor. No manual row edits.
+./.venv/Scripts/python -m scripts.provision_identity link \
+    --subject <the token's sub claim> \
+    --demo-actor 6dbc60b8-8577-56ec-806e-4201fa5993c4 \
+    --confirm
+
+# 3. Reverse it, leaving the user and their history intact.
+./.venv/Scripts/python -m scripts.provision_identity unlink \
+    --user 6dbc60b8-8577-56ec-806e-4201fa5993c4 --confirm
+```
+
+`--subject`, `--user`, `--demo-actor`, `--membership` are all validated: a subject
+that is not the UUID shape a Supabase `sub` has - a pasted access token, an email
+address - is refused rather than bound, a user with no active membership is refused
+because every request would be `403`, and moving a subject away from another user
+requires `--rebind`. Every write appends an audit event in the same transaction.
+
+Two limits are worth knowing before you rely on this. Replacing a *demo* mapping does
+not require `--rebind`, because moving from demo mode to real authentication is the
+intended path. And clearing a mapping does not revoke demo-mode access: under
+`AUTH_PROVIDER=demo` the header carries a seeded user's id and the resolver falls back
+to a primary-key lookup, which is exactly what makes seeded demo identities work.
+Demo mode exists to be impersonated and is refused outside development; with
+`AUTH_PROVIDER=supabase` selected, the demo header authenticates nothing at all.
+
+### Local frontends with real authentication
+
+The supported local arrangement is a hybrid: PostgreSQL, the API and receipt storage
+run on this machine, while Supabase Auth (and therefore sign-in and token issuance)
+is a hosted service. It is not an offline system - a network outage means nobody can
+sign in, though already-issued tokens keep working until they expire.
+
+The console talks to the backend at `NEXT_PUBLIC_API_BASE_URL`
+(`http://localhost:8000/api/v1` by default). When it is configured with a Supabase
+project it sends `Authorization: Bearer`; when it is not, it can fall back to the
+development actor switcher, which is labelled as demo in the UI. See
+`apps/console/README.md`.
+
+For the browser to be allowed to call the API at all, the console's origin has to be
+in `CORS_ALLOWED_ORIGINS`. Set it as a JSON array:
+
+```bash
+CORS_ALLOWED_ORIGINS='["http://localhost:3000","http://localhost:3001"]'
+```
+
+The comma-separated form that `_split_origins` also understands is rejected before
+that helper runs, because `pydantic-settings` tries to JSON-decode a list field first.
+The JSON form is the one that works from the environment.
+
 ## 3. Tests and checks
 
 ```bash
@@ -172,9 +240,11 @@ ending `_SECRET`/`SERVICE_ROLE_KEY` must never reach a client or a log line.
 | `APP_ENV` | `development` / `test` / `staging` / `production` |
 | `DEMO_MODE` | Enables demo routes and the demo identity switcher. Refused outside development. |
 | `DATABASE_URL` | SQLAlchemy URL. Required explicitly outside development. |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated origins. |
+| `CORS_ALLOWED_ORIGINS` | Origins allowed to call the API. Set as a JSON array (see above). |
 | `AUTH_PROVIDER` | `demo` / `supabase` / `disabled` |
 | `SUPABASE_*` | Identity provider configuration. `SERVER_SERVICE_ROLE_KEY` is server-only. |
+| `SUPABASE_JWT_ALGORITHMS` | Asymmetric allowlist, default `RS256,ES256`. An HMAC or `none` entry is refused at startup. |
+| `SUPABASE_JWT_LEEWAY_SECONDS` | Bounded clock skew for `exp`/`nbf`/`iat`, default 30. |
 | `RECEIPT_STORAGE_BACKEND` | `local` / `supabase` / `s3`. `local` refused outside development. |
 | `RECEIPT_LOCAL_ROOT` | Private directory for the local adapter. Must be outside any web root. |
 | `RECEIPT_MAX_UPLOAD_BYTES` | Upload cap, default 10 MiB. |
@@ -189,7 +259,11 @@ ending `_SECRET`/`SERVICE_ROLE_KEY` must never reach a client or a log line.
 | `ValueError: DEMO_MODE must be false when APP_ENV is 'production'` | Working as intended. Set `DEMO_MODE=false` or change `APP_ENV`. |
 | `ValueError: RECEIPT_STORAGE_BACKEND=local is not permitted` | Working as intended. Configure Supabase/S3 or use a development `APP_ENV`. |
 | `401` on every request | Demo mode requires `X-Demo-Actor-Id`. Seed first to obtain an id. |
-| `403` "no active organization membership" | The user exists but has no active membership. Re-seed. |
+| `401` with a valid Supabase token | The token's `sub` is not bound to a user yet. Run `scripts/provision_identity link`. |
+| `403` with a valid Supabase token | The mapped user has no active membership, or lacks the permission for that route. |
+| `403` "no active organization membership" | The user exists but has no active membership. Re-seed, or fix the membership. |
+| Console shows a CORS error, backend log says origin rejected | Add the console's exact origin (including port) to `CORS_ALLOWED_ORIGINS` as a JSON array. |
+| `SettingsError: error parsing value for field "cors_allowed_origins"` | The comma-separated form is JSON-decoded before the splitter runs. Use the JSON array form. |
 | Tests fail connecting to `<db>_test` | The PostgreSQL role needs `CREATEDB`, or pre-create the database. |
 | `alembic` cannot find `app` | Run from `backend/`. `prepend_sys_path` is set to `.`. |
 | Line-ending churn on Windows | `.gitattributes` normalises text to LF. Do not disable it. |
